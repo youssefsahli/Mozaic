@@ -19,6 +19,7 @@ export const MOZAIC_SIGNATURE = [77, 83, 75, 1] as const; // [M, S, K, 1]
 export interface LoadedAsset {
   imageData: ImageData;
   script?: MscDocument;
+  scriptText?: string;
   hasMozaicSignature: boolean;
 }
 
@@ -89,13 +90,15 @@ export async function loadAsset(imageUrl: string): Promise<LoadedAsset> {
   const signature = hasMozaicSignature(imageData);
 
   let script: MscDocument | undefined;
+  let scriptText: string | undefined;
   for (const candidate of sidecarUrls(imageUrl)) {
     const text = await tryFetchText(candidate);
     if (text !== null) {
+      scriptText = text;
       script = parseMsc(text);
       break;
     }
   }
 
-  return { imageData, script, hasMozaicSignature: signature };
+  return { imageData, script, scriptText, hasMozaicSignature: signature };
 }

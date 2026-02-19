@@ -29,6 +29,8 @@ export interface SequencerGrid {
   data: Uint8ClampedArray;
 }
 
+const DEFAULT_PATH_COLORS = ["#ff00ff", "#00ffff", "#ffff00"];
+
 /**
  * Marching Squares look-up table for edge midpoints (simplified 2D).
  * Each cell in the grid is 1 if the alpha of its top-left pixel > threshold.
@@ -140,6 +142,127 @@ export function pixelsToBezier(points: Point[]): Point[] {
   return result;
 }
 
+export function simplifyPolygon(points: Point[], epsilon = 1.2): Point[] {
+  if (points.length <= 2) return points.slice();
+  return rdp(points, epsilon);
+}
+
+function rdp(points: Point[], epsilon: number): Point[] {
+  if (points.length <= 2) return points.slice();
+
+  const first = points[0];
+  const last = points[points.length - 1];
+  let maxDistance = 0;
+  let index = 0;
+
+  for (let i = 1; i < points.length - 1; i++) {
+    const distance = perpendicularDistance(points[i], first, last);
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      index = i;
+    }
+  }
+
+  if (maxDistance <= epsilon) {
+    return [first, last];
+  }
+
+  const left = rdp(points.slice(0, index + 1), epsilon);
+  const right = rdp(points.slice(index), epsilon);
+  return left.slice(0, -1).concat(right);
+}
+
+function perpendicularDistance(point: Point, lineStart: Point, lineEnd: Point): number {
+  const dx = lineEnd.x - lineStart.x;
+  const dy = lineEnd.y - lineStart.y;
+
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(point.x - lineStart.x, point.y - lineStart.y);
+  }
+
+  const numerator = Math.abs(
+    dy * point.x - dx * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x
+  );
+  const denominator = Math.hypot(dx, dy);
+  return numerator / denominator;
+}
+
+export function extractColorPaths(
+  imageData: ImageData,
+  colors = DEFAULT_PATH_COLORS
+): Point[][] {
+  const colorSet = new Set(colors.map((c) => normalizeHex(c)));
+  const { data, width, height } = imageData;
+  const visited = new Uint8Array(width * height);
+  const paths: Point[][] = [];
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = y * width + x;
+      if (visited[idx]) continue;
+
+      const rgbaIdx = idx * 4;
+      const alpha = data[rgbaIdx + 3];
+      if (alpha < 16) continue;
+
+      const colorHex = rgbToHex(data[rgbaIdx], data[rgbaIdx + 1], data[rgbaIdx + 2]);
+      if (!colorSet.has(colorHex)) continue;
+
+      const component = floodFillColor(imageData, x, y, colorHex, visited);
+      if (component.length >= 2) {
+        paths.push(component);
+      }
+    }
+  }
+
+  return paths.map((path) => simplifyPolygon(path, 0.9));
+}
+
+function floodFillColor(
+  imageData: ImageData,
+  startX: number,
+  startY: number,
+  hexColor: string,
+  visited: Uint8Array
+): Point[] {
+  const { data, width, height } = imageData;
+  const points: Point[] = [];
+  const queue: Point[] = [{ x: startX, y: startY }];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current) break;
+    const idx = current.y * width + current.x;
+    if (visited[idx]) continue;
+    visited[idx] = 1;
+
+    const base = idx * 4;
+    const color = rgbToHex(data[base], data[base + 1], data[base + 2]);
+    if (color !== hexColor || data[base + 3] < 16) continue;
+
+    points.push({ x: current.x, y: current.y });
+
+    if (current.x > 0) queue.push({ x: current.x - 1, y: current.y });
+    if (current.x < width - 1) queue.push({ x: current.x + 1, y: current.y });
+    if (current.y > 0) queue.push({ x: current.x, y: current.y - 1 });
+    if (current.y < height - 1) queue.push({ x: current.x, y: current.y + 1 });
+  }
+
+  return points;
+}
+
+function normalizeHex(hex: string): string {
+  const clean = hex.toLowerCase();
+  if (/^#[0-9a-f]{6}$/.test(clean)) return clean;
+  return "#000000";
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${r.toString(16).padStart(2, "0")}${g
+    .toString(16)
+    .padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+}
+
 /**
  * Detect sequencer grids inside an ImageData.
  * Looks for 16x16 and 32x32 regions in the image.
@@ -173,8 +296,10 @@ export function detectSequencerGrids(imageData: ImageData): SequencerGrid[] {
  * Run the full bake phase on a loaded ImageData.
  */
 export function bake(imageData: ImageData): BakedAsset {
-  const polygons = marchingSquares(imageData);
-  const bezierPaths = polygons.map((poly) => pixelsToBezier(poly));
+  const polygons = marchingSquares(imageData).map((poly) => simplifyPolygon(poly, 1.2));
+  const extractedPaths = extractColorPaths(imageData);
+  const sourcePaths = extractedPaths.length > 0 ? extractedPaths : polygons;
+  const bezierPaths = sourcePaths.map((poly) => pixelsToBezier(poly));
   const sequencerGrids = detectSequencerGrids(imageData);
 
   return {

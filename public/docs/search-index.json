@@ -1,0 +1,38 @@
+[
+  {
+    "id": "arch-memory",
+    "title": "State Buffer Memory Layout",
+    "category": "Architecture",
+    "content": "64x64 RGBA state sheet = 16384 bytes.\nBlocks:\n- Header: 0-63\n- Global Regs: 64-511\n- Entity Pool: 512-12287\n- Audio/FX: 12288-16383\n\nEncoding:\n- Int8 in R\n- Int16 in R,G\n- Int24 in R,G,B"
+  },
+  {
+    "id": "arch-bake",
+    "title": "Bake Pipeline",
+    "category": "Architecture",
+    "content": "Bake runs on load/editor changes:\n1) Asset fetch (.mzk + .msc)\n2) Parse .msc into AST\n3) Extract collision polygons via marching squares (+ simplification)\n4) Extract colored paths and build bezier cache"
+  },
+  {
+    "id": "arch-runtime",
+    "title": "Runtime Tick",
+    "category": "Architecture",
+    "content": "Per frame tick:\n1) Poll keyboard/gamepad to action map\n2) Physics broad + narrow phase\n3) Dispatch AST events\n4) Produce next state buffer\n5) Render to WebGL and advance sequencer"
+  },
+  {
+    "id": "editor-pixel",
+    "title": "Pixel Editor Guide",
+    "category": "Editor",
+    "content": "Core tools:\n- Color picker + palettes\n- Brush size, eraser\n- Undo/Redo/Clear\n- Zoom and grid overlays\n- Debug overlays (collision/path, points/IDs)\n\nTips:\n- Right click for eyedropper\n- Alt+Click to select nearest debug layer"
+  },
+  {
+    "id": "editor-config",
+    "title": "Config Editor Guide",
+    "category": "Editor",
+    "content": "Edit config JSON in-app using Edit Config mode.\nReload Config applies changes instantly.\nMain options:\n- game.newRomWidth/newRomHeight/newRomColor\n- game.autoCreateOnStart\n- game.autoLoadSrc\n- editor.defaultPixelColor/defaultScript\n- editor.showScriptEditor/showPixelEditor"
+  },
+  {
+    "id": "roadmap",
+    "title": "Roadmap Snapshot",
+    "category": "Project",
+    "content": "Phase 1: Memory + Loader\nPhase 2: Lexer + AST compiler\nPhase 3: Baking geometry/path/audio caches\nPhase 4: Pure loop + renderer integration\nPhase 5: Studio UX + hot reload + inspector"
+  }
+]

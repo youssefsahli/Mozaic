@@ -31,16 +31,20 @@ export class InputManager {
   private readonly actionMap: ActionMap;
   private readonly heldKeys: Set<string> = new Set();
   private readonly heldButtons: Set<string> = new Set();
+  private readonly onKeyDown: (e: KeyboardEvent) => void;
+  private readonly onKeyUp: (e: KeyboardEvent) => void;
 
   constructor(bindings: Array<{ key: string; action: string }>) {
     this.actionMap = buildActionMap(bindings);
+    this.onKeyDown = (e) => this.heldKeys.add(e.code);
+    this.onKeyUp = (e) => this.heldKeys.delete(e.code);
     this.attachKeyboardListeners();
   }
 
   private attachKeyboardListeners(): void {
     if (typeof window === "undefined") return;
-    window.addEventListener("keydown", (e) => this.heldKeys.add(e.code));
-    window.addEventListener("keyup", (e) => this.heldKeys.delete(e.code));
+    window.addEventListener("keydown", this.onKeyDown);
+    window.addEventListener("keyup", this.onKeyUp);
   }
 
   /** Poll gamepad and merge button state. */
@@ -71,7 +75,8 @@ export class InputManager {
   }
 
   dispose(): void {
-    // Keyboard listeners are anonymous; a production version would
-    // keep references for removeEventListener.
+    if (typeof window === "undefined") return;
+    window.removeEventListener("keydown", this.onKeyDown);
+    window.removeEventListener("keyup", this.onKeyUp);
   }
 }

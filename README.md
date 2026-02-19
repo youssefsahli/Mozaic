@@ -45,12 +45,44 @@ Load a SpriteROM by passing the `src` query parameter:
 http://localhost:5173/?src=level_1.mzk
 ```
 
+Or open one directly from your filesystem by starting the app without `src`
+and clicking **Open ROM**.
+
+In-app tools:
+- **New ROM**: creates a fresh blank `64x64` ROM and starts the engine with it.
+- **Restart**: reboots the engine using current ROM pixels + current script editor text.
+- **MSC Editor**: edit script text with syntax highlighting, then press **Restart**.
+- **Pixel Editor**: paint pixels directly on the loaded ROM, then press **Restart**.
+- **Pixel Editor Polish**: zoom slider, brush size, eraser mode, palette swatches (with add), right-click eyedropper, inline grid, and custom grid with major lines.
+- **Editing Workflow**: Undo, Redo, Clear actions, plus live cursor coordinates in the editor footer.
+- **Tool Presets**: one-click `Pencil 1px`, `Brush 3px`, and `Eraser` presets.
+- **Bake Debug Overlay**: toggle collision polygons and baked path lines directly in the pixel editor preview.
+- **Debug Layers**: optional control points and indexed IDs for both collision and path overlays.
+- **Layer Picking**: hold `Alt` and click near an overlay line to select/highlight that collision or path ID.
+- **Save ROM**: exports the current edited ROM buffer as a `.png` file.
+- **Docs Pane**: toggleable in-app documentation panel with live search over architecture/editor topics.
+
+The latest edited ROM and script text are stored in browser memory and restored automatically after refresh when no `?src` is provided.
+
+## Runtime Configuration
+
+Edit [public/mozaic.config.json](public/mozaic.config.json) to change editor/game defaults without code changes.
+
+- Use **Edit Config** in the app to load config JSON into the built-in text editor with syntax highlighting.
+- Press **Reload Config** to apply the edited JSON instantly.
+- `game.newRomWidth`, `game.newRomHeight`, `game.newRomColor` control **New ROM** defaults.
+- `game.autoCreateOnStart` creates a ROM automatically on load.
+- `game.autoLoadSrc` can auto-load an asset path (same as `?src=...`).
+- `editor.defaultPixelColor`, `editor.defaultScript` set editor defaults.
+- `editor.showScriptEditor`, `editor.showPixelEditor` toggle tool panel sections.
+
 ## Project Structure
 
 ```
 src/
   index.ts              Engine entry point
   engine/
+    memory.ts           State Buffer memory layout + Int8/16/24 access
     loader.ts           Dual-Layer Loader (.mzk/.png + .msc/.txt)
     baker.ts            Bake-on-Load phase
     loop.ts             Pure Execution Loop
@@ -60,6 +92,10 @@ src/
     input.ts            Input Mapping (keyboard + gamepad)
     renderer.ts         WebGL Renderer
   parser/
-    msc.ts              MSC (.msc) language parser
+    lexer.ts            MSC lexer (tokenization)
+    ast.ts              MSC AST generator from token stream
+    msc.ts              Parser façade (parseMsc)
   __tests__/            Unit tests (Vitest)
 ```
+
+Architecture blueprint: [docs/MOZAIC_ARCHITECTURE.md](docs/MOZAIC_ARCHITECTURE.md)

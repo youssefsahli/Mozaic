@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   marchingSquares,
   pixelsToBezier,
+  simplifyPolygon,
+  extractColorPaths,
   detectSequencerGrids,
   bake,
 } from "../engine/baker.js";
@@ -73,6 +75,35 @@ describe("pixelsToBezier", () => {
   });
 });
 
+describe("simplifyPolygon", () => {
+  it("reduces collinear points with RDP", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: 2, y: 0 },
+      { x: 3, y: 0 },
+      { x: 4, y: 0 },
+    ];
+    const simplified = simplifyPolygon(points, 0.01);
+    expect(simplified.length).toBeLessThan(points.length);
+    expect(simplified[0]).toEqual(points[0]);
+    expect(simplified[simplified.length - 1]).toEqual(points[points.length - 1]);
+  });
+});
+
+describe("extractColorPaths", () => {
+  it("extracts paths from configured color lines", () => {
+    const img = makeImageData(8, 8, (x, y) => {
+      if (y === 4 && x >= 1 && x <= 6) return [255, 0, 255, 255];
+      return [0, 0, 0, 0];
+    });
+
+    const paths = extractColorPaths(img);
+    expect(paths.length).toBeGreaterThan(0);
+    expect(paths[0].length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 describe("detectSequencerGrids", () => {
   it("detects a 16x16 grid when image is at least 16x16", () => {
     const img = makeImageData(16, 16, () => [255, 128, 0, 255]);
@@ -106,5 +137,14 @@ describe("bake", () => {
     const asset = bake(img);
     expect(Array.isArray(asset.collisionPolygons)).toBe(true);
     expect(Array.isArray(asset.bezierPaths)).toBe(true);
+  });
+
+  it("builds bezier paths from color path lines when present", () => {
+    const img = makeImageData(16, 16, (x, y) => {
+      if (x === y && x > 2 && x < 12) return [255, 0, 255, 255];
+      return [0, 0, 0, 0];
+    });
+    const asset = bake(img);
+    expect(asset.bezierPaths.length).toBeGreaterThan(0);
   });
 });

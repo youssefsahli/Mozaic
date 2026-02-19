@@ -1,0 +1,15 @@
+{
+  "game": {
+    "newRomWidth": 64,
+    "newRomHeight": 64,
+    "newRomColor": "#000000",
+    "autoCreateOnStart": false,
+    "autoLoadSrc": ""
+  },
+  "editor": {
+    "defaultPixelColor": "#ff00ff",
+    "defaultScript": "",
+    "showScriptEditor": true,
+    "showPixelEditor": true
+  }
+}
