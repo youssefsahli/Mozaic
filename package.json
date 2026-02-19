@@ -1,0 +1,36 @@
+{
+  "name": "mozaic",
+  "version": "1.0.0",
+  "description": "Browser-based engine for building SpriteROMs — games where logic, assets, and memory state are unified into image files and declarative scripts.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/youssefsahli/Mozaic.git"
+  },
+  "keywords": [
+    "game-engine",
+    "webgl",
+    "spriterom",
+    "browser",
+    "typescript"
+  ],
+  "author": "youssefsahli",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/youssefsahli/Mozaic/issues"
+  },
+  "homepage": "https://github.com/youssefsahli/Mozaic#readme",
+  "devDependencies": {
+    "jsdom": "^28.1.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  }
+}
