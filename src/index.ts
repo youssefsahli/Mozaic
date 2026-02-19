@@ -446,6 +446,20 @@ function wireUi(runtime: RuntimeState): void {
     }
   });
 
+  // Wire collapsible pane toggles (all panes with data-pane attribute)
+  document.querySelectorAll<HTMLButtonElement>("[data-pane]").forEach((btn) => {
+    const paneId = btn.dataset.pane!;
+    const pane = document.getElementById(paneId);
+    const dir = btn.dataset.dir === "left" ? "left" : "right";
+    if (!pane) return;
+    btn.addEventListener("click", () => {
+      const collapsed = pane.classList.toggle("pane-collapsed");
+      btn.textContent = collapsed
+        ? (dir === "left" ? "›" : "‹")
+        : (dir === "left" ? "‹" : "›");
+    });
+  });
+
   renderPalette(runtime);
   ui.zoomLevel.textContent = `${runtime.zoom}×`;
   ui.brushSizeLabel.textContent = `${runtime.brushSize}`;
@@ -495,7 +509,8 @@ function filterDocs(runtime: RuntimeState, query: string): void {
 }
 
 function renderDocsPaneState(runtime: RuntimeState): void {
-  runtime.ui.appRoot.classList.toggle("docs-open", runtime.docsVisible);
+  runtime.ui.docsPane.classList.toggle("pane-collapsed", !runtime.docsVisible);
+  runtime.ui.toggleDocsButton.textContent = runtime.docsVisible ? "›" : "‹";
   runtime.ui.toggleDocsButton.classList.toggle("is-active", runtime.docsVisible);
 }
 
@@ -733,8 +748,8 @@ function applyConfig(runtime: RuntimeState): void {
   const { ui, config } = runtime;
   ui.pixelColor.value = config.editor.defaultPixelColor;
   addPaletteColor(runtime, config.editor.defaultPixelColor);
-  ui.mscSection.style.display = config.editor.showScriptEditor ? "block" : "none";
-  ui.pixelSection.style.display = config.editor.showPixelEditor ? "block" : "none";
+  ui.mscSection.style.display = config.editor.showScriptEditor ? "" : "none";
+  ui.pixelSection.style.display = config.editor.showPixelEditor ? "" : "none";
   if (!runtime.scriptText) {
     runtime.scriptText = config.editor.defaultScript;
   }
