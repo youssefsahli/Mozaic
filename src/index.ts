@@ -135,6 +135,8 @@ async function main(): Promise<void> {
       ui.mscStatus.textContent = text;
       ui.mscStatus.style.color = color;
     },
+    onColorChange: (oldHex, newHex) => swapColorInScript(runtime, oldHex, newHex),
+    onPaletteChange: () => renderPaletteChips(runtime),
   });
 
   wireUi(runtime);
@@ -235,6 +237,7 @@ function getEditorRefs(ui: UiRefs): PixelEditorRefs {
     palettePresetSelect: document.getElementById("palette-preset-select") as HTMLSelectElement | null,
     paletteImportButton: document.getElementById("palette-import-button") as HTMLButtonElement | null,
     paletteExportButton: document.getElementById("palette-export-button") as HTMLButtonElement | null,
+    paletteUpdateButton: document.getElementById("palette-update-button") as HTMLButtonElement | null,
   };
 }
 
@@ -897,6 +900,72 @@ function getScriptDocument(runtime: RuntimeState): MscDocument | null {
   }
 }
 
+/**
+ * Intelligent swap: replace all occurrences of oldHex in the script text
+ * with newHex (case-insensitive, both with and without # prefix).
+ */
+function swapColorInScript(runtime: RuntimeState, oldHex: string, newHex: string): void {
+  if (runtime.editorMode !== "script") return;
+  const old = oldHex.replace("#", "").toLowerCase();
+  const next = newHex.replace("#", "").toLowerCase();
+  if (old === next) return;
+
+  // Replace #RRGGBB and RRGGBB occurrences (case-insensitive)
+  const pattern = new RegExp(`#?${old}`, "gi");
+  const swapped = runtime.scriptText.replace(pattern, (match) =>
+    match.startsWith("#") ? `#${next}` : next
+  );
+  if (swapped === runtime.scriptText) return;
+
+  runtime.scriptText = swapped;
+  persistScript(runtime.scriptText);
+  setEditorText(runtime, runtime.scriptText);
+  runtime.ui.mscStatus.textContent = `Color swap: ${oldHex} → ${newHex} applied in script.`;
+  runtime.ui.mscStatus.style.color = "#6a9955";
+}
+
+/**
+ * Render named palette color chips in the script editor bar.
+ * Only named colors are shown; clicking inserts the hex at cursor.
+ */
+function renderPaletteChips(runtime: RuntimeState): void {
+  const container = document.getElementById("palette-color-chips");
+  if (!container) return;
+  container.innerHTML = "";
+
+  const colors = runtime.pixelEditor?.getPaletteColors() ?? [];
+  const named = colors.filter((c) => c.name);
+  if (named.length === 0) return;
+
+  const label = document.createElement("span");
+  label.id = "palette-chips-label";
+  label.textContent = "Colors:";
+  container.appendChild(label);
+
+  for (const color of named) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "palette-chip";
+    chip.title = `Insert ${color.hex} (${color.name}) at cursor`;
+
+    const swatch = document.createElement("span");
+    swatch.className = "palette-chip-swatch";
+    swatch.style.background = color.hex;
+    chip.appendChild(swatch);
+    chip.appendChild(document.createTextNode(color.name!));
+
+    chip.addEventListener("click", () => {
+      insertAtCursor(runtime.ui.mscEditor, color.hex);
+      runtime.scriptText = runtime.ui.mscEditor.value;
+      persistScript(runtime.scriptText);
+      refreshHighlight(runtime);
+      validateEditor(runtime);
+    });
+
+    container.appendChild(chip);
+  }
+}
+
 function cloneImageData(imageData: ImageData): ImageData {
   return new ImageData(
     new Uint8ClampedArray(imageData.data),
@@ -1053,6 +1122,23 @@ function resizeGameCanvas(ui: UiRefs): void {
   const scale = Math.max(1, Math.floor(Math.min(availW / romW, availH / romH)));
   ui.canvas.style.width = `${romW * scale}px`;
   ui.canvas.style.height = `${romH * scale}px`;
+}
+
+/**
+ * Insert text at the current cursor position in a textarea.
+ * If text is selected, the selection is replaced.
+ */
+function insertAtCursor(textarea: HTMLTextAreaElement, text: string): void {
+  const start = textarea.selectionStart ?? 0;
+  const end = textarea.selectionEnd ?? 0;
+  const before = textarea.value.slice(0, start);
+  const after = textarea.value.slice(end);
+  textarea.value = before + text + after;
+  const cursor = start + text.length;
+  textarea.selectionStart = cursor;
+  textarea.selectionEnd = cursor;
+  textarea.focus();
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 main().catch(console.error);

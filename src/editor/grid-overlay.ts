@@ -44,8 +44,8 @@ export function renderOverlay(
   if (options.customGrid) {
     const step = options.gridSize;
     const majorEvery = options.gridMajor;
-    drawGridLines(ctx, docW, docH, step, "rgba(255,255,255,0.35)");
-    drawGridLines(ctx, docW, docH, step * majorEvery, "rgba(255,255,255,0.55)");
+    drawGridLines(ctx, docW, docH, step, "rgba(255,255,255,0.18)", 1);
+    drawGridLines(ctx, docW, docH, step * majorEvery, "rgba(255,255,255,0.60)", 2);
   }
 
   if (baked) {
@@ -103,11 +103,12 @@ function drawGridLines(
   width: number,
   height: number,
   step: number,
-  stroke: string
+  stroke: string,
+  screenLineWidth = 1
 ): void {
   if (step <= 0) return;
   ctx.strokeStyle = stroke;
-  ctx.lineWidth = 1 / ctx.getTransform().a; // 1 screen pixel
+  ctx.lineWidth = screenLineWidth / ctx.getTransform().a;
   ctx.beginPath();
   for (let x = step; x < width; x += step) {
     ctx.moveTo(x, 0);
