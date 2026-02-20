@@ -3,36 +3,108 @@
     "id": "arch-memory",
     "title": "State Buffer Memory Layout",
     "category": "Architecture",
-    "content": "64x64 RGBA state sheet = 16384 bytes.\nBlocks:\n- Header: 0-63\n- Global Regs: 64-511\n- Entity Pool: 512-12287\n- Audio/FX: 12288-16383\n\nEncoding:\n- Int8 in R\n- Int16 in R,G\n- Int24 in R,G,B"
+    "content": "64x64 RGBA state sheet = 16,384 bytes.\n\nBlocks:\n  Header     bytes 0–63       engine version, scene ID, RNG seed\n  Globals    bytes 64–511     $Score, $Time, and other global registers\n  EntityPool bytes 512–12287  fixed-size slots for active objects\n  Audio/FX   bytes 12288–16383 sequencer heads, camera shake vectors\n\nData encoding:\n  Int8  — stored in R channel\n  Int16 — stored in R,G as (R << 8) | G\n  Int24 — stored in R,G,B"
   },
   {
     "id": "arch-bake",
     "title": "Bake Pipeline",
     "category": "Architecture",
-    "content": "Bake runs on load/editor changes:\n1) Asset fetch (.mzk + .msc)\n2) Parse .msc into AST\n3) Extract collision polygons via marching squares (+ simplification)\n4) Extract colored paths and build bezier cache"
+    "content": "The bake phase runs once on load (or when editor assets change).\n\nSteps:\n  1. Fetch asset (.mzk / .png) and sidecar script (.msc / .txt).\n  2. Parse .msc source text into a structured AST.\n  3. Run Marching Squares on the alpha channel to extract collision polygons, then simplify them with the Ramer-Douglas-Peucker algorithm.\n  4. Flood-fill each color-coded path region and convert pixel chains to Bezier / Catmull-Rom spline caches.\n  5. Detect 16x16 and 32x32 sequencer grids and cache their RGBA data for the audio module."
   },
   {
     "id": "arch-runtime",
     "title": "Runtime Tick",
     "category": "Architecture",
-    "content": "Per frame tick:\n1) Poll keyboard/gamepad to action map\n2) Physics broad + narrow phase\n3) Dispatch AST events\n4) Produce next state buffer\n5) Render to WebGL and advance sequencer"
+    "content": "The engine runs a pure functional loop at 60 FPS via requestAnimationFrame.\n\nEach frame:\n  1. Sample — poll keyboard and gamepad; build the active-action set.\n  2. Process — apply physics AABB broad phase, then polygon narrow phase.\n  3. Write   — evaluate AST events and produce the next immutable state buffer.\n  4. Render  — upload the state buffer as a WebGL texture and draw a full-screen quad.\n  5. Advance — increment the frame counter and schedule the audio sequencer.\n\nThe LogicFn signature:\n  (state, input, baked, script) => nextState"
+  },
+  {
+    "id": "arch-pool",
+    "title": "Object Pooling",
+    "category": "Architecture",
+    "content": "pool.ts provides three zero-allocation primitives to eliminate GC pressure during gameplay:\n\nRingBuffer<T>\n  Circular buffer of pre-allocated objects for ephemeral data (e.g., collision events).\n  ring.next() returns the next slot without allocating.\n\nObjectPool<T>\n  Free-list pool with O(1) acquire/release.\n  Doubles capacity automatically (with a warning) when exhausted.\n  Used by the audio sequencer for GainNode reuse.\n\nEntityFreeList\n  Manages fixed-size byte slots inside the state buffer's entity region.\n  Provides O(1) allocate/deallocate; slotOffset() returns the buffer byte offset for a slot."
+  },
+  {
+    "id": "msc-syntax",
+    "title": "MSC Script Syntax",
+    "category": "Scripting",
+    "content": "MSC (Mozaic Script) is a YAML-like declarative DSL. Lines starting with # are comments.\n\nTop-level keys:\n  Source: \"level.mzk\"         — asset file this script is linked to\n  Import: \"other.msc\"         — include another script file\n  Schema:                      — declare state buffer variables\n    - $PlayerX: { addr: 64, type: Int16 }\n    - $Score:   { addr: 66, type: Int8  }\n  Entity.Hero:                 — define an entity\n    Visual: \"hero.png\"\n    Input:\n      - Key_Space -> Action.Jump\n    Physics:\n      - shape: auto_alpha\n      - solid: true\n  Events:                      — declare collision/input triggers\n    Collision(Hero:#Feet, Level:#FFFF00):\n      - State.$PlayerX = 1\n\nSupported types: Int8, Int16, Int32\nPhysics shapes: auto_alpha (derived from alpha channel), or a hex color string"
+  },
+  {
+    "id": "msc-schema",
+    "title": "MSC Schema & Variables",
+    "category": "Scripting",
+    "content": "The Schema block maps named variables to byte addresses in the state buffer.\n\nSyntax:\n  Schema:\n    - $VarName: { addr: <byte_offset>, type: Int8|Int16|Int32 }\n\nExamples:\n  - $PlayerX: { addr: 64, type: Int16 }   # 2 bytes at offset 64\n  - $PlayerY: { addr: 66, type: Int16 }   # 2 bytes at offset 66\n  - $Health:  { addr: 68, type: Int8  }   # 1 byte  at offset 68\n\nAddress planning:\n  Header block:  0–63   (reserved for engine internals)\n  Globals block: 64–511 (recommended for game variables)\n  EntityPool:    512–12287 (entity slot data)\n\nVariables are referenced in Events as State.$VarName."
+  },
+  {
+    "id": "msc-events",
+    "title": "MSC Events & Triggers",
+    "category": "Scripting",
+    "content": "Events define gameplay rules: when a trigger fires, a list of actions executes.\n\nSyntax:\n  Events:\n    TriggerExpression:\n      - Action one\n      - Action two\n\nTrigger types:\n  Collision(EntityA:#ColorHex, EntityB:#ColorHex)\n    — fires when two color regions overlap (4-connected adjacency)\n  Collision(EntityA:#Feet, Level:#FFFF00)\n    — fires when the entity's Feet region touches the yellow platform color\n\nAction examples:\n  State.$PlayerX = 100   — write a value to a state variable\n  State.$Health  = 0     — zero out health\n\nTriggers match exactly the declared entity and color-hex names."
+  },
+  {
+    "id": "input-mapping",
+    "title": "Input Mapping",
+    "category": "Scripting",
+    "content": "Input bindings live inside an entity's Input block and map hardware keys to action names.\n\nSyntax:\n  Entity.Hero:\n    Input:\n      - Key_Space    -> Action.Jump\n      - KeyA         -> Action.MoveLeft\n      - KeyD         -> Action.MoveRight\n      - Pad_0        -> Action.Jump    # gamepad button 0\n\nKey codes follow the Web KeyboardEvent.code naming:\n  ArrowLeft, ArrowRight, ArrowUp, ArrowDown\n  KeyA … KeyZ\n  Key_Space (or Space)\n  ShiftLeft, ShiftRight, ControlLeft\n\nGamepad buttons use the format Pad_<index> (e.g., Pad_0, Pad_1).\n\nMultiple keys can map to the same action; any pressed key activates the action."
   },
   {
     "id": "editor-pixel",
     "title": "Pixel Editor Guide",
     "category": "Editor",
-    "content": "Core tools:\n- Color picker + palettes\n- Brush size, eraser\n- Undo/Redo/Clear\n- Zoom and grid overlays\n- Debug overlays (collision/path, points/IDs)\n\nTips:\n- Right click for eyedropper\n- Alt+Click to select nearest debug layer"
+    "content": "The Pixel tab provides a full-featured canvas editor for ROM assets.\n\nTools (toolbox on the left):\n  ✏ Pencil (B)   — 1-px precise drawing\n  ⬤ Brush        — configurable soft brush\n  ✖ Eraser (E)   — erase to transparent\n  ⬛ Fill (G)     — flood-fill with current color\n  □ Select (M)   — rectangular selection\n  ✦ Pipette (I)  — pick color from canvas\n  ↺ Undo (Ctrl+Z)\n  ↻ Redo (Ctrl+Y)\n  ⎙ Clear        — wipe entire canvas\n\nPalette:\n  Click a swatch to select it as the active color.\n  Right-click on the canvas to eyedropper the pixel color.\n  + adds the current color to the palette.\n  ↺ Update swaps all matching pixels in the ROM to the new color (locked swap).\n\nZoom & brush size — use the sliders in the bottom bar.\nAlt+Click near a debug overlay line to select/highlight that collision or path ID."
+  },
+  {
+    "id": "editor-shortcuts",
+    "title": "Keyboard Shortcuts",
+    "category": "Editor",
+    "content": "Pixel Editor shortcuts:\n  B          — Pencil tool (1 px)\n  E          — Toggle eraser\n  G          — Fill tool\n  I          — Pipette tool\n  M          — Select tool\n  Ctrl+Z     — Undo\n  Ctrl+Y     — Redo\n  Alt+Click  — Pick nearest debug layer (collision polygon or path)\n\nHeader actions:\n  ⬜ New     — create a fresh blank ROM (size from config)\n  ⬛ ROM     — open an image file (.mzk, .png, .jpg, .webp)\n  ✏ Script  — open a script file (.msc, .txt, .yaml)\n  ⚙ Config  — load config JSON into the text editor\n  ⬇ Save    — export current ROM buffer as a .png file\n  ↻ Reload  — reload / apply config\n  ▶ Run     — restart the engine with current ROM + script"
   },
   {
     "id": "editor-config",
     "title": "Config Editor Guide",
     "category": "Editor",
-    "content": "Edit config JSON in-app using Edit Config mode.\nReload Config applies changes instantly.\nMain options:\n- game.newRomWidth/newRomHeight/newRomColor\n- game.autoCreateOnStart\n- game.autoLoadSrc\n- editor.defaultPixelColor/defaultScript\n- editor.showScriptEditor/showPixelEditor"
+    "content": "Click ⚙ Config in the header to load mozaic.config.json into the text editor.\nEdit the JSON, then press ↻ Reload to apply changes instantly.\n\nAll config keys:\n  game.newRomWidth        — pixel width for New ROM (1–512, default 64)\n  game.newRomHeight       — pixel height for New ROM (1–512, default 64)\n  game.newRomColor        — fill color for New ROM (#rrggbb, default #000000)\n  game.autoCreateOnStart  — auto-create a ROM on page load (bool)\n  game.autoLoadSrc        — auto-load an asset URL on start (string)\n\n  editor.defaultPixelColor  — initial color picker value (#rrggbb)\n  editor.defaultScript      — default script text loaded into the editor\n  editor.showScriptEditor   — show/hide the Script tab (bool)\n  editor.showPixelEditor    — show/hide the Pixel tab (bool)\n\nThe config file lives at public/mozaic.config.json."
+  },
+  {
+    "id": "editor-debug",
+    "title": "Debug & Overlay Tools",
+    "category": "Editor",
+    "content": "The Debug tab controls visual overlays rendered on top of the pixel editor.\n\nGrid section:\n  Grid    — show the per-pixel inline grid\n  Custom  — enable a custom grid with configurable cell and major-line spacing\n  Cell    — cell size in pixels\n  Major   — every N cells draw a thicker major line\n\nOverlay section (toggles):\n  Collision — draw cached collision polygons from the bake phase\n  Paths     — draw cached Bezier/Catmull-Rom path lines\n  Pts       — show individual control points on overlays\n  IDs       — show numeric IDs next to each polygon/path\n\nLayer picking:\n  Hold Alt and click near an overlay line to select and highlight that\n  specific collision polygon or path ID. Useful for debugging baked geometry."
+  },
+  {
+    "id": "audio-sequencer",
+    "title": "Audio Sequencer",
+    "category": "Engine",
+    "content": "The audio sequencer reads music from a pixel-grid piano roll embedded in the ROM.\n\nGrid format:\n  16x16 or 32x32 pixel region (top-left of the image by default)\n  X-axis  — time step (left = first beat)\n  Y-axis  — pitch / frequency (top = highest pitch)\n  Pixel brightness — note velocity (darker = quieter, black = silent)\n  Transparent pixels are ignored\n\nInstrument samples are declared in the .msc script and loaded from URLs.\nThe Sequencer class schedules notes using the Web Audio API with a\n25 ms look-ahead timer. GainNodes are pooled to avoid GC pressure.\n\nstepDuration = 60 / bpm / (size / 4)  — quarter-note subdivisions at given BPM"
+  },
+  {
+    "id": "physics-collision",
+    "title": "Physics & Collision",
+    "category": "Engine",
+    "content": "Collision detection happens in two phases at runtime:\n\n1. Broad phase — AABB (axis-aligned bounding box) overlap check.\n   polygonAABB() computes the bounding box of a polygon.\n   aabbOverlap()  tests whether two AABBs intersect.\n\n2. Narrow phase — point-in-polygon ray-casting.\n   pointInPolygon() tests whether a point is inside a cached polygon.\n\nColor-trigger collisions (declared in MSC Events):\n  detectColorCollision() scans the state buffer for pixels of colorA and colorB\n  and reports true if any colorB pixel is 4-connected adjacent to a colorA pixel.\n  Module-level Set cache is reused each frame to avoid GC.\n\nAll collision polygons are pre-computed during the bake phase — the runtime\nnever reads raw pixels for collision."
+  },
+  {
+    "id": "pathfinding",
+    "title": "Pathfinding & Splines",
+    "category": "Engine",
+    "content": "Kinetic paths are pixel chains drawn in the ROM using three designated colors:\n  Start color  — single pixel marking the path origin\n  Path color   — pixels forming the route\n  Node color   — waypoint pixels along the route\n\ntracePixelPath() walks a 4-connected chain from Start → Node pixels.\ncatmullRomSpline() converts the resulting Point[] array into a smooth\nCatmull-Rom spline sampled at configurable step intervals.\n\nDuring the bake phase, extractColorPaths() flood-fills each color-coded\nregion and pixelsToBezier() converts pixel clusters to Bezier control arrays.\n\nThe resulting bezierPaths[] array is cached in BakedAsset and available\nto the runtime loop and the pixel editor debug overlay."
+  },
+  {
+    "id": "loader-formats",
+    "title": "File Formats & Loader",
+    "category": "Engine",
+    "content": "Mozaic supports several asset formats:\n\n  .mzk   — Mozaic Kinetic Asset (PNG with [M,S,K,1] steganographic header in first 4 pixels)\n  .msc   — Mozaic Script (YAML-like declarative game logic)\n  .png / .jpg / .webp  — standard images; Mozaic signature is checked automatically\n  .txt / .yaml — plain-text sidecar scripts\n\nSidecar rule:\n  Loading \"level_1.png\" automatically looks for \"level_1.msc\" or \"level_1.txt\"\n  in the same URL directory. The first found file is used as the script.\n\nMozaic signature:\n  Pixel[0].R = 0x4D (M)\n  Pixel[1].R = 0x53 (S)\n  Pixel[2].R = 0x4B (K)\n  Pixel[3].R = 0x01 (version 1)\n\nPassing ?src=<url> loads that asset on startup.\ngame.autoLoadSrc in config.json provides a default URL."
+  },
+  {
+    "id": "getting-started",
+    "title": "Getting Started",
+    "category": "Project",
+    "content": "Quick start:\n  npm install\n  npm run dev       — start Vite dev server at http://localhost:5173\n  npm run build     — TypeScript compile + Vite production build\n  npm test          — run Vitest unit tests\n\nLoad a ROM via URL parameter:\n  http://localhost:5173/?src=level_1.mzk\n\nOr use the in-app buttons:\n  ⬜ New    — create a 64x64 blank ROM\n  ⬛ ROM    — open a .mzk / .png file from disk\n  ✏ Script — load a .msc script file\n\nFirst ROM workflow:\n  1. Click New to create a blank canvas\n  2. Switch to the Pixel tab and paint your scene\n  3. Switch to the Script tab and write entity/event rules\n  4. Press ▶ Run to restart the engine with your changes\n  5. Click ⬇ Save to export the edited ROM as a .png file\n\nThe last-used ROM and script are automatically saved in browser localStorage\nand restored on the next visit (when no ?src= parameter is present)."
   },
   {
     "id": "roadmap",
     "title": "Roadmap Snapshot",
     "category": "Project",
-    "content": "Phase 1: Memory + Loader\nPhase 2: Lexer + AST compiler\nPhase 3: Baking geometry/path/audio caches\nPhase 4: Pure loop + renderer integration\nPhase 5: Studio UX + hot reload + inspector"
+    "content": "Phase 1: Memory + Loader (complete)\n  State buffer layout, Int8/16/24 access helpers, dual-layer asset loader.\n\nPhase 2: MSC Compiler (complete)\n  Lexer + AST parser, full structured document output.\n\nPhase 3: Baking Engine (complete)\n  Marching Squares collision polygons, RDP simplification, color-path extraction,\n  Catmull-Rom/Bezier spline caches, audio grid scanning.\n\nPhase 4: Pure Loop + Renderer (complete)\n  Pure-functional 60 FPS tick, WebGL renderer, zero-alloc object pools.\n\nPhase 5: Studio UI (complete)\n  Script editor with syntax highlighting, Pixel editor with tools and palette,\n  Debug overlay, Docs pane, Config editor, hot-reload bake pipeline."
   }
 ]
