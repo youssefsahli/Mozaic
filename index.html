@@ -263,6 +263,17 @@
         color: transparent;
         caret-color: #eee;
       }
+      #msc-editor:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      #msc-editor::selection {
+        background: rgba(85,187,153,.25);
+      }
+      #msc-highlight::selection,
+      #msc-highlight *::selection {
+        background: transparent;
+      }
       #msc-status {
         min-height: 14px;
         font-size: 11px;
@@ -379,6 +390,65 @@
         font-size: 9px; color: var(--text-dim);
         text-transform: uppercase; letter-spacing: .04em;
         flex-shrink: 0; align-self: center;
+      }
+
+      /* ── Autocomplete dropdown ──────────── */
+      #msc-autocomplete {
+        position: absolute;
+        display: none;
+        z-index: 200;
+        min-width: 160px;
+        max-height: 180px;
+        overflow-y: auto;
+        background: var(--surface-2);
+        border: 1px solid var(--border-hi);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+        padding: 2px;
+        font: 11px/1.4 var(--font-mono);
+      }
+      #msc-autocomplete.is-open { display: block }
+      .autocomplete-item {
+        padding: 4px 8px;
+        cursor: pointer;
+        border-radius: 2px;
+        color: var(--text);
+        white-space: nowrap;
+      }
+      .autocomplete-item:hover,
+      .autocomplete-item.is-selected {
+        background: var(--accent-bg);
+        color: var(--accent);
+      }
+      .autocomplete-hint {
+        font-size: 9px;
+        color: var(--text-dim);
+        margin-left: 6px;
+      }
+
+      /* ── Used colors bar (text editor) ── */
+      #editor-used-colors {
+        display: flex;
+        gap: 2px;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+        min-height: 0;
+        padding: 2px 0;
+      }
+      .editor-color-swatch {
+        width: 16px;
+        height: 16px;
+        border: 1px solid var(--border);
+        border-radius: 2px;
+        cursor: pointer;
+        transition: border-color 80ms, transform 80ms;
+        padding: 0;
+        background: none;
+      }
+      .editor-color-swatch:hover {
+        border-color: var(--accent);
+        transform: scale(1.2);
+        z-index: 2;
       }
 
       /* ── Toggle chips ─────────────────────────── */
@@ -1115,10 +1185,12 @@
                 <button id="download-file-button" type="button" class="toolbar-btn" title="Download file">&#8595;</button>
               </div>
               <div id="palette-color-chips" aria-label="Named palette colors — click to insert into script"></div>
+              <div id="editor-used-colors" aria-label="Palette colors — click to insert hex"></div>
               <div id="msc-editor-wrap">
                 <div id="line-numbers" aria-hidden="true">1</div>
                 <pre id="msc-highlight"></pre>
                 <textarea id="msc-editor" spellcheck="false" aria-label="MSC editor"></textarea>
+                <div id="msc-autocomplete" role="listbox" aria-label="Autocomplete suggestions"></div>
               </div>
               <div id="msc-status"></div>
             </section>

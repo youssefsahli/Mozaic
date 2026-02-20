@@ -71,6 +71,15 @@ const DEFAULT_CONFIG: MozaicConfig = {
   },
 };
 
+const MSC_KEYWORDS = [
+  "Entity", "Source", "Import", "Schema", "Events", "Visual",
+  "Entity.Player", "Entity.Enemy", "Entity.NPC", "Entity.Item",
+  "Visual:", "Source:", "Import:", "Schema:", "Events:",
+  "addr:", "type:", "Int8", "Int16", "Int24",
+  "CollisionGroup:", "PathFollow:", "Audio:",
+  "Inputs:", "Rules:", "Bake:",
+];
+
 interface UiRefs {
   appRoot: HTMLDivElement;
   canvas: HTMLCanvasElement;
@@ -111,6 +120,7 @@ interface UiRefs {
   statusFileInfo: HTMLSpanElement;
   statusCursorPos: HTMLSpanElement;
   lineNumbers: HTMLDivElement;
+  editorUsedColors: HTMLDivElement;
 }
 
 interface DocEntry {
@@ -180,7 +190,10 @@ async function main(): Promise<void> {
       ui.mscStatus.style.color = color;
     },
     onColorChange: (oldHex, newHex) => swapColorInScript(runtime, oldHex, newHex),
-    onPaletteChange: () => renderPaletteChips(runtime),
+    onPaletteChange: () => {
+      renderPaletteChips(runtime);
+      renderEditorUsedColors(runtime);
+    },
   });
 
   wireUi(runtime);
@@ -265,6 +278,7 @@ function getUiRefs(): UiRefs {
     statusFileInfo: requiredElement<HTMLSpanElement>("status-file-info"),
     statusCursorPos: requiredElement<HTMLSpanElement>("status-cursor-pos"),
     lineNumbers: requiredElement<HTMLDivElement>("line-numbers"),
+    editorUsedColors: requiredElement<HTMLDivElement>("editor-used-colors"),
   };
 }
 
@@ -732,6 +746,122 @@ function wireUi(runtime: RuntimeState): void {
     persistScript(runtime.scriptText);
     switchEditorMode(runtime, "script");
     runtime.fileTreeView?.render();
+  });
+
+  // Tab key inserts 2 spaces instead of changing focus
+  ui.mscEditor.addEventListener("keydown", (e) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const start = ui.mscEditor.selectionStart;
+      const end = ui.mscEditor.selectionEnd;
+      const value = ui.mscEditor.value;
+      ui.mscEditor.value = value.substring(0, start) + "  " + value.substring(end);
+      ui.mscEditor.selectionStart = ui.mscEditor.selectionEnd = start + 2;
+      ui.mscEditor.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+
+  // Autocomplete
+  const acDropdown = document.getElementById("msc-autocomplete")!;
+  let acItems: string[] = [];
+  let acIndex = -1;
+
+  function showAutocomplete(items: string[], rect: DOMRect, wordStart: number): void {
+    acDropdown.innerHTML = "";
+    acItems = items;
+    acIndex = -1;
+    for (let i = 0; i < items.length; i++) {
+      const div = document.createElement("div");
+      div.className = "autocomplete-item";
+      div.textContent = items[i];
+      div.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        applyAutocomplete(items[i], wordStart);
+      });
+      acDropdown.appendChild(div);
+    }
+    acDropdown.style.left = `${rect.left}px`;
+    acDropdown.style.top = `${rect.bottom + 2}px`;
+    acDropdown.classList.add("is-open");
+  }
+
+  function hideAutocomplete(): void {
+    acDropdown.classList.remove("is-open");
+    acItems = [];
+    acIndex = -1;
+  }
+
+  function applyAutocomplete(text: string, wordStart: number): void {
+    const editor = ui.mscEditor;
+    const end = editor.selectionStart;
+    const before = editor.value.substring(0, wordStart);
+    const after = editor.value.substring(end);
+    editor.value = before + text + after;
+    const cursor = wordStart + text.length;
+    editor.selectionStart = editor.selectionEnd = cursor;
+    editor.focus();
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+    hideAutocomplete();
+  }
+
+  function updateAutocompleteHighlight(): void {
+    const items = acDropdown.querySelectorAll(".autocomplete-item");
+    items.forEach((el, i) => el.classList.toggle("is-selected", i === acIndex));
+    if (acIndex >= 0 && items[acIndex]) {
+      items[acIndex].scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  ui.mscEditor.addEventListener("keydown", (e) => {
+    if (acDropdown.classList.contains("is-open")) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        acIndex = Math.min(acIndex + 1, acItems.length - 1);
+        updateAutocompleteHighlight();
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        acIndex = Math.max(acIndex - 1, 0);
+        updateAutocompleteHighlight();
+        return;
+      }
+      if (e.key === "Enter" && acIndex >= 0) {
+        e.preventDefault();
+        const wordInfo = getCurrentWord(ui.mscEditor);
+        applyAutocomplete(acItems[acIndex], wordInfo.start);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        hideAutocomplete();
+        return;
+      }
+    }
+  });
+
+  ui.mscEditor.addEventListener("input", () => {
+    if (runtime.editorMode !== "script") {
+      hideAutocomplete();
+      return;
+    }
+    const wordInfo = getCurrentWord(ui.mscEditor);
+    if (wordInfo.word.length >= 2) {
+      const lower = wordInfo.word.toLowerCase();
+      const matches = MSC_KEYWORDS.filter((k) => k.toLowerCase().startsWith(lower) && k.toLowerCase() !== lower);
+      if (matches.length > 0) {
+        const wrapRect = document.getElementById("msc-editor-wrap")!.getBoundingClientRect();
+        showAutocomplete(matches, wrapRect, wordInfo.start);
+      } else {
+        hideAutocomplete();
+      }
+    } else {
+      hideAutocomplete();
+    }
+  });
+
+  ui.mscEditor.addEventListener("blur", () => {
+    setTimeout(() => hideAutocomplete(), 150);
   });
 
   ui.mscEditor.addEventListener("input", () => {
@@ -1502,6 +1632,37 @@ function renderPaletteChips(runtime: RuntimeState): void {
   }
 }
 
+/**
+ * Render all palette colors as small swatches in the text editor bar.
+ * Clicking a swatch inserts its hex value at the cursor position.
+ */
+function renderEditorUsedColors(runtime: RuntimeState): void {
+  const container = runtime.ui.editorUsedColors;
+  if (!container) return;
+  container.innerHTML = "";
+
+  const colors = runtime.pixelEditor?.getPaletteColors() ?? [];
+  if (colors.length === 0) return;
+
+  for (const color of colors) {
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = "editor-color-swatch";
+    swatch.style.background = color.hex;
+    swatch.title = color.name ? `${color.name} (${color.hex})` : color.hex;
+
+    swatch.addEventListener("click", () => {
+      insertAtCursor(runtime.ui.mscEditor, color.hex);
+      runtime.scriptText = runtime.ui.mscEditor.value;
+      persistScript(runtime.scriptText);
+      refreshHighlight(runtime);
+      validateEditor(runtime);
+    });
+
+    container.appendChild(swatch);
+  }
+}
+
 function cloneImageData(imageData: ImageData): ImageData {
   return new ImageData(
     new Uint8ClampedArray(imageData.data),
@@ -1786,6 +1947,16 @@ function showStatus(runtime: RuntimeState, text: string, color: string): void {
   runtime.ui.statusFileInfo.innerHTML = `<span style="color:${color}">${escapeHtml(text)}</span>`;
   // Auto-restore after 3 seconds
   setTimeout(() => updateEditorFileInfo(runtime), 3000);
+}
+
+function getCurrentWord(textarea: HTMLTextAreaElement): { word: string; start: number } {
+  const pos = textarea.selectionStart;
+  const text = textarea.value;
+  let start = pos;
+  while (start > 0 && /[\w.$:]/.test(text[start - 1])) {
+    start--;
+  }
+  return { word: text.substring(start, pos), start };
 }
 
 main().catch(console.error);
