@@ -198,6 +198,7 @@ async function main(): Promise<void> {
       "Mozaic Engine ready.",
       "Open a ROM and optionally a .msc script, then press Restart."
     );
+    fitCanvasToArea(ui.canvas);
     runtime.scriptText = runtime.config.editor.defaultScript;
     switchEditorMode(runtime, "script");
     if (runtime.config.game.autoCreateOnStart) {
@@ -457,8 +458,16 @@ function wireUi(runtime: RuntimeState): void {
       btn.textContent = collapsed
         ? (dir === "left" ? "›" : "‹")
         : (dir === "left" ? "‹" : "›");
+      fitCanvasToArea(ui.canvas);
     });
   });
+
+  const canvasArea = ui.canvas.parentElement;
+  if (canvasArea && typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => fitCanvasToArea(ui.canvas)).observe(canvasArea);
+  } else {
+    window.addEventListener("resize", () => fitCanvasToArea(ui.canvas));
+  }
 
   renderPalette(runtime);
   ui.zoomLevel.textContent = `${runtime.zoom}×`;
@@ -593,6 +602,7 @@ function restart(runtime: RuntimeState): void {
   const { ui } = runtime;
   if (!runtime.imageData) {
     showPlaceholder(ui.canvas, "No ROM loaded.", "Open a ROM file first.");
+    fitCanvasToArea(ui.canvas);
     return;
   }
 
@@ -605,6 +615,7 @@ function restart(runtime: RuntimeState): void {
   const imageData = cloneImageData(runtime.imageData);
   ui.canvas.width = imageData.width;
   ui.canvas.height = imageData.height;
+  fitCanvasToArea(ui.canvas);
 
   const baked = runtime.baked ?? bake(imageData);
   runtime.baked = baked;
@@ -1450,6 +1461,18 @@ function showPlaceholder(
   ctx.font = "14px monospace";
   ctx.fillText(line1, 16, 24);
   ctx.fillText(line2, 16, 44);
+}
+
+function fitCanvasToArea(canvas: HTMLCanvasElement): void {
+  const area = canvas.parentElement;
+  if (!area || !canvas.width || !canvas.height) return;
+  const padding = 28; // 14px on each side, matching #canvas-area padding
+  const availW = area.clientWidth - padding;
+  const availH = area.clientHeight - padding;
+  if (availW <= 0 || availH <= 0) return;
+  const scale = Math.min(availW / canvas.width, availH / canvas.height);
+  canvas.style.width = `${Math.round(canvas.width * scale)}px`;
+  canvas.style.height = `${Math.round(canvas.height * scale)}px`;
 }
 
 function collectBindings(
