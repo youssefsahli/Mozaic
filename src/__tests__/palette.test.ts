@@ -59,6 +59,12 @@ describe("updateColorHex", () => {
     expect(state.colors[0].hex).toBe("#aabbcc");
   });
 
+  it("returns null for an invalid hex string", () => {
+    const state = createPaletteState(["#ff0000"]);
+    expect(updateColorHex(state, 0, "not-a-color")).toBeNull();
+    expect(state.colors[0].hex).toBe("#ff0000");
+  });
+
   it("returns null for an out-of-bounds index", () => {
     const state = createPaletteState(["#ff0000"]);
     expect(updateColorHex(state, 9, "#00ff00")).toBeNull();

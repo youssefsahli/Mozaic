@@ -910,8 +910,9 @@ function swapColorInScript(runtime: RuntimeState, oldHex: string, newHex: string
   const next = newHex.replace("#", "").toLowerCase();
   if (old === next) return;
 
-  // Replace #RRGGBB and RRGGBB occurrences (case-insensitive)
-  const pattern = new RegExp(`#?${old}`, "gi");
+  // Escape any regex metacharacters (defensive — hex strings shouldn't have any)
+  const escapedOld = old.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`#?${escapedOld}`, "gi");
   const swapped = runtime.scriptText.replace(pattern, (match) =>
     match.startsWith("#") ? `#${next}` : next
   );

@@ -59,11 +59,12 @@ export function setColorName(state: PaletteState, index: number, name: string): 
 
 /**
  * Update the hex value of an existing palette slot.
- * Returns the old hex if the color actually changed, or null if unchanged.
+ * Returns the old hex if the color actually changed, or null if unchanged or invalid.
  */
 export function updateColorHex(state: PaletteState, index: number, newHex: string): string | null {
   if (index < 0 || index >= state.colors.length) return null;
   const normalized = newHex.toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(normalized)) return null;
   const oldHex = state.colors[index].hex;
   if (oldHex === normalized) return null;
   state.colors[index].hex = normalized;
