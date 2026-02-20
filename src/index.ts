@@ -848,7 +848,7 @@ function wireUi(runtime: RuntimeState): void {
     const wordInfo = getCurrentWord(ui.mscEditor);
     if (wordInfo.word.length >= 2) {
       const lower = wordInfo.word.toLowerCase();
-      const matches = MSC_KEYWORDS.filter((k) => k.toLowerCase().startsWith(lower) && k.toLowerCase() !== lower);
+      const matches = MSC_KEYWORDS.filter((k) => { const kl = k.toLowerCase(); return kl.startsWith(lower) && kl !== lower; });
       if (matches.length > 0) {
         const wrapRect = document.getElementById("msc-editor-wrap")!.getBoundingClientRect();
         showAutocomplete(matches, wrapRect, wordInfo.start);
@@ -1949,11 +1949,13 @@ function showStatus(runtime: RuntimeState, text: string, color: string): void {
   setTimeout(() => updateEditorFileInfo(runtime), 3000);
 }
 
+const WORD_CHAR_RE = /[\w.$:]/;
+
 function getCurrentWord(textarea: HTMLTextAreaElement): { word: string; start: number } {
   const pos = textarea.selectionStart;
   const text = textarea.value;
   let start = pos;
-  while (start > 0 && /[\w.$:]/.test(text[start - 1])) {
+  while (start > 0 && WORD_CHAR_RE.test(text[start - 1])) {
     start--;
   }
   return { word: text.substring(start, pos), start };
