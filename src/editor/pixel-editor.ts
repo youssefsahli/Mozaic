@@ -1,8 +1,39 @@
 /**
  * Pixel Editor — Orchestrator
  *
- * Wires all editor modules together: camera, layers, tools,
- * input handling, palette, history, and grid overlay.
+ * Central controller that wires together all pixel editor subsystems:
+ * - **Camera** — pan/zoom viewport with smooth interpolation
+ * - **Layers** — background, document, draft, and grid overlay canvases
+ * - **Tools** — draw, erase, fill, select, and pipette strategies
+ * - **Input** — mouse, touch, and pressure-sensitive stylus handling
+ * - **Palette** — indexed color management with preset library
+ * - **History** — undo/redo stack with snapshot compression
+ * - **Grid Overlay** — pixel grid, collision polygons, and path visualization
+ *
+ * ## Architecture Notes
+ *
+ * The editor uses a multi-canvas layered approach:
+ * 1. Background canvas — renders the transparency checkerboard
+ * 2. Document canvas — displays the current ROM pixel data
+ * 3. Draft canvas — temporary drawing strokes before commit
+ * 4. Grid overlay canvas — debug visualization layer
+ *
+ * When a stroke completes, the draft layer is merged into the document
+ * ImageData. If an engine is running, changed pixels are hot-reloaded
+ * directly into the engine's state buffer for instant feedback.
+ *
+ * ## Key Shortcuts
+ *
+ * | Key    | Action                |
+ * |--------|-----------------------|
+ * | B      | Pencil / Draw tool    |
+ * | E      | Eraser tool           |
+ * | G      | Flood fill tool       |
+ * | M      | Selection tool        |
+ * | I      | Pipette / eyedropper  |
+ * | Ctrl+Z | Undo                  |
+ * | Ctrl+Y | Redo                  |
+ * | Alt+Click | Pick debug layer   |
  *
  * External callers interact exclusively through the PixelEditor class.
  */

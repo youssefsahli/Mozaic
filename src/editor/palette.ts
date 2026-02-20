@@ -1,8 +1,27 @@
 /**
  * Pixel Editor — Palette Management
  *
- * Handles palette state, swatch rendering, color locking (indexed color),
- * MSC logic indicators, preset library, and .hex/.pal import/export.
+ * Manages the color palette system for the pixel editor, providing:
+ *
+ * - **Palette State** — ordered array of colors with active selection
+ * - **Indexed Color** — locked colors that perform global pixel replacement
+ * - **MSC Binding** — colors linked to script logic rule IDs
+ * - **Named Colors** — human-readable labels for palette slots
+ * - **Preset Library** — built-in palettes (Pico-8, Gameboy, CGA, etc.)
+ * - **Import/Export** — .hex (one color per line) and JASC-PAL formats
+ * - **Swatch UI** — interactive color grid with click/right-click/rename
+ *
+ * ## Color Format
+ *
+ * All colors are stored as lowercase 7-character hex strings (#rrggbb).
+ * The palette supports up to 256 colors extracted from the active image.
+ *
+ * ## Indexed Color Workflow
+ *
+ * When a palette slot's hex value is updated (via the Update button),
+ * `applyIndexedColorChange()` scans all pixels in the ImageData and
+ * replaces every occurrence of the old color with the new one. This
+ * enables global color swaps across the entire ROM.
  */
 
 import type { PaletteColor } from "./types.js";
