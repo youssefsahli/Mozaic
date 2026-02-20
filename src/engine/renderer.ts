@@ -5,13 +5,24 @@
  * renders it as a full-screen quad each frame.
  */
 
+/**
+ * Camera globals layout (in the engine state buffer):
+ *   Byte 64–65 (Int16): camera X offset in pixels
+ *   Byte 66–67 (Int16): camera Y offset in pixels
+ *
+ * A zero camera produces the identity view.
+ */
+export const GLOBALS_CAMERA_X_BYTE = 64;
+export const GLOBALS_CAMERA_Y_BYTE = 66;
+
 const VERTEX_SHADER_SRC = `
 attribute vec2 a_position;
 attribute vec2 a_texCoord;
+uniform vec2 u_camOffset;
 varying vec2 v_texCoord;
 void main() {
   gl_Position = vec4(a_position, 0.0, 1.0);
-  v_texCoord = a_texCoord;
+  v_texCoord = a_texCoord + u_camOffset;
 }
 `;
 
@@ -86,8 +97,8 @@ export class Renderer {
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
   }
 
   private createBuffer(data: Float32Array): WebGLBuffer {
@@ -122,6 +133,20 @@ export class Renderer {
     );
 
     gl.useProgram(program);
+
+    // Read camera offset from globals block (bytes 64–67) and convert to
+    // normalised UV units so the viewport scrolls through the pixel world.
+    const camXRaw = state.length > GLOBALS_CAMERA_Y_BYTE + 1
+      ? ((state[GLOBALS_CAMERA_X_BYTE] << 8) | state[GLOBALS_CAMERA_X_BYTE + 1])
+      : 0;
+    const camYRaw = state.length > GLOBALS_CAMERA_Y_BYTE + 1
+      ? ((state[GLOBALS_CAMERA_Y_BYTE] << 8) | state[GLOBALS_CAMERA_Y_BYTE + 1])
+      : 0;
+    const offsetU = camXRaw / width;
+    const offsetV = camYRaw / height;
+
+    const camOffsetLoc = gl.getUniformLocation(program, "u_camOffset");
+    gl.uniform2f(camOffsetLoc, offsetU, offsetV);
 
     const posLoc = gl.getAttribLocation(program, "a_position");
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);

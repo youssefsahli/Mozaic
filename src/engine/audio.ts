@@ -13,6 +13,42 @@
 
 import { ObjectPool } from "./pool.js";
 
+// ── Audio Context factory ─────────────────────────────────────
+
+/**
+ * Create (or resume) an AudioContext.
+ * Calling code should invoke this inside a user-gesture handler so the
+ * browser's autoplay policy is satisfied.
+ */
+export function createAudioContext(): AudioContext {
+  return new AudioContext();
+}
+
+// ── Hex colour → oscillator waveform mapping ──────────────────
+
+/** Map of lowercase #RRGGBB hex values to Web Audio waveform types. */
+const HEX_WAVEFORM_MAP: Readonly<Record<string, OscillatorType>> = {
+  "#00ffff": "square",   // cyan
+  "#ffa500": "sine",     // orange
+  "#ff00ff": "sawtooth", // magenta
+  "#ffff00": "triangle", // yellow
+  "#ff0000": "square",   // red
+  "#00ff00": "sine",     // green
+  "#0000ff": "sawtooth", // blue
+  "#ffffff": "triangle", // white
+};
+
+/**
+ * Map a hex colour string to a Web Audio OscillatorType.
+ * Falls back to 'sine' for unmapped colours.
+ */
+export function hexToWaveform(hex: string): OscillatorType {
+  const norm = hex.toLowerCase().replace(/^#?/, "#");
+  return HEX_WAVEFORM_MAP[norm] ?? "sine";
+}
+
+// ── Sequencer grid types ──────────────────────────────────────
+
 export type GridSize = 16 | 32;
 
 export interface SequencerNote {
