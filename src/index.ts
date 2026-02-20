@@ -848,7 +848,9 @@ function wireUi(runtime: RuntimeState): void {
     const wordInfo = getCurrentWord(ui.mscEditor);
     if (wordInfo.word.length >= 2) {
       const lower = wordInfo.word.toLowerCase();
-      const matches = MSC_KEYWORDS.filter((k) => { const kl = k.toLowerCase(); return kl.startsWith(lower) && kl !== lower; });
+      const matches = MSC_KEYWORDS.filter((k) =>
+        k.toLowerCase().startsWith(lower) && k.toLowerCase() !== lower
+      );
       if (matches.length > 0) {
         const wrapRect = document.getElementById("msc-editor-wrap")!.getBoundingClientRect();
         showAutocomplete(matches, wrapRect, wordInfo.start);
