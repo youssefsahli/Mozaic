@@ -20,8 +20,8 @@
         --radius:     4px;
         --font-mono:  ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
         --header-h:   42px;
-        --pane-w:     262px;
-        --pane-min:   28px;
+        --tab-h:      34px;
+        --handle-w:   5px;
         --ease:       200ms cubic-bezier(0.4,0,0.2,1);
       }
 
@@ -72,143 +72,130 @@
         display: flex;
         align-items: center;
         gap: 4px;
+        flex: 1;
         flex-wrap: wrap;
       }
+      .header-sep {
+        width: 1px;
+        height: 16px;
+        background: var(--border-hi);
+        flex-shrink: 0;
+        margin: 0 4px;
+      }
 
-      /* ── Workspace ────────────────────────────── */
+      /* ── Workspace (split layout) ──────────────── */
+      #mozaic-app {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden;
+      }
       #mozaic-workspace {
         display: flex;
-        flex-direction: row;
-        align-items: stretch;
         flex: 1;
         overflow: hidden;
       }
 
-      /* ── Canvas area ──────────────────────────── */
+      /* ── Canvas area (left) ────────────────────── */
       #canvas-area {
-        flex: 1;
-        min-width: 160px;
+        flex: 3 1 0%;
+        min-width: 200px;
         display: flex;
         align-items: center;
         justify-content: center;
-        overflow: auto;
+        overflow: hidden;
         background: var(--bg);
-        padding: 14px;
+        padding: 8px;
+      }
+      #mozaic-canvas {
+        max-width: 100%;
+        max-height: 100%;
       }
 
-      /* ── Pane component ───────────────────────── */
-      .pane {
+      /* ── Split handle ──────────────────────────── */
+      #split-handle {
+        width: var(--handle-w);
+        background: var(--border);
+        cursor: col-resize;
+        flex-shrink: 0;
+        transition: background 120ms;
+        position: relative;
+      }
+      #split-handle:hover,
+      #split-handle.is-dragging {
+        background: var(--accent);
+      }
+      #split-handle::before {
+        content: '';
+        position: absolute;
+        inset: 0 -4px;
+      }
+
+      /* ── Side panel (right) ────────────────────── */
+      #side-panel {
+        flex: 2 1 0%;
+        min-width: 280px;
         display: flex;
         flex-direction: column;
-        width: var(--pane-w);
-        min-width: var(--pane-w);
-        max-width: var(--pane-w);
-        height: 100%;
         background: var(--surface);
-        border-right: 1px solid var(--border);
-        flex-shrink: 0;
-        overflow: hidden;
-        transition: width var(--ease), min-width var(--ease), max-width var(--ease);
-      }
-      .pane.pane-right {
-        border-right: none;
         border-left: 1px solid var(--border);
-      }
-      .pane.pane-collapsed {
-        width: var(--pane-min);
-        min-width: var(--pane-min);
-        max-width: var(--pane-min);
+        overflow: hidden;
       }
 
-      /* ── Pane Header ──────────────────────────── */
-      .pane-header {
+      /* ── Tab bar ───────────────────────────────── */
+      #tab-bar {
         display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 0 8px;
-        height: 32px;
-        min-height: 32px;
+        align-items: stretch;
+        height: var(--tab-h);
+        min-height: var(--tab-h);
         background: var(--surface-2);
         border-bottom: 1px solid var(--border);
+        gap: 0;
         flex-shrink: 0;
-        overflow: hidden;
-        user-select: none;
       }
-      .pane-right .pane-header { flex-direction: row-reverse }
-      .pane-right .pane-title  { text-align: right }
-
-      .pane-title {
+      .tab-btn {
         flex: 1;
-        font-size: 10px;
+        padding: 0 12px;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: var(--text-dim);
+        font: 11px/1 var(--font-mono);
         text-transform: uppercase;
-        letter-spacing: .08em;
-        color: var(--text-dim);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      /* Collapsed state */
-      .pane-collapsed .pane-header {
-        flex-direction: column;
-        height: 100%;
-        padding: 8px 0;
-        border-bottom: none;
-        align-items: center;
-        justify-content: flex-start;
-        gap: 10px;
-        cursor: default;
-      }
-      .pane-collapsed .pane-title {
-        writing-mode: vertical-rl;
-        transform: rotate(180deg);
-        text-overflow: clip;
-        overflow: visible;
-        flex: 0;
-        font-size: 10px;
-      }
-      .pane-collapsed .pane-body { display: none }
-
-      /* ── Pane Toggle Button ───────────────────── */
-      .pane-toggle {
-        width: 18px;
-        height: 18px;
-        min-width: 18px;
-        padding: 0;
-        background: none;
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        color: var(--text-dim);
-        font-size: 11px;
-        font-family: var(--font-mono);
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        letter-spacing: .06em;
         cursor: pointer;
-        transition: background var(--ease), border-color var(--ease), color var(--ease);
-        flex-shrink: 0;
-        line-height: 1;
+        transition: color var(--ease), border-color var(--ease), background var(--ease);
+        white-space: nowrap;
       }
-      .pane-toggle:hover {
-        background: var(--surface-3);
-        border-color: var(--border-hi);
+      .tab-btn:hover {
         color: var(--text);
+        background: rgba(255,255,255,.03);
       }
-      .pane-toggle.is-active {
-        background: var(--accent-bg);
-        border-color: var(--accent);
-        color: var(--accent);
+      .tab-btn.is-active {
+        color: var(--accent) !important;
+        border-bottom-color: var(--accent) !important;
+        background: var(--accent-bg) !important;
       }
+      .tab-btn[hidden] { display: none }
 
-      /* ── Pane Body ────────────────────────────── */
-      .pane-body {
+      /* ── Tab content ───────────────────────────── */
+      #tab-content {
         flex: 1;
+        overflow: hidden;
+        position: relative;
+      }
+      .tab-pane {
+        position: absolute;
+        inset: 0;
+        display: none;
+        flex-direction: column;
         overflow-y: auto;
         overflow-x: hidden;
-        padding: 8px;
-        display: flex;
-        flex-direction: column;
+        padding: 10px;
         gap: 8px;
+      }
+      .tab-pane.is-active {
+        display: flex;
       }
 
       /* ── Section label ────────────────────────── */
@@ -220,7 +207,7 @@
       }
 
       /* ── Shared button ────────────────────────── */
-      button:not(.pane-toggle), .btn {
+      button:not(.tab-btn), .btn {
         font: inherit;
         padding: 3px 8px;
         background: var(--surface-2);
@@ -232,10 +219,10 @@
         white-space: nowrap;
         line-height: 1.5;
       }
-      button:not(.pane-toggle):hover  { background: #222; border-color: var(--border-hi) }
-      button:not(.pane-toggle):active { background: #282828 }
-      button:not(.pane-toggle):disabled { opacity: .35; cursor: default; pointer-events: none }
-      .is-active:not(.pane-toggle) {
+      button:not(.tab-btn):hover  { background: #222; border-color: var(--border-hi) }
+      button:not(.tab-btn):active { background: #282828 }
+      button:not(.tab-btn):disabled { opacity: .35; cursor: default; pointer-events: none }
+      .is-active:not(.tab-btn) {
         background: var(--accent-bg) !important;
         border-color: var(--accent) !important;
         color: var(--accent) !important;
@@ -245,10 +232,6 @@
       .btn-row { display: flex; gap: 4px; flex-wrap: wrap }
 
       /* ── Script editor ────────────────────────── */
-      #msc-section {
-        overflow: hidden;
-        gap: 6px;
-      }
       #msc-editor-wrap {
         position: relative;
         flex: 1;
@@ -279,21 +262,51 @@
       }
 
       /* ── Pixel editor controls ────────────────── */
-      #pixel-controls { display: flex; flex-direction: column; gap: 5px }
-      .pixel-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap }
+      #pixel-controls { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0 }
+      .pixel-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap }
       .pixel-row input[type=number] {
         width: 48px; padding: 2px 4px;
         background: var(--bg); border: 1px solid var(--border);
         color: var(--text); border-radius: var(--radius); font: inherit;
       }
-      .pixel-row input[type=range]  { height: 3px; accent-color: var(--accent) }
-      .pixel-row input[type=color]  {
+      .pixel-row input[type=color] {
         width: 22px; height: 22px; padding: 0;
         border: 1px solid var(--border); border-radius: var(--radius);
         background: none; cursor: pointer;
       }
       .pixel-row label { color: var(--text-dim); cursor: pointer; user-select: none }
-      #zoom-level, #brush-size-label { min-width: 28px; color: var(--text-dim) }
+
+      /* ── Pixel toolbox (vertical icon bar) ────── */
+      #pixel-workspace {
+        display: flex;
+        gap: 4px;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #pixel-toolbox {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex-shrink: 0;
+      }
+      .tool-btn {
+        width: 26px !important;
+        height: 26px !important;
+        min-width: 26px !important;
+        padding: 0 !important;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        line-height: 1;
+      }
+      .toolbox-sep {
+        width: 18px;
+        height: 1px;
+        background: var(--border);
+        margin: 3px auto;
+      }
 
       /* ── Palette ──────────────────────────────── */
       #palette-swatches { display: flex; gap: 3px; flex-wrap: wrap }
@@ -301,8 +314,29 @@
         width: 16px; height: 16px;
         border: 1px solid var(--border); border-radius: 2px;
         cursor: pointer; transition: border-color 80ms;
+        position: relative;
       }
       .palette-swatch:hover { border-color: var(--text-dim) }
+      .palette-swatch.is-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) }
+      .palette-swatch.is-locked::after {
+        content: ''; position: absolute; inset: 0;
+        border: 1px solid rgba(255,255,255,.5);
+        border-radius: 1px; pointer-events: none;
+      }
+      .palette-swatch .lock-indicator {
+        position: absolute; bottom: -2px; right: -2px;
+        font-size: 7px; line-height: 1; pointer-events: none;
+      }
+      .palette-swatch .msc-indicator {
+        position: absolute; top: -2px; right: -2px;
+        width: 4px; height: 4px; border-radius: 50%;
+        background: var(--accent); pointer-events: none;
+      }
+      #palette-preset-select {
+        padding: 2px 4px; font: inherit;
+        background: var(--surface-2); border: 1px solid var(--border);
+        color: var(--text); border-radius: var(--radius); cursor: pointer;
+      }
 
       /* ── Toggle chips ─────────────────────────── */
       .chip-row { display: flex; gap: 3px; flex-wrap: wrap }
@@ -316,26 +350,26 @@
       }
       .chip-row label:hover { border-color: var(--border-hi) }
       .chip-row input[type=checkbox] { display: none }
+      .chip-row input[type=radio] { display: none }
       .chip-row input[type=checkbox]:checked+span { color: var(--accent) }
+      .chip-row input[type=radio]:checked+span { color: var(--accent) }
       .chip-row label:has(input:checked) {
         background: var(--accent-bg); border-color: var(--accent);
       }
 
       /* ── Pixel canvas area ────────────────────── */
       #pixel-editor-wrap {
+        flex: 1;
+        min-width: 0;
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        background:
-          linear-gradient(45deg,#111 25%,transparent 25%) -4px 0/8px 8px,
-          linear-gradient(-45deg,#111 25%,transparent 25%) -4px 0/8px 8px,
-          linear-gradient(45deg,transparent 75%,#111 75%) -4px 0/8px 8px,
-          linear-gradient(-45deg,transparent 75%,#111 75%) -4px 0/8px 8px,
-          #090909;
-        overflow: auto;
-        max-height: 260px;
+        background: var(--bg);
+        overflow: hidden;
+        position: relative;
+        touch-action: none;
       }
-      #pixel-stage  { position: relative; display: inline-block; vertical-align: top }
-      #pixel-editor { width: 64px; height: 64px; image-rendering: pixelated; background: #000; border: 0 }
+      #pixel-stage  { position: relative; width: 100%; height: 100%; touch-action: none }
+      #pixel-editor { image-rendering: pixelated; background: transparent; border: 0 }
       #pixel-grid-overlay {
         position: absolute; inset: 0;
         pointer-events: none; image-rendering: pixelated;
@@ -346,7 +380,77 @@
         flex-shrink: 0;
       }
 
-      /* ── Docs pane ────────────────────────────── */
+      /* ── Pixel bottom bar (modern zoom & size) ── */
+      #pixel-bottom-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 8px 12px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        flex-shrink: 0;
+      }
+      .bar-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .bar-group label {
+        color: var(--text-dim);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+      }
+      .bar-group input[type=range] {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 80px;
+        height: 4px;
+        background: var(--border-hi);
+        border-radius: 2px;
+        outline: none;
+        cursor: pointer;
+      }
+      .bar-group input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: none;
+        cursor: pointer;
+        transition: transform 80ms;
+      }
+      .bar-group input[type=range]::-webkit-slider-thumb:hover {
+        transform: scale(1.2);
+      }
+      .bar-group input[type=range]::-moz-range-thumb {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: none;
+        cursor: pointer;
+      }
+      .bar-group span {
+        min-width: 24px;
+        color: var(--text-dim);
+        font-size: 11px;
+      }
+      .bar-divider {
+        width: 1px;
+        height: 16px;
+        background: var(--border-hi);
+        flex-shrink: 0;
+      }
+
+      /* ── Docs ──────────────────────────────────── */
       #docs-search {
         width: 100%; padding: 4px 6px;
         border-radius: var(--radius);
@@ -403,152 +507,148 @@
       <!-- ── Header ───────────────────────────────── -->
       <header id="mozaic-header">
         <div id="header-brand">
-          <span id="header-logo">◈</span>
+          <span id="header-logo">&#9672;</span>
           <span id="header-title">Mozaic</span>
         </div>
         <div id="header-divider"></div>
         <div id="header-actions">
-          <button id="new-rom-button"      type="button">New ROM</button>
-          <button id="open-rom-button"     type="button">Open ROM</button>
-          <button id="save-rom-button"     type="button">Save</button>
-          <button id="reload-config-button" type="button">Reload</button>
-          <button id="restart-button"      type="button">▶ Run</button>
+          <button id="new-rom-button" type="button">&#9723; New</button>
+          <button id="open-rom-button" type="button">&#9776; ROM</button>
+          <button id="open-script-button" type="button">&#9998; Script</button>
+          <button id="open-config-button" type="button">&#9881; Config</button>
+          <div class="header-sep"></div>
+          <button id="save-rom-button" type="button">&#11015; Save</button>
+          <button id="reload-config-button" type="button">&#8635; Reload</button>
+          <div class="header-sep"></div>
+          <button id="restart-button" type="button">&#9654; Run</button>
         </div>
       </header>
 
-      <!-- ── Workspace ────────────────────────────── -->
+      <!-- ── Workspace (split layout) ────────────── -->
       <div id="mozaic-workspace">
 
-        <!-- Pane 1 · Setup & Config ──────────────── -->
-        <section class="pane" id="pane-setup">
-          <div class="pane-header">
-            <div class="pane-title">Setup</div>
-            <button class="pane-toggle" data-pane="pane-setup" data-dir="left" title="Toggle Setup">‹</button>
-          </div>
-          <div class="pane-body">
-            <div class="section-label">Project</div>
-            <div class="btn-row">
-              <button id="open-script-button" type="button">Open Script</button>
-              <button id="open-config-button" type="button">Config</button>
-            </div>
-            <div class="section-label">About</div>
-            <div style="color:var(--text-dim);font-size:11px;line-height:1.7">
-              <div style="color:var(--text)">Mozaic Engine</div>
-              <div>SpriteROM-based game engine.</div>
-              <div style="margin-top:6px">Open a ROM, load an optional <br>script, then press ▶ Run.</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Pane 2 · Code Editor ─────────────────── -->
-        <section class="pane" id="msc-section">
-          <div class="pane-header">
-            <div class="pane-title" id="text-editor-title">Script Editor</div>
-            <button class="pane-toggle" data-pane="msc-section" data-dir="left" title="Toggle Code Editor">‹</button>
-          </div>
-          <div class="pane-body">
-            <div id="msc-editor-wrap">
-              <pre id="msc-highlight"></pre>
-              <textarea id="msc-editor" spellcheck="false" aria-label="MSC editor"></textarea>
-            </div>
-            <div id="msc-status"></div>
-          </div>
-        </section>
-
-        <!-- Canvas ───────────────────────────────── -->
+        <!-- LEFT: Game canvas ────────────────────── -->
         <main id="canvas-area">
           <canvas id="mozaic-canvas"></canvas>
         </main>
 
-        <!-- Pane 3 · Pixel Editor ────────────────── -->
-        <section class="pane pane-right" id="pixel-section">
-          <div class="pane-header">
-            <button class="pane-toggle" data-pane="pixel-section" data-dir="right" title="Toggle Pixel Editor">›</button>
-            <div class="pane-title">Pixel Editor</div>
+        <!-- SPLIT HANDLE ─────────────────────────── -->
+        <div id="split-handle"></div>
+
+        <!-- RIGHT: Tabbed side panel ─────────────── -->
+        <div id="side-panel">
+
+          <!-- Tab bar -->
+          <div id="tab-bar">
+            <button class="tab-btn is-active" data-tab="script" type="button">&#9998; Script</button>
+            <button class="tab-btn" data-tab="pixel" type="button">&#9638; Pixel</button>
+            <button class="tab-btn" data-tab="debug" type="button">&#9670; Debug</button>
+            <button class="tab-btn" id="toggle-docs-button" data-tab="docs" type="button">&#9776; Docs</button>
           </div>
-          <div class="pane-body">
-            <div id="pixel-controls">
-              <!-- color + palette -->
-              <div class="pixel-row">
-                <input id="pixel-color" type="color" value="#ff00ff" />
-                <button id="palette-add-button" type="button">+</button>
+
+          <!-- Tab content -->
+          <div id="tab-content">
+
+            <!-- Tab: Script Editor ─────────────────── -->
+            <section class="tab-pane is-active" id="msc-section">
+              <div class="section-label" id="text-editor-title">Script Editor</div>
+              <div id="msc-editor-wrap">
+                <pre id="msc-highlight"></pre>
+                <textarea id="msc-editor" spellcheck="false" aria-label="MSC editor"></textarea>
+              </div>
+              <div id="msc-status"></div>
+            </section>
+
+            <!-- Tab: Pixel Editor ──────────────────── -->
+            <section class="tab-pane" id="pixel-section">
+              <div id="pixel-controls">
+                <div class="pixel-row">
+                  <input id="pixel-color" type="color" value="#ff00ff" />
+                  <button id="palette-add-button" type="button" title="Add to palette">+</button>
+                  <select id="palette-preset-select" title="Palette presets">
+                    <option value="">Preset...</option>
+                  </select>
+                  <button id="palette-import-button" type="button" title="Import palette">&#8593; Import</button>
+                  <button id="palette-export-button" type="button" title="Export palette">&#8595; Export</button>
+                </div>
                 <div id="palette-swatches"></div>
               </div>
-              <!-- presets & eraser -->
-              <div class="pixel-row">
-                <button id="preset-pencil-button" type="button">Pencil</button>
-                <button id="preset-brush-button"  type="button">Brush</button>
-                <button id="preset-eraser-button" type="button">Eraser</button>
-                <button id="eraser-toggle-button" type="button">E</button>
-                <span style="flex:1"></span>
-                <button id="undo-button"  type="button">↩</button>
-                <button id="redo-button"  type="button">↪</button>
-                <button id="clear-button" type="button">✕</button>
+              <div class="chip-row">
+                <label><input id="stylus-only-toggle" type="checkbox" /><span>Stylus Only</span></label>
+                <label><input id="pressure-size-toggle" type="radio" name="pressure-mode" checked /><span>P:Size</span></label>
+                <label><input id="pressure-dither-toggle" type="radio" name="pressure-mode" /><span>P:Dither</span></label>
               </div>
-              <!-- zoom & brush -->
-              <div class="pixel-row">
-                <label for="pixel-zoom">Zoom</label>
-                <input id="pixel-zoom" type="range" min="2" max="30" value="8" />
-                <span id="zoom-level">8×</span>
-                <label for="brush-size">Size</label>
-                <input id="brush-size" type="range" min="1" max="9" value="1" />
-                <span id="brush-size-label">1</span>
+              <div id="pixel-workspace">
+                <div id="pixel-toolbox">
+                  <button id="preset-pencil-button" class="tool-btn" type="button" title="Pencil (B)">&#9998;</button>
+                  <button id="preset-brush-button" class="tool-btn" type="button" title="Brush (3px)">&#10680;</button>
+                  <button id="preset-eraser-button" class="tool-btn" type="button" title="Eraser (E)">&#9746;</button>
+                  <button id="eraser-toggle-button" class="tool-btn" type="button" title="Toggle eraser (E)">&#9746;</button>
+                  <button id="fill-tool-button" class="tool-btn" type="button" title="Fill (G)">&#9781;</button>
+                  <button id="select-tool-button" class="tool-btn" type="button" title="Select (M)">&#11034;</button>
+                  <button id="pipette-tool-button" class="tool-btn" type="button" title="Pipette (I)">&#10023;</button>
+                  <div class="toolbox-sep"></div>
+                  <button id="undo-button" class="tool-btn" type="button" title="Undo (Ctrl+Z)">&#8630;</button>
+                  <button id="redo-button" class="tool-btn" type="button" title="Redo (Ctrl+Y)">&#8631;</button>
+                  <button id="clear-button" class="tool-btn" type="button" title="Clear canvas">&#9249;</button>
+                </div>
+                <div id="pixel-editor-wrap">
+                  <div id="pixel-stage">
+                    <canvas id="pixel-editor" width="64" height="64"></canvas>
+                    <canvas id="pixel-grid-overlay" width="64" height="64"></canvas>
+                  </div>
+                </div>
               </div>
-            </div>
-            <!-- pixel canvas -->
-            <div id="pixel-editor-wrap">
-              <div id="pixel-stage">
-                <canvas id="pixel-editor" width="64" height="64"></canvas>
-                <canvas id="pixel-grid-overlay" width="64" height="64"></canvas>
+              <div id="pixel-footer">
+                <span>Alt+Click picks layer</span>
+                <span id="pixel-coords">&ndash;, &ndash;</span>
               </div>
-            </div>
-            <div id="pixel-footer">
-              <span>Alt+Click picks layer</span>
-              <span id="pixel-coords">–, –</span>
-            </div>
-          </div>
-        </section>
+              <div id="pixel-bottom-bar">
+                <div class="bar-group">
+                  <label for="pixel-zoom">Zoom</label>
+                  <input id="pixel-zoom" type="range" min="1" max="64" value="8" />
+                  <span id="zoom-level">8&times;</span>
+                </div>
+                <div class="bar-divider"></div>
+                <div class="bar-group">
+                  <label for="brush-size">Size</label>
+                  <input id="brush-size" type="range" min="1" max="9" value="1" />
+                  <span id="brush-size-label">1</span>
+                </div>
+              </div>
+            </section>
 
-        <!-- Pane 4 · Debug Tools ─────────────────── -->
-        <section class="pane pane-right" id="pane-debug">
-          <div class="pane-header">
-            <button class="pane-toggle" data-pane="pane-debug" data-dir="right" title="Toggle Debug Tools">›</button>
-            <div class="pane-title">Debug Tools</div>
-          </div>
-          <div class="pane-body">
-            <div class="section-label">Grid</div>
-            <div class="chip-row">
-              <label><input id="grid-inline-toggle" type="checkbox" checked /><span>Grid</span></label>
-              <label><input id="grid-custom-toggle" type="checkbox" /><span>Custom</span></label>
-            </div>
-            <div class="pixel-row">
-              <label for="grid-size">Cell</label>
-              <input id="grid-size"  type="number" min="1" max="64" value="8" />
-              <label for="grid-major">Major</label>
-              <input id="grid-major" type="number" min="1" max="64" value="4" />
-            </div>
-            <div class="section-label">Overlays</div>
-            <div class="chip-row">
-              <label><input id="debug-collision-toggle" type="checkbox" /><span>Collision</span></label>
-              <label><input id="debug-path-toggle"      type="checkbox" /><span>Paths</span></label>
-              <label><input id="debug-points-toggle"    type="checkbox" /><span>Pts</span></label>
-              <label><input id="debug-ids-toggle"       type="checkbox" /><span>IDs</span></label>
-            </div>
-          </div>
-        </section>
+            <!-- Tab: Debug ─────────────────────────── -->
+            <section class="tab-pane" id="pane-debug">
+              <div class="section-label">Grid</div>
+              <div class="chip-row">
+                <label><input id="grid-inline-toggle" type="checkbox" checked /><span>Grid</span></label>
+                <label><input id="grid-custom-toggle" type="checkbox" /><span>Custom</span></label>
+              </div>
+              <div class="pixel-row">
+                <label for="grid-size">Cell</label>
+                <input id="grid-size" type="number" min="1" max="64" value="8" />
+                <label for="grid-major">Major</label>
+                <input id="grid-major" type="number" min="1" max="64" value="4" />
+              </div>
+              <div class="section-label">Overlays</div>
+              <div class="chip-row">
+                <label><input id="debug-collision-toggle" type="checkbox" /><span>Collision</span></label>
+                <label><input id="debug-path-toggle" type="checkbox" /><span>Paths</span></label>
+                <label><input id="debug-points-toggle" type="checkbox" /><span>Pts</span></label>
+                <label><input id="debug-ids-toggle" type="checkbox" /><span>IDs</span></label>
+              </div>
+            </section>
 
-        <!-- Pane 5 · Documentation ───────────────── -->
-        <section class="pane pane-right pane-collapsed" id="docs-pane">
-          <div class="pane-header">
-            <button class="pane-toggle" id="toggle-docs-button" title="Toggle Documentation">‹</button>
-            <div class="pane-title">Docs</div>
-          </div>
-          <div class="pane-body">
-            <input id="docs-search" type="text" placeholder="Search…" />
-            <div id="docs-results"></div>
-            <div id="docs-content">Select a document.</div>
-          </div>
-        </section>
+            <!-- Tab: Docs ──────────────────────────── -->
+            <section class="tab-pane" id="docs-pane">
+              <input id="docs-search" type="text" placeholder="Search..." />
+              <div id="docs-results"></div>
+              <div id="docs-content">Select a document.</div>
+            </section>
+
+          </div><!-- #tab-content -->
+        </div><!-- #side-panel -->
 
       </div><!-- #mozaic-workspace -->
     </div><!-- #mozaic-app -->

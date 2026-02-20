@@ -100,6 +100,9 @@ export interface CollisionEvent {
   triggerB: string;
 }
 
+/** Module-level cached set reused across calls to avoid GC pressure. */
+const _pixelSetCache = new Set<number>();
+
 /**
  * Detect color-trigger collisions between two hex regions in the state buffer.
  * Returns true if at least one pixel of colorA overlaps with colorB.
@@ -110,11 +113,11 @@ export function detectColorCollision(
   colorA: string,
   colorB: string
 ): boolean {
-  const aPixels = new Set<number>();
+  _pixelSetCache.clear();
   const pixelCount = state.length / 4;
 
   for (let i = 0; i < pixelCount; i++) {
-    if (pixelMatchesColor(state, i, colorA)) aPixels.add(i);
+    if (pixelMatchesColor(state, i, colorA)) _pixelSetCache.add(i);
   }
 
   // Check if any colorB pixel is adjacent to a colorA pixel
@@ -133,7 +136,7 @@ export function detectColorCollision(
       const ny = y + dy;
       if (nx < 0 || ny < 0) continue;
       const ni = ny * width + nx;
-      if (aPixels.has(ni)) return true;
+      if (_pixelSetCache.has(ni)) return true;
     }
   }
 

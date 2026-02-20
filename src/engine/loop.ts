@@ -75,7 +75,7 @@ export class EngineLoop {
     // 4. Render
     renderer.render(this.state.buffer, this.state.width, this.state.height);
 
-    this.state = { ...this.state, frameCount: this.state.frameCount + 1 };
+    this.state.frameCount++;
     this.rafId = requestAnimationFrame(() => this.tick());
   }
 

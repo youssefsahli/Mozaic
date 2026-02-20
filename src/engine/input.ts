@@ -34,8 +34,14 @@ export class InputManager {
   private readonly onKeyDown: (e: KeyboardEvent) => void;
   private readonly onKeyUp: (e: KeyboardEvent) => void;
 
+  /** Pre-allocated set reused every frame to avoid GC pressure. */
+  private readonly _activeCache: Set<string> = new Set();
+  /** Pre-allocated InputState object reused every frame. */
+  private readonly _stateCache: InputState;
+
   constructor(bindings: Array<{ key: string; action: string }>) {
     this.actionMap = buildActionMap(bindings);
+    this._stateCache = { active: this._activeCache };
     this.onKeyDown = (e) => this.heldKeys.add(e.code);
     this.onKeyUp = (e) => this.heldKeys.delete(e.code);
     this.attachKeyboardListeners();
@@ -62,16 +68,16 @@ export class InputManager {
   /** Return current input state (which actions are active). */
   sample(): InputState {
     this.pollGamepad();
-    const active = new Set<string>();
+    this._activeCache.clear();
     for (const [action, keys] of this.actionMap) {
       for (const key of keys) {
         if (this.heldKeys.has(key) || this.heldButtons.has(key)) {
-          active.add(action);
+          this._activeCache.add(action);
           break;
         }
       }
     }
-    return { active };
+    return this._stateCache;
   }
 
   dispose(): void {

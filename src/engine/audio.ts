@@ -11,6 +11,8 @@
  * The sequencer fires the correct sample on each step.
  */
 
+import { ObjectPool } from "./pool.js";
+
 export type GridSize = 16 | 32;
 
 export interface SequencerNote {
@@ -66,10 +68,20 @@ export class Sequencer {
   private currentStep = 0;
   private nextStepTime = 0;
   private timerId: ReturnType<typeof setTimeout> | null = null;
+  private readonly gainPool: ObjectPool<GainNode>;
 
   constructor(notes: SequencerNote[], options: SequencerOptions) {
     this.notes = notes;
     this.options = options;
+    const { audioCtx } = options;
+    this.gainPool = new ObjectPool<GainNode>(
+      16,
+      () => audioCtx.createGain(),
+      (node) => {
+        node.disconnect();
+        node.gain.value = 1;
+      }
+    );
   }
 
   /** Start playback from the current step. */
@@ -110,14 +122,21 @@ export class Sequencer {
       const buffer = samples.get(note.pitch);
       if (!buffer) continue;
 
+      // AudioBufferSourceNode is one-shot by WebAudio spec — must create new
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
 
-      const gainNode = audioCtx.createGain();
+      // Acquire a pooled GainNode instead of creating one
+      const gainNode = this.gainPool.acquire();
       gainNode.gain.value = note.velocity;
 
       source.connect(gainNode).connect(audioCtx.destination);
       source.start(time);
+
+      // Release the GainNode back to the pool when playback ends
+      source.onended = () => {
+        this.gainPool.release(gainNode);
+      };
     }
   }
 }
