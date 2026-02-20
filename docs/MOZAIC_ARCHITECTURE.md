@@ -77,6 +77,7 @@ Runtime executes structured AST data only; it does not parse `.msc` text during 
 - Pure tick function and deterministic state updates.
 - Integrate polygon collision solver.
 - Render from state buffer-driven transforms.
+- Zero-allocation object pools (`RingBuffer`, `ObjectPool`, `EntityFreeList`) to eliminate GC pressure.
 - Milestone: playable movement and collisions from script/state only.
 
 ### Phase 5: Studio UI
@@ -84,3 +85,21 @@ Runtime executes structured AST data only; it does not parse `.msc` text during 
 - Hot-reload bake pipeline without dropping state.
 - State inspector tooling.
 - Milestone: live paint + code edit reflected instantly in preview.
+
+## 5. Module Reference
+
+| Module | Purpose |
+| --- | --- |
+| `engine/memory.ts` | State buffer layout constants + Int8/Int16/Int24 read-write helpers |
+| `engine/loader.ts` | Dual-layer asset loader (image + sidecar script, Mozaic signature detection) |
+| `engine/baker.ts` | Bake phase: Marching Squares, RDP simplification, Bezier paths, audio grid scan |
+| `engine/loop.ts` | Pure execution loop (`requestAnimationFrame`-driven, pluggable `LogicFn`) |
+| `engine/physics.ts` | AABB broad phase, ray-cast point-in-polygon, color-trigger collision detection |
+| `engine/pathfinding.ts` | Pixel-path tracing + Catmull-Rom spline generation |
+| `engine/audio.ts` | Pixel-piano-roll sequencer (16×16 / 32×32), WebAudio scheduling |
+| `engine/input.ts` | Keyboard + gamepad polling, action-map sampling |
+| `engine/pool.ts` | Zero-alloc `RingBuffer`, `ObjectPool`, and `EntityFreeList` |
+| `engine/renderer.ts` | WebGL full-screen quad renderer (NEAREST-filtered texture) |
+| `parser/lexer.ts` | MSC tokenizer — line-by-line YAML-like token stream |
+| `parser/ast.ts` | Token-stream → `MscDocument` AST builder |
+| `parser/msc.ts` | Public `parseMsc(source)` façade |

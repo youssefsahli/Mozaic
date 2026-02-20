@@ -90,6 +90,7 @@ src/
     pathfinding.ts      Kinetic Pathfinding (Catmull-Rom / Bezier)
     audio.ts            Audio Sequencer (pixel piano roll)
     input.ts            Input Mapping (keyboard + gamepad)
+    pool.ts             Zero-allocation object pools (RingBuffer, ObjectPool, EntityFreeList)
     renderer.ts         WebGL Renderer
   parser/
     lexer.ts            MSC lexer (tokenization)
