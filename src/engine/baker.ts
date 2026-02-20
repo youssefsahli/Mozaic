@@ -32,8 +32,7 @@ export interface SequencerGrid {
 const DEFAULT_PATH_COLORS = ["#ff00ff", "#00ffff", "#ffff00"];
 
 /**
- * Marching Squares look-up table for edge midpoints (simplified 2D).
- * Each cell in the grid is 1 if the alpha of its top-left pixel > threshold.
+ * Build a binary alpha grid: 1 if pixel alpha >= threshold, 0 otherwise.
  */
 function buildAlphaGrid(
   data: Uint8ClampedArray,
@@ -52,12 +51,118 @@ function buildAlphaGrid(
 }
 
 /**
- * Extremely simplified Marching Squares: trace the boundary of each
- * connected alpha region into a polygon.
+ * Full 16-case Marching Squares look-up table.
  *
- * This implementation uses a basic edge-walk and is intentionally
- * minimal for the skeleton — a production version would use the full
- * look-up table approach.
+ * Cell index: idx = (tl << 3) | (tr << 2) | (br << 1) | bl
+ *
+ * Edge indices: 0 = top, 1 = right, 2 = bottom, 3 = left
+ * Midpoint positions for cell at (x, y):
+ *   top    → { x + 0.5,   y       }
+ *   right  → { x + 1,     y + 0.5 }
+ *   bottom → { x + 0.5,   y + 1   }
+ *   left   → { x,         y + 0.5 }
+ *
+ * Saddle cases (5 = TR+BL, 10 = TL+BR) are each resolved as two segments.
+ */
+const MS_LOOKUP: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+  [],                    // 0  all outside
+  [[3, 2]],              // 1  BL → left-bottom
+  [[2, 1]],              // 2  BR → bottom-right
+  [[3, 1]],              // 3  BL+BR → left-right
+  [[0, 1]],              // 4  TR → top-right
+  [[0, 1], [2, 3]],      // 5  TR+BL saddle → top-right, bottom-left
+  [[0, 2]],              // 6  TR+BR → top-bottom
+  [[0, 3]],              // 7  TR+BR+BL → top-left
+  [[0, 3]],              // 8  TL → top-left
+  [[0, 2]],              // 9  TL+BL → top-bottom
+  [[0, 3], [2, 1]],      // 10 TL+BR saddle → top-left, bottom-right
+  [[0, 1]],              // 11 TL+BL+BR → top-right
+  [[3, 1]],              // 12 TL+TR → left-right
+  [[1, 2]],              // 13 TL+TR+BL → right-bottom
+  [[2, 3]],              // 14 TL+TR+BR → bottom-left
+  [],                    // 15 all inside
+];
+
+/** Return the pixel-space midpoint of an edge in cell (x, y). */
+function edgeMidpoint(cellX: number, cellY: number, edge: number): Point {
+  switch (edge) {
+    case 0: return { x: cellX + 0.5, y: cellY };
+    case 1: return { x: cellX + 1,   y: cellY + 0.5 };
+    case 2: return { x: cellX + 0.5, y: cellY + 1 };
+    default: return { x: cellX,      y: cellY + 0.5 };
+  }
+}
+
+/**
+ * Stitch a flat list of line segments into polylines.
+ * Uses a free-list chain so each segment is visited at most once.
+ */
+function connectSegments(segments: Array<readonly [Point, Point]>): Point[][] {
+  if (segments.length === 0) return [];
+
+  const ptKey = (p: Point) => `${p.x},${p.y}`;
+
+  // Build adjacency: point-key → list of { other-endpoint, segment-index }
+  const adj = new Map<string, Array<{ pt: Point; si: number }>>();
+  for (let i = 0; i < segments.length; i++) {
+    const [a, b] = segments[i];
+    const ka = ptKey(a);
+    const kb = ptKey(b);
+    if (!adj.has(ka)) adj.set(ka, []);
+    if (!adj.has(kb)) adj.set(kb, []);
+    adj.get(ka)!.push({ pt: b, si: i });
+    adj.get(kb)!.push({ pt: a, si: i });
+  }
+
+  const usedSeg = new Uint8Array(segments.length);
+  const polygons: Point[][] = [];
+
+  for (let i = 0; i < segments.length; i++) {
+    if (usedSeg[i]) continue;
+
+    const chain: Point[] = [segments[i][0], segments[i][1]];
+    usedSeg[i] = 1;
+
+    // Grow forward from the tail
+    let growing = true;
+    while (growing) {
+      growing = false;
+      const tail = chain[chain.length - 1];
+      for (const { pt, si } of adj.get(ptKey(tail)) ?? []) {
+        if (usedSeg[si]) continue;
+        usedSeg[si] = 1;
+        chain.push(pt);
+        growing = true;
+        break;
+      }
+    }
+
+    // Grow backward from the head
+    growing = true;
+    while (growing) {
+      growing = false;
+      const head = chain[0];
+      for (const { pt, si } of adj.get(ptKey(head)) ?? []) {
+        if (usedSeg[si]) continue;
+        usedSeg[si] = 1;
+        chain.unshift(pt);
+        growing = true;
+        break;
+      }
+    }
+
+    if (chain.length >= 2) polygons.push(chain);
+  }
+
+  return polygons;
+}
+
+/**
+ * Full Marching Squares using the 16-case look-up table.
+ *
+ * Each 2×2 cell is classified by its corner alpha values into one of the
+ * 16 cases, the corresponding edge midpoints are computed, and the resulting
+ * line segments are stitched into contiguous polygons.
  */
 export function marchingSquares(
   imageData: ImageData,
@@ -65,59 +170,24 @@ export function marchingSquares(
 ): Point[][] {
   const { data, width, height } = imageData;
   const grid = buildAlphaGrid(data, width, height, threshold);
-  const visited = new Uint8Array(width * height);
-  const polygons: Point[][] = [];
+
+  const segments: Array<readonly [Point, Point]> = [];
 
   for (let y = 0; y < height - 1; y++) {
     for (let x = 0; x < width - 1; x++) {
-      if (visited[y * width + x]) continue;
-
-      // Check the 2x2 cell
       const tl = grid[y * width + x];
       const tr = grid[y * width + (x + 1)];
-      const bl = grid[(y + 1) * width + x];
       const br = grid[(y + 1) * width + (x + 1)];
+      const bl = grid[(y + 1) * width + x];
       const idx = (tl << 3) | (tr << 2) | (br << 1) | bl;
 
-      // Only start a polygon on a boundary cell (some but not all corners filled)
-      if (idx === 0 || idx === 15) continue;
-
-      visited[y * width + x] = 1;
-      polygons.push(tracePolygon(grid, visited, width, height, x, y));
+      for (const [e1, e2] of MS_LOOKUP[idx]) {
+        segments.push([edgeMidpoint(x, y, e1), edgeMidpoint(x, y, e2)]);
+      }
     }
   }
 
-  return polygons;
-}
-
-/** Simple boundary trace from a starting cell. */
-function tracePolygon(
-  grid: Uint8Array,
-  visited: Uint8Array,
-  width: number,
-  height: number,
-  startX: number,
-  startY: number
-): Point[] {
-  const polygon: Point[] = [];
-  let x = startX;
-  let y = startY;
-  // Walk right until we leave the grid or revisit
-  for (let step = 0; step < width * height; step++) {
-    if (x < 0 || x >= width || y < 0 || y >= height) break;
-    if (visited[y * width + x]) break;
-    visited[y * width + x] = 1;
-    polygon.push({ x, y });
-    // Move to next boundary cell (simple right-then-down walk)
-    if (x + 1 < width && grid[y * width + (x + 1)]) {
-      x++;
-    } else if (y + 1 < height && grid[(y + 1) * width + x]) {
-      y++;
-    } else {
-      break;
-    }
-  }
-  return polygon;
+  return connectSegments(segments);
 }
 
 /**

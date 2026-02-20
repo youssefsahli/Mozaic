@@ -6,6 +6,7 @@
  */
 
 import type { Point, BakedAsset } from "../engine/baker.js";
+import type { MscSchema } from "../parser/msc.js";
 import type { CameraState } from "./types.js";
 
 export interface OverlayOptions {
@@ -269,4 +270,61 @@ export function pointToSegmentDistance(point: Point, a: Point, b: Point): number
   const projX = a.x + abX * t;
   const projY = a.y + abY * t;
   return Math.hypot(point.x - projX, point.y - projY);
+}
+
+// ── State Inspector ───────────────────────────────────────────
+
+/**
+ * Translate a document pixel to a human-readable label for the state inspector.
+ *
+ * If the pixel's byte address matches the start of a schema variable, the
+ * variable name and current value are returned (e.g. "$PlayerX: 42").
+ * Otherwise the raw RGBA bytes are returned (e.g. "Pixel 3,7 = RGBA(255,0,0,255)").
+ *
+ * @param docX  Document-space X coordinate (integer pixel)
+ * @param docY  Document-space Y coordinate (integer pixel)
+ * @param bufferWidth  Width of the state buffer in pixels (usually 64)
+ * @param buffer  The engine state buffer (Uint8ClampedArray, RGBA layout)
+ * @param schema  Optional MSC schema for named variable lookup
+ */
+export function inspectPixelAt(
+  docX: number,
+  docY: number,
+  bufferWidth: number,
+  buffer: Uint8ClampedArray,
+  schema?: MscSchema
+): string {
+  const byteAddr = (docY * bufferWidth + docX) * 4;
+  if (byteAddr < 0 || byteAddr + 3 >= buffer.length) {
+    return `Pixel ${docX},${docY}`;
+  }
+
+  if (schema) {
+    for (const [name, entry] of Object.entries(schema)) {
+      if (entry.addr !== byteAddr) continue;
+      let value: number;
+      switch (entry.type) {
+        case "Int8":
+          value = buffer[byteAddr];
+          break;
+        case "Int16":
+          value = (buffer[byteAddr] << 8) | buffer[byteAddr + 1];
+          break;
+        default: // Int32 — read all 4 bytes (big-endian unsigned)
+          value =
+            (((buffer[byteAddr] << 24) |
+              (buffer[byteAddr + 1] << 16) |
+              (buffer[byteAddr + 2] << 8) |
+              buffer[byteAddr + 3]) >>>
+              0);
+      }
+      return `${name}: ${value}`;
+    }
+  }
+
+  const r = buffer[byteAddr];
+  const g = buffer[byteAddr + 1];
+  const b = buffer[byteAddr + 2];
+  const a = buffer[byteAddr + 3];
+  return `Pixel ${docX},${docY} = RGBA(${r}, ${g}, ${b}, ${a})`;
 }

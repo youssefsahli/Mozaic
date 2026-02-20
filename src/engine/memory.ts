@@ -93,6 +93,30 @@ export function writeInt24(
   buffer[byteOffset + 2] = normalized & 0xff;
 }
 
+export function readInt32(buffer: Uint8ClampedArray, byteOffset: number): number {
+  assertOffset(buffer, byteOffset + 3);
+  return (
+    ((buffer[byteOffset] << 24) |
+      (buffer[byteOffset + 1] << 16) |
+      (buffer[byteOffset + 2] << 8) |
+      buffer[byteOffset + 3]) >>>
+    0
+  );
+}
+
+export function writeInt32(
+  buffer: Uint8ClampedArray,
+  byteOffset: number,
+  value: number
+): void {
+  assertOffset(buffer, byteOffset + 3);
+  const normalized = value >>> 0;
+  buffer[byteOffset] = (normalized >> 24) & 0xff;
+  buffer[byteOffset + 1] = (normalized >> 16) & 0xff;
+  buffer[byteOffset + 2] = (normalized >> 8) & 0xff;
+  buffer[byteOffset + 3] = normalized & 0xff;
+}
+
 export function assertBlockOffset(
   block: MemoryBlock,
   byteOffset: number,

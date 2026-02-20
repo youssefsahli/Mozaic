@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseSequencerGrid } from "../engine/audio.js";
+import { parseSequencerGrid, hexToWaveform } from "../engine/audio.js";
 
 function makeGrid(
   size: 16 | 32,
@@ -49,5 +49,27 @@ describe("parseSequencerGrid", () => {
     );
     const notes = parseSequencerGrid(data, 16);
     expect(notes[0].velocity).toBeCloseTo(1, 5);
+  });
+});
+
+describe("hexToWaveform", () => {
+  it("maps #00ffff to square", () => {
+    expect(hexToWaveform("#00ffff")).toBe("square");
+  });
+
+  it("maps #ffa500 to sine", () => {
+    expect(hexToWaveform("#ffa500")).toBe("sine");
+  });
+
+  it("maps #ff00ff to sawtooth", () => {
+    expect(hexToWaveform("#ff00ff")).toBe("sawtooth");
+  });
+
+  it("maps uppercase hex correctly", () => {
+    expect(hexToWaveform("#00FFFF")).toBe("square");
+  });
+
+  it("falls back to sine for unmapped colours", () => {
+    expect(hexToWaveform("#123456")).toBe("sine");
   });
 });

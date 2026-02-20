@@ -8,9 +8,11 @@ import {
   readInt8,
   readInt16,
   readInt24,
+  readInt32,
   writeInt8,
   writeInt16,
   writeInt24,
+  writeInt32,
 } from "../engine/memory.js";
 
 describe("memory blocks", () => {
@@ -66,5 +68,15 @@ describe("int encoding", () => {
     expect(state[257]).toBe(0x34);
     expect(state[258]).toBe(0x56);
     expect(readInt24(state, 256)).toBe(0x123456);
+  });
+
+  it("reads and writes Int32 using four bytes", () => {
+    const state = createStateBuffer();
+    writeInt32(state, 256, 0x12345678);
+    expect(state[256]).toBe(0x12);
+    expect(state[257]).toBe(0x34);
+    expect(state[258]).toBe(0x56);
+    expect(state[259]).toBe(0x78);
+    expect(readInt32(state, 256)).toBe(0x12345678);
   });
 });

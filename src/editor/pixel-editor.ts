@@ -8,6 +8,7 @@
  */
 
 import type { BakedAsset } from "../engine/baker.js";
+import type { MscDocument } from "../parser/msc.js";
 import type {
   CameraState,
   ToolType,
@@ -48,7 +49,7 @@ import {
   type PaletteState,
 } from "./palette.js";
 import { HistoryManager } from "./history.js";
-import { renderOverlay, selectDebugLayer, type OverlayOptions } from "./grid-overlay.js";
+import { renderOverlay, selectDebugLayer, inspectPixelAt, type OverlayOptions } from "./grid-overlay.js";
 
 // ── Public interfaces ─────────────────────────────────────────
 
@@ -128,6 +129,10 @@ export class PixelEditor {
   private selectedCollisionIndex: number | null = null;
   private selectedPathIndex: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
+  /** Engine state buffer reference for hot-reload live pixel sync. */
+  private engineBuffer: Uint8ClampedArray | null = null;
+  /** Active MSC script for the State Inspector tooltip. */
+  private script: MscDocument | null = null;
 
   constructor(refs: PixelEditorRefs, callbacks: PixelEditorCallbacks) {
     this.refs = refs;
@@ -214,6 +219,23 @@ export class PixelEditor {
     this.renderGridOverlay();
   }
 
+  /**
+   * Attach a live engine state buffer for hot-reload.
+   * When a brush stroke ends, changed pixels are written directly to this
+   * buffer so the running EngineLoop sees the update immediately.
+   */
+  setEngineBuffer(buffer: Uint8ClampedArray | null): void {
+    this.engineBuffer = buffer;
+  }
+
+  /**
+   * Set the active MSC script so the State Inspector tooltip can display
+   * schema variable names and values while hovering over pixels.
+   */
+  setScript(script: MscDocument | null): void {
+    this.script = script;
+  }
+
   /** Re-render everything. */
   render(): void {
     this.renderAll();
@@ -283,7 +305,15 @@ export class PixelEditor {
     const ctx = this.buildToolContext();
     this.activeTool.onMove(info, ctx);
 
-    this.refs.pixelCoords.textContent = `${Math.floor(info.docX)}, ${Math.floor(info.docY)}`;
+    const docX = Math.floor(info.docX);
+    const docY = Math.floor(info.docY);
+
+    // State Inspector: show schema variable or raw RGBA in the coords label
+    const bufWidth = this.imageData.width;
+    const buf = this.engineBuffer ?? this.imageData.data as unknown as Uint8ClampedArray;
+    const schema = this.script?.schema;
+    const inspected = inspectPixelAt(docX, docY, bufWidth, buf, schema);
+    this.refs.pixelCoords.textContent = `${docX}, ${docY}  ${inspected}`;
   }
 
   private handleToolUp(info: PointerInfo): void {
@@ -299,6 +329,10 @@ export class PixelEditor {
     if (!isPipette && !isSelect) {
       const changed = mergeDraftToDocument(this.layers, this.imageData);
       if (changed) {
+        // Hot reload: write changed pixels directly to the engine state buffer
+        if (this.engineBuffer && this.engineBuffer.length >= this.imageData.data.length) {
+          this.engineBuffer.set(this.imageData.data);
+        }
         this.baked = this.callbacks.onBake(this.imageData);
         this.callbacks.onPersist();
       }
