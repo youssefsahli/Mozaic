@@ -42,6 +42,9 @@ import {
   exportHex,
   importPal,
   exportPal,
+  setColorName,
+  updateColorHex,
+  applyIndexedColorChange,
   type PaletteState,
 } from "./palette.js";
 import { HistoryManager } from "./history.js";
@@ -88,6 +91,7 @@ export interface PixelEditorRefs {
   palettePresetSelect: HTMLSelectElement | null;
   paletteImportButton: HTMLButtonElement | null;
   paletteExportButton: HTMLButtonElement | null;
+  paletteUpdateButton: HTMLButtonElement | null;
 }
 
 /** Callbacks from the pixel editor back to the main app. */
@@ -95,6 +99,10 @@ export interface PixelEditorCallbacks {
   onBake: (imageData: ImageData) => BakedAsset;
   onPersist: () => void;
   onStatusMessage: (text: string, color: string) => void;
+  /** Called when a palette slot's hex is replaced (for script text swap). */
+  onColorChange?: (oldHex: string, newHex: string) => void;
+  /** Called whenever the palette changes (for refreshing external displays). */
+  onPaletteChange?: () => void;
 }
 
 // ── Orchestrator ──────────────────────────────────────────────
@@ -209,6 +217,11 @@ export class PixelEditor {
   /** Re-render everything. */
   render(): void {
     this.renderAll();
+  }
+
+  /** Return a read-only snapshot of current palette colors. */
+  getPaletteColors(): ReadonlyArray<import("./types.js").PaletteColor> {
+    return this.palette.colors;
   }
 
   /** Undo the last edit. */
@@ -435,8 +448,18 @@ export class PixelEditor {
           this.palette.activeIndex = Math.max(0, this.palette.colors.length - 1);
         }
         this.renderPalette();
+      },
+      (index) => {
+        // Double-click: rename the color slot
+        const current = this.palette.colors[index]?.name ?? "";
+        const newName = window.prompt("Name this color slot:", current);
+        if (newName !== null) {
+          setColorName(this.palette, index, newName);
+          this.renderPalette();
+        }
       }
     );
+    this.callbacks.onPaletteChange?.();
   }
 
   // ── Tool switching ────────────────────────────────────────
@@ -641,6 +664,27 @@ export class PixelEditor {
       link.click();
       URL.revokeObjectURL(link.href);
       this.callbacks.onStatusMessage("Palette exported.", "#6a9955");
+    });
+
+    // Palette Update: apply color picker value to the active palette slot,
+    // perform indexed color swap on image, and notify script editor
+    refs.paletteUpdateButton?.addEventListener("click", () => {
+      if (!this.imageData) return;
+      const newHex = refs.pixelColor.value;
+      const oldHex = updateColorHex(this.palette, this.palette.activeIndex, newHex);
+      if (oldHex !== null) {
+        this.history.pushSnapshot(this.imageData);
+        applyIndexedColorChange(this.imageData, oldHex, newHex);
+        this.baked = this.callbacks.onBake(this.imageData);
+        this.callbacks.onColorChange?.(oldHex, newHex);
+        this.callbacks.onPersist();
+        this.renderAll();
+        this.renderPalette();
+        this.callbacks.onStatusMessage(
+          `Updated slot: ${oldHex} → ${newHex}`,
+          "#6a9955"
+        );
+      }
     });
 
     // Keyboard shortcuts

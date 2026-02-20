@@ -48,6 +48,30 @@ export function toggleLock(state: PaletteState, index: number): void {
 }
 
 /**
+ * Set or clear the display name for a palette slot.
+ * Pass an empty string to clear the name.
+ */
+export function setColorName(state: PaletteState, index: number, name: string): void {
+  if (index < 0 || index >= state.colors.length) return;
+  const trimmed = name.trim();
+  state.colors[index].name = trimmed || undefined;
+}
+
+/**
+ * Update the hex value of an existing palette slot.
+ * Returns the old hex if the color actually changed, or null if unchanged or invalid.
+ */
+export function updateColorHex(state: PaletteState, index: number, newHex: string): string | null {
+  if (index < 0 || index >= state.colors.length) return null;
+  const normalized = newHex.toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(normalized)) return null;
+  const oldHex = state.colors[index].hex;
+  if (oldHex === normalized) return null;
+  state.colors[index].hex = normalized;
+  return oldHex;
+}
+
+/**
  * Apply an indexed color change: replace all pixels matching oldHex
  * with newHex in the ImageData.
  */
@@ -179,7 +203,8 @@ export function renderSwatches(
   state: PaletteState,
   container: HTMLElement,
   onSelect: (index: number) => void,
-  onContextMenu: (index: number, e: MouseEvent) => void
+  onContextMenu: (index: number, e: MouseEvent) => void,
+  onDoubleClick?: (index: number) => void
 ): void {
   container.innerHTML = "";
 
@@ -187,7 +212,7 @@ export function renderSwatches(
     const swatch = document.createElement("button");
     swatch.type = "button";
     swatch.className = "palette-swatch";
-    swatch.title = color.hex;
+    swatch.title = color.name ? `${color.name} (${color.hex})` : color.hex;
     swatch.style.background = color.hex;
 
     if (index === state.activeIndex) {
@@ -209,11 +234,24 @@ export function renderSwatches(
       swatch.appendChild(indicator);
     }
 
+    if (color.name) {
+      const nameLabel = document.createElement("span");
+      nameLabel.className = "swatch-name";
+      nameLabel.textContent = color.name;
+      swatch.appendChild(nameLabel);
+    }
+
     swatch.addEventListener("click", () => onSelect(index));
     swatch.addEventListener("contextmenu", (e) => {
       e.preventDefault();
       onContextMenu(index, e);
     });
+    if (onDoubleClick) {
+      swatch.addEventListener("dblclick", (e) => {
+        e.preventDefault();
+        onDoubleClick(index);
+      });
+    }
 
     container.appendChild(swatch);
   });

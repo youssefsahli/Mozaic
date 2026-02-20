@@ -74,6 +74,8 @@ export interface PaletteColor {
   locked: boolean;
   /** MSC rule ID bound to this color, or null. */
   mscRuleId: string | null;
+  /** Optional human-readable name for this palette slot. */
+  name?: string;
 }
 
 export interface PalettePreset {
