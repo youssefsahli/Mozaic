@@ -246,6 +246,19 @@ export class PixelEditor {
     return this.palette.colors;
   }
 
+  /** Load a palette preset by name. */
+  loadPalettePreset(name: string): void {
+    const colors = loadPreset(name);
+    if (colors) {
+      this.palette.colors = colors;
+      this.palette.activeIndex = 0;
+      this.palette.activePreset = name;
+      this.brush.color = getActiveColor(this.palette);
+      this.refs.pixelColor.value = this.brush.color;
+      this.renderPalette();
+    }
+  }
+
   /** Undo the last edit. */
   undo(): void {
     if (!this.imageData) return;

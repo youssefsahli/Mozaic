@@ -18,6 +18,7 @@ import {
 import { parseMsc, type MscDocument } from "./parser/msc.js";
 import { parseWithImports } from "./engine/import-resolver.js";
 import { PixelEditor, type PixelEditorRefs } from "./editor/pixel-editor.js";
+import { getPresetNames } from "./editor/palette.js";
 import {
   type FileNode,
   type ProjectFiles,
@@ -74,6 +75,8 @@ interface UiRefs {
   appRoot: HTMLDivElement;
   canvas: HTMLCanvasElement;
   newRomButton: HTMLButtonElement;
+  newRomMenu: HTMLDivElement;
+  newRomPalette: HTMLSelectElement;
   openRomButton: HTMLButtonElement;
   openScriptButton: HTMLButtonElement;
   openConfigButton: HTMLButtonElement;
@@ -226,6 +229,8 @@ function getUiRefs(): UiRefs {
     appRoot: requiredElement<HTMLDivElement>("mozaic-app"),
     canvas: requiredElement<HTMLCanvasElement>("mozaic-canvas"),
     newRomButton: requiredElement<HTMLButtonElement>("new-rom-button"),
+    newRomMenu: requiredElement<HTMLDivElement>("new-rom-menu"),
+    newRomPalette: requiredElement<HTMLSelectElement>("new-rom-palette"),
     openRomButton: requiredElement<HTMLButtonElement>("open-rom-button"),
     openScriptButton: requiredElement<HTMLButtonElement>("open-script-button"),
     openConfigButton: requiredElement<HTMLButtonElement>("open-config-button"),
@@ -626,8 +631,39 @@ function wireUi(runtime: RuntimeState): void {
   scriptInput.style.display = "none";
   document.body.appendChild(scriptInput);
 
-  ui.newRomButton.addEventListener("click", () => {
-    createNewRom(runtime);
+  // New ROM dropdown toggle
+  ui.newRomButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    ui.newRomMenu.classList.toggle("is-open");
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener("click", () => {
+    ui.newRomMenu.classList.remove("is-open");
+  });
+
+  // Populate palette preset dropdown in new ROM menu
+  {
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Default";
+    ui.newRomPalette.appendChild(defaultOpt);
+    for (const name of getPresetNames()) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      ui.newRomPalette.appendChild(opt);
+    }
+  }
+
+  // New ROM menu item handlers
+  document.querySelectorAll<HTMLButtonElement>("#new-rom-menu [data-new-rom]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const variant = btn.dataset.newRom;
+      const paletteName = ui.newRomPalette.value;
+      ui.newRomMenu.classList.remove("is-open");
+      createNewRom(runtime, variant as "empty" | "amiga" | "checkerboard", paletteName || undefined);
+    });
   });
   ui.openRomButton.addEventListener("click", () => romInput.click());
   ui.openScriptButton.addEventListener("click", () => {
@@ -954,31 +990,57 @@ function restart(runtime: RuntimeState): void {
   resizeGameCanvas(ui);
 }
 
-function createNewRom(runtime: RuntimeState): void {
+function createNewRom(
+  runtime: RuntimeState,
+  variant: "empty" | "amiga" | "checkerboard" = "empty",
+  paletteName?: string
+): void {
   const { newRomWidth, newRomHeight, newRomColor } = runtime.config.game;
-  runtime.imageData = createBlankImageData(newRomWidth, newRomHeight, newRomColor);
+
+  // Generate image based on variant
+  switch (variant) {
+    case "amiga":
+      runtime.imageData = createAmigaStyleRom();
+      break;
+    case "checkerboard":
+      runtime.imageData = createCheckerboardRom(newRomWidth, newRomHeight);
+      break;
+    default:
+      runtime.imageData = createBlankImageData(newRomWidth, newRomHeight, newRomColor);
+      break;
+  }
+
   runtime.baked = bake(runtime.imageData);
   runtime.scriptText = runtime.config.editor.defaultScript;
   persistScript(runtime.scriptText);
 
-  // Add to project as a new image file
+  // Clear old project and create fresh one
+  const freshProject = createDefaultProject();
+  runtime.project.root = freshProject.root;
+  runtime.project.activeFileId = freshProject.activeFileId;
+
+  // Add the new image file to project
   const dataUrl = imageDataToDataUrl(runtime.imageData);
   const imgNode = createImageFile(
     `sprite_${Date.now().toString(36)}.png`,
     dataUrl,
-    newRomWidth,
-    newRomHeight
+    runtime.imageData.width,
+    runtime.imageData.height
   );
   addChild(runtime.project.root, imgNode);
-  runtime.project.activeFileId = imgNode.id;
   saveProject(runtime.project);
   runtime.fileTreeView?.render();
+
+  // Apply palette if specified
+  if (paletteName && runtime.pixelEditor) {
+    runtime.pixelEditor.loadPalettePreset(paletteName);
+  }
 
   switchEditorMode(runtime, "script");
   initPixelEditor(runtime);
   schedulePersistRom(runtime);
   restart(runtime);
-  runtime.ui.mscStatus.textContent = `New ${newRomWidth}x${newRomHeight} ROM created.`;
+  runtime.ui.mscStatus.textContent = `New ${runtime.imageData.width}×${runtime.imageData.height} ROM created (${variant}).`;
   runtime.ui.mscStatus.style.color = "#6a9955";
 }
 
@@ -1444,6 +1506,20 @@ function cloneImageData(imageData: ImageData): ImageData {
     imageData.width,
     imageData.height
   );
+}
+
+function createCheckerboardRom(w = 64, h = 64): ImageData {
+  const data = new Uint8ClampedArray(w * h * 4);
+  const cellSize = 8;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const isLight = ((Math.floor(x / cellSize) + Math.floor(y / cellSize)) % 2) === 0;
+      const i = (y * w + x) * 4;
+      const v = isLight ? 40 : 20;
+      data[i] = v; data[i + 1] = v; data[i + 2] = v; data[i + 3] = 255;
+    }
+  }
+  return new ImageData(data, w, h);
 }
 
 function createAmigaStyleRom(): ImageData {

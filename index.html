@@ -601,6 +601,46 @@
         color: var(--text) !important;
       }
 
+      /* ── Header "New" dropdown menu ──────────── */
+      .header-menu-anchor { position: relative; display: inline-block }
+      .header-dropdown {
+        position: absolute;
+        top: 100%; left: 0;
+        z-index: 100;
+        min-width: 200px;
+        background: var(--surface-2);
+        border: 1px solid var(--border-hi);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        padding: 4px;
+        display: none;
+        flex-direction: column;
+      }
+      .header-dropdown.is-open { display: flex }
+      .header-dropdown-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+      }
+      .header-dropdown-label {
+        font-size: 10px;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        white-space: nowrap;
+      }
+      .header-dropdown-select {
+        flex: 1;
+        padding: 2px 4px;
+        font: 11px var(--font-mono);
+        background: var(--surface-3);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: var(--radius);
+        cursor: pointer;
+      }
+
       /* ── Add-file dropdown menu ─────────────── */
       .ftv-menu-anchor { position: relative }
       .ftv-dropdown {
@@ -957,7 +997,28 @@
         </div>
         <div id="header-divider"></div>
         <div id="header-actions">
-          <button id="new-rom-button" type="button" title="Create new ROM">+ New</button>
+          <div class="header-menu-anchor">
+            <button id="new-rom-button" type="button" title="Create new ROM">+ New</button>
+            <div id="new-rom-menu" class="header-dropdown">
+              <div class="header-dropdown-row">
+                <label class="header-dropdown-label">Palette:</label>
+                <select id="new-rom-palette" class="header-dropdown-select"></select>
+              </div>
+              <div class="ftv-dropdown-sep"></div>
+              <button type="button" class="ftv-dropdown-item" data-new-rom="empty">
+                <span class="ftv-dropdown-label">Empty ROM</span>
+                <span class="ftv-dropdown-hint">Blank</span>
+              </button>
+              <button type="button" class="ftv-dropdown-item" data-new-rom="amiga">
+                <span class="ftv-dropdown-label">Amiga Demo</span>
+                <span class="ftv-dropdown-hint">Classic</span>
+              </button>
+              <button type="button" class="ftv-dropdown-item" data-new-rom="checkerboard">
+                <span class="ftv-dropdown-label">Checkerboard</span>
+                <span class="ftv-dropdown-hint">Pattern</span>
+              </button>
+            </div>
+          </div>
           <button id="open-rom-button" type="button" title="Open ROM image">Open ROM</button>
           <button id="open-script-button" type="button" title="Import script file">&#8593; Import</button>
           <div class="header-sep"></div>
