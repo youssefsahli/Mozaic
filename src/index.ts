@@ -22,6 +22,7 @@ import {
   type FileNode,
   type ProjectFiles,
   createDefaultProject,
+  createFolder,
   loadProject,
   saveProject,
   findNode,
@@ -95,6 +96,18 @@ interface UiRefs {
   fileTreeHeader: HTMLDivElement;
   fileTreeContainer: HTMLDivElement;
   fileTreeToggle: HTMLSpanElement;
+  saveFileButton: HTMLButtonElement;
+  downloadFileButton: HTMLButtonElement;
+  headerFileInfo: HTMLSpanElement;
+  editorFileName: HTMLSpanElement;
+  editorModifiedDot: HTMLSpanElement;
+  editorFileIcon: HTMLSpanElement;
+  pixelFileName: HTMLSpanElement;
+  pixelFileSize: HTMLSpanElement;
+  downloadPixelButton: HTMLButtonElement;
+  statusFileInfo: HTMLSpanElement;
+  statusCursorPos: HTMLSpanElement;
+  lineNumbers: HTMLDivElement;
 }
 
 interface DocEntry {
@@ -235,6 +248,18 @@ function getUiRefs(): UiRefs {
     fileTreeHeader: requiredElement<HTMLDivElement>("file-tree-header"),
     fileTreeContainer: requiredElement<HTMLDivElement>("file-tree-container"),
     fileTreeToggle: requiredElement<HTMLSpanElement>("file-tree-toggle"),
+    saveFileButton: requiredElement<HTMLButtonElement>("save-file-button"),
+    downloadFileButton: requiredElement<HTMLButtonElement>("download-file-button"),
+    headerFileInfo: requiredElement<HTMLSpanElement>("header-file-info"),
+    editorFileName: requiredElement<HTMLSpanElement>("editor-file-name"),
+    editorModifiedDot: requiredElement<HTMLSpanElement>("editor-modified-dot"),
+    editorFileIcon: requiredElement<HTMLSpanElement>("editor-file-icon"),
+    pixelFileName: requiredElement<HTMLSpanElement>("pixel-file-name"),
+    pixelFileSize: requiredElement<HTMLSpanElement>("pixel-file-size"),
+    downloadPixelButton: requiredElement<HTMLButtonElement>("download-pixel-button"),
+    statusFileInfo: requiredElement<HTMLSpanElement>("status-file-info"),
+    statusCursorPos: requiredElement<HTMLSpanElement>("status-cursor-pos"),
+    lineNumbers: requiredElement<HTMLDivElement>("line-numbers"),
   };
 }
 
@@ -295,6 +320,7 @@ function initPixelEditor(runtime: RuntimeState): void {
   if (runtime.baked) {
     runtime.pixelEditor.setBaked(runtime.baked);
   }
+  updateEditorFileInfo(runtime);
 }
 
 // ── File tree ────────────────────────────────────────────────
@@ -303,10 +329,17 @@ function initPixelEditor(runtime: RuntimeState): void {
 function initFileTree(runtime: RuntimeState): void {
   const { ui } = runtime;
 
-  // Wire collapse toggle
-  ui.fileTreeHeader.addEventListener("click", () => {
+  // Wire collapse toggle (only on the title / toggle chevron, not the action buttons)
+  ui.fileTreeToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
     ui.fileTreePanel.classList.toggle("is-collapsed");
   });
+  ui.fileTreePanel.querySelector("#file-tree-title")?.addEventListener("click", () => {
+    ui.fileTreePanel.classList.toggle("is-collapsed");
+  });
+
+  // Wire the add-file dropdown menu
+  wireFileTreeAddMenu(runtime);
 
   runtime.fileTreeView = new FileTreeView(
     ui.fileTreeContainer,
@@ -341,6 +374,184 @@ function initFileTree(runtime: RuntimeState): void {
   if (runtime.project.activeFileId) {
     const node = findNode(runtime.project.root, runtime.project.activeFileId);
     if (node) openFileNode(runtime, node, true);
+  }
+}
+
+/** Wire the "+" dropdown menu in the file tree header. */
+function wireFileTreeAddMenu(runtime: RuntimeState): void {
+  const addBtn = document.getElementById("ftv-add-btn");
+  const menu = document.getElementById("ftv-add-menu");
+  if (!addBtn || !menu) return;
+
+  // Toggle dropdown
+  addBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    menu.classList.toggle("is-open");
+  });
+
+  // Close on outside click
+  document.addEventListener("click", () => {
+    menu.classList.remove("is-open");
+  });
+  menu.addEventListener("click", (e) => e.stopPropagation());
+
+  // Hidden file inputs for import
+  const scriptFileInput = document.createElement("input");
+  scriptFileInput.type = "file";
+  scriptFileInput.accept = ".msc,.txt";
+  scriptFileInput.multiple = true;
+  scriptFileInput.style.display = "none";
+  document.body.appendChild(scriptFileInput);
+
+  const imageFileInput = document.createElement("input");
+  imageFileInput.type = "file";
+  imageFileInput.accept = ".png,.jpg,.jpeg,.webp";
+  imageFileInput.multiple = true;
+  imageFileInput.style.display = "none";
+  document.body.appendChild(imageFileInput);
+
+  const romFileInput = document.createElement("input");
+  romFileInput.type = "file";
+  romFileInput.accept = ".mzk,.png";
+  romFileInput.multiple = false;
+  romFileInput.style.display = "none";
+  document.body.appendChild(romFileInput);
+
+  // Wire menu items
+  menu.querySelectorAll<HTMLButtonElement>(".ftv-dropdown-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      menu.classList.remove("is-open");
+      const action = item.dataset.action;
+      switch (action) {
+        case "new-script": {
+          const node = createScriptFile("untitled.msc", "# New script\n");
+          addChild(runtime.project.root, node);
+          runtime.project.activeFileId = node.id;
+          saveProject(runtime.project);
+          runtime.scriptText = node.content ?? "";
+          switchEditorMode(runtime, "script");
+          switchTab(runtime, "script");
+          runtime.fileTreeView?.render();
+          showStatus(runtime, "New script created.", "var(--success)");
+          break;
+        }
+        case "new-image": {
+          const canvas = document.createElement("canvas");
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext("2d")!;
+          ctx.fillStyle = "#000000";
+          ctx.fillRect(0, 0, 64, 64);
+          const dataUrl = canvas.toDataURL("image/png");
+          const node = createImageFile("new_sprite.png", dataUrl, 64, 64);
+          addChild(runtime.project.root, node);
+          runtime.project.activeFileId = node.id;
+          saveProject(runtime.project);
+          openFileNode(runtime, node);
+          showStatus(runtime, "New 64×64 image created.", "var(--success)");
+          break;
+        }
+        case "new-folder": {
+          const folder = createFolder("new_folder");
+          addChild(runtime.project.root, folder);
+          saveProject(runtime.project);
+          runtime.fileTreeView?.render();
+          showStatus(runtime, "Folder created.", "var(--success)");
+          break;
+        }
+        case "import-script":
+          scriptFileInput.click();
+          break;
+        case "import-image":
+          imageFileInput.click();
+          break;
+        case "import-rom":
+          romFileInput.click();
+          break;
+      }
+    });
+  });
+
+  // Handle script file imports
+  scriptFileInput.addEventListener("change", async () => {
+    const files = scriptFileInput.files;
+    if (!files || files.length === 0) return;
+    let lastNode: FileNode | null = null;
+    for (const file of Array.from(files)) {
+      const text = await file.text();
+      const node = createScriptFile(file.name, text);
+      addChild(runtime.project.root, node);
+      lastNode = node;
+    }
+    if (lastNode) {
+      runtime.project.activeFileId = lastNode.id;
+      saveProject(runtime.project);
+      runtime.scriptText = lastNode.content ?? "";
+      persistScript(runtime.scriptText);
+      switchEditorMode(runtime, "script");
+      switchTab(runtime, "script");
+      runtime.fileTreeView?.render();
+      showStatus(runtime, `Imported ${files.length} script(s).`, "var(--success)");
+    }
+    scriptFileInput.value = "";
+  });
+
+  // Handle image file imports
+  imageFileInput.addEventListener("change", async () => {
+    const files = imageFileInput.files;
+    if (!files || files.length === 0) return;
+    let lastNode: FileNode | null = null;
+    for (const file of Array.from(files)) {
+      const imgData = await fileToImageData(file);
+      const dataUrl = imageDataToDataUrl(imgData);
+      const node = createImageFile(file.name, dataUrl, imgData.width, imgData.height);
+      addChild(runtime.project.root, node);
+      lastNode = node;
+    }
+    if (lastNode) {
+      runtime.project.activeFileId = lastNode.id;
+      saveProject(runtime.project);
+      openFileNode(runtime, lastNode);
+      showStatus(runtime, `Imported ${files.length} image(s).`, "var(--success)");
+    }
+    imageFileInput.value = "";
+  });
+
+  // Handle ROM file imports (loads via the existing loadRom path)
+  romFileInput.addEventListener("change", async () => {
+    const file = romFileInput.files?.[0];
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      await loadRom(runtime, objectUrl);
+      showStatus(runtime, `Imported ROM: ${file.name}`, "var(--success)");
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
+    romFileInput.value = "";
+  });
+}
+
+/** Convert a File (image) to ImageData. */
+async function fileToImageData(file: File): Promise<ImageData> {
+  const url = URL.createObjectURL(file);
+  try {
+    return await new Promise<ImageData>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { reject(new Error("No 2D context")); return; }
+        ctx.drawImage(img, 0, 0);
+        resolve(ctx.getImageData(0, 0, canvas.width, canvas.height));
+      };
+      img.onerror = () => reject(new Error(`Failed to decode image: ${file.name}`));
+      img.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }
 
@@ -395,6 +606,8 @@ async function openFileNode(
   }
 
   runtime.fileTreeView?.render();
+  updateEditorFileInfo(runtime);
+  updateLineNumbers(runtime);
 }
 
 
@@ -434,6 +647,31 @@ function wireUi(runtime: RuntimeState): void {
     restart(runtime);
   });
 
+  // Save file button
+  ui.saveFileButton.addEventListener("click", () => {
+    saveActiveFileContent(runtime);
+    ui.editorModifiedDot.hidden = true;
+    showStatus(runtime, "File saved.", "var(--success)");
+  });
+
+  // Download file buttons
+  ui.downloadFileButton.addEventListener("click", () => {
+    downloadCurrentFile(runtime);
+  });
+  ui.downloadPixelButton.addEventListener("click", () => {
+    downloadCurrentImage(runtime);
+  });
+
+  // Ctrl+S shortcut
+  window.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      saveActiveFileContent(runtime);
+      ui.editorModifiedDot.hidden = true;
+      showStatus(runtime, "File saved.", "var(--success)");
+    }
+  });
+
   romInput.addEventListener("change", async () => {
     const file = romInput.files?.[0];
     if (!file) return;
@@ -471,10 +709,13 @@ function wireUi(runtime: RuntimeState): void {
     }
     refreshHighlight(runtime);
     validateEditor(runtime);
+    updateLineNumbers(runtime);
+    ui.editorModifiedDot.hidden = false;
   });
   ui.mscEditor.addEventListener("scroll", () => {
     ui.mscHighlight.scrollTop = ui.mscEditor.scrollTop;
     ui.mscHighlight.scrollLeft = ui.mscEditor.scrollLeft;
+    ui.lineNumbers.scrollTop = ui.mscEditor.scrollTop;
   });
 
   ui.docsSearch.addEventListener("input", () => {
@@ -999,21 +1240,24 @@ function setEditorText(runtime: RuntimeState, text: string): void {
   runtime.ui.mscEditor.value = text;
   refreshHighlight(runtime);
   validateEditor(runtime);
+  updateLineNumbers(runtime);
 }
 
 function switchEditorMode(runtime: RuntimeState, mode: EditorMode): void {
   runtime.editorMode = mode;
   if (mode === "script") {
-    runtime.ui.textEditorTitle.textContent = "Script Editor (.msc)";
+    runtime.ui.textEditorTitle.textContent = "Script";
     const text = runtime.scriptText;
     setEditorText(runtime, text);
   } else if (mode === "config") {
-    runtime.ui.textEditorTitle.textContent = "Config Editor (JSON)";
+    runtime.ui.textEditorTitle.textContent = "Config";
     setEditorText(runtime, runtime.configText);
   } else if (mode === "image") {
     // Image files are edited in the pixel tab; switch there
-    runtime.ui.textEditorTitle.textContent = "Pixel Editor";
+    runtime.ui.textEditorTitle.textContent = "Pixel";
   }
+  updateEditorFileInfo(runtime);
+  updateLineNumbers(runtime);
 }
 
 function refreshHighlight(runtime: RuntimeState): void {
@@ -1367,6 +1611,103 @@ function insertAtCursor(textarea: HTMLTextAreaElement, text: string): void {
   textarea.selectionEnd = cursor;
   textarea.focus();
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+/** Update file name displays in editor toolbars, header, and status bar. */
+function updateEditorFileInfo(runtime: RuntimeState): void {
+  const { ui, project } = runtime;
+  const activeId = project.activeFileId;
+  const node = activeId ? findNode(project.root, activeId) : null;
+
+  if (node) {
+    ui.editorFileName.textContent = node.name;
+    ui.headerFileInfo.innerHTML = `<span class="header-file-dot"></span> ${escapeHtml(node.name)}`;
+    ui.statusFileInfo.innerHTML = `<span class="status-accent">${escapeHtml(node.name)}</span> \u2014 ${node.fileType ?? "file"}`;
+    ui.editorModifiedDot.hidden = true;
+
+    if (node.fileType === "script") {
+      ui.editorFileIcon.innerHTML = `<svg viewBox="0 0 16 16"><path d="M4 2h6l3 3v9H4z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 2v3h3" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`;
+    } else {
+      ui.editorFileIcon.innerHTML = `<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`;
+    }
+
+    if (node.fileType === "image") {
+      ui.pixelFileName.textContent = node.name;
+      const w = node.imageWidth ?? runtime.imageData?.width ?? 0;
+      const h = node.imageHeight ?? runtime.imageData?.height ?? 0;
+      ui.pixelFileSize.textContent = w && h ? `${w}\u00d7${h}` : "";
+    }
+  } else {
+    ui.editorFileName.textContent = "No file open";
+    ui.headerFileInfo.innerHTML = `<span class="header-file-dot" style="background:var(--text-dim)"></span> No file`;
+    ui.statusFileInfo.textContent = "No file open";
+    ui.pixelFileName.textContent = "No image";
+    ui.pixelFileSize.textContent = "";
+  }
+}
+
+/** Update line number gutter in the text editor. */
+function updateLineNumbers(runtime: RuntimeState): void {
+  const { ui } = runtime;
+  const text = ui.mscEditor.value;
+  const lineCount = text.split("\n").length;
+  const nums: string[] = [];
+  for (let i = 1; i <= lineCount; i++) {
+    nums.push(String(i));
+  }
+  ui.lineNumbers.textContent = nums.join("\n");
+}
+
+/** Download the currently active script file. */
+function downloadCurrentFile(runtime: RuntimeState): void {
+  const node = runtime.project.activeFileId
+    ? findNode(runtime.project.root, runtime.project.activeFileId)
+    : null;
+  if (!node || node.fileType !== "script") {
+    showStatus(runtime, "No script file to download.", "var(--danger)");
+    return;
+  }
+  const blob = new Blob([node.content ?? ""], { type: "text/plain" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = node.name;
+  link.click();
+  URL.revokeObjectURL(link.href);
+  showStatus(runtime, `Downloaded ${node.name}`, "var(--success)");
+}
+
+/** Download the current pixel editor image as PNG. */
+function downloadCurrentImage(runtime: RuntimeState): void {
+  if (!runtime.imageData) {
+    showStatus(runtime, "No image to download.", "var(--danger)");
+    return;
+  }
+  const node = runtime.project.activeFileId
+    ? findNode(runtime.project.root, runtime.project.activeFileId)
+    : null;
+  const fileName = node?.name ?? `sprite_${Date.now()}.png`;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = runtime.imageData.width;
+  canvas.height = runtime.imageData.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.putImageData(runtime.imageData, 0, 0);
+
+  const link = document.createElement("a");
+  link.href = canvas.toDataURL("image/png");
+  link.download = fileName.endsWith(".png") ? fileName : `${fileName}.png`;
+  link.click();
+  showStatus(runtime, `Downloaded ${link.download}`, "var(--success)");
+}
+
+/** Show a status message in the status bar and editor status. */
+function showStatus(runtime: RuntimeState, text: string, color: string): void {
+  runtime.ui.mscStatus.textContent = text;
+  runtime.ui.mscStatus.style.color = color;
+  runtime.ui.statusFileInfo.innerHTML = `<span style="color:${color}">${escapeHtml(text)}</span>`;
+  // Auto-restore after 3 seconds
+  setTimeout(() => updateEditorFileInfo(runtime), 3000);
 }
 
 main().catch(console.error);

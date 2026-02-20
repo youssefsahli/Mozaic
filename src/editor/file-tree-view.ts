@@ -33,6 +33,15 @@ export interface FileTreeCallbacks {
 
 // ── FileTreeView class ──────────────────────────────────────
 
+// ── SVG Icons for file tree ──────────────────────────────────
+
+const FTV_ICONS = {
+  folder: `<svg viewBox="0 0 16 16"><path d="M1.5 4h5l1.5-1.5H14v10H1.5z"/></svg>`,
+  folderOpen: `<svg viewBox="0 0 16 16"><path d="M1.5 4h5l1.5-1.5H14v2.5H4L2 12.5H1.5z"/><path d="M4 6h10.5l-2 6.5H2.5z"/></svg>`,
+  script: `<svg viewBox="0 0 16 16"><path d="M4 1.5h5.5l3 3V14H4z"/><path d="M9.5 1.5v3h3"/><line x1="6" y1="7" x2="10" y2="7"/><line x1="6" y1="9" x2="11" y2="9"/><line x1="6" y1="11" x2="9" y2="11"/></svg>`,
+  image: `<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1.5"/><circle cx="5.5" cy="5.5" r="1.2" fill="currentColor" opacity=".4" stroke="none"/><path d="M2 11l3-3 2 2 3-4 4 5"/></svg>`,
+};
+
 export class FileTreeView {
   private readonly container: HTMLElement;
   private project: ProjectFiles;
@@ -162,11 +171,14 @@ export class FileTreeView {
     const icon = document.createElement("span");
     icon.className = "ftv-icon";
     if (node.kind === "folder") {
-      icon.textContent = node.expanded ? "📂" : "📁";
+      icon.classList.add("ftv-folder-icon");
+      icon.innerHTML = node.expanded ? FTV_ICONS.folderOpen : FTV_ICONS.folder;
     } else if (node.fileType === "image") {
-      icon.textContent = "🖼";
+      icon.classList.add("ftv-image-icon");
+      icon.innerHTML = FTV_ICONS.image;
     } else {
-      icon.textContent = "📄";
+      icon.classList.add("ftv-script-icon");
+      icon.innerHTML = FTV_ICONS.script;
     }
     row.appendChild(icon);
 
@@ -182,19 +194,19 @@ export class FileTreeView {
 
     if (node.kind === "folder") {
       // Add file
-      const addFileBtn = this.makeActionBtn("📄+", "New file", () => {
+      const addFileBtn = this.makeActionBtn("+", "New script", () => {
         this.addFile(node, "script");
       });
       actions.appendChild(addFileBtn);
 
       // Add image file
-      const addImgBtn = this.makeActionBtn("🖼+", "New image", () => {
+      const addImgBtn = this.makeActionBtn("◇", "New image", () => {
         this.addFile(node, "image");
       });
       actions.appendChild(addImgBtn);
 
       // Add subfolder
-      const addFolderBtn = this.makeActionBtn("📁+", "New folder", () => {
+      const addFolderBtn = this.makeActionBtn("▪", "New folder", () => {
         this.addFolder(node);
       });
       actions.appendChild(addFolderBtn);
@@ -202,7 +214,7 @@ export class FileTreeView {
 
     // Rename (not on root)
     if (depth > 0 || node.kind !== "folder") {
-      const renameBtn = this.makeActionBtn("✏", "Rename", () => {
+      const renameBtn = this.makeActionBtn("✎", "Rename", () => {
         this.startRename(node.id);
       });
       actions.appendChild(renameBtn);
@@ -210,7 +222,7 @@ export class FileTreeView {
 
     // Delete (not on root)
     if (depth > 0 || node.kind !== "folder") {
-      const deleteBtn = this.makeActionBtn("🗑", "Delete", () => {
+      const deleteBtn = this.makeActionBtn("✕", "Delete", () => {
         this.deleteNode(node);
       });
       actions.appendChild(deleteBtn);
