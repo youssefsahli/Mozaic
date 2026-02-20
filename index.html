@@ -528,6 +528,145 @@
       .msc-comment { color: #6a9955 }
       .msc-symbol  { color: #e5c07b }
 
+      /* ── File Tree View ──────────────────────── */
+      #file-tree-panel {
+        display: flex;
+        flex-direction: column;
+        border-bottom: 1px solid var(--border);
+        max-height: 240px;
+        min-height: 0;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      #file-tree-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 4px 8px;
+        background: var(--surface-2);
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        user-select: none;
+        flex-shrink: 0;
+      }
+      #file-tree-header:hover { background: var(--surface-3) }
+      #file-tree-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--text-dim);
+      }
+      #file-tree-toggle {
+        font-size: 10px;
+        color: var(--text-dim);
+        transition: transform 120ms;
+      }
+      #file-tree-panel.is-collapsed #file-tree-toggle {
+        transform: rotate(-90deg);
+      }
+      #file-tree-panel.is-collapsed #file-tree-container {
+        display: none;
+      }
+      #file-tree-container {
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1;
+        padding: 2px 0;
+      }
+
+      /* Tree items */
+      .ftv-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .ftv-nested {
+        padding-left: 0;
+      }
+      .ftv-item {
+        margin: 0;
+        padding: 0;
+      }
+      .ftv-row {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        padding: 2px 6px 2px 4px;
+        cursor: pointer;
+        transition: background 60ms;
+        white-space: nowrap;
+        font-size: 11px;
+        min-height: 22px;
+      }
+      .ftv-row:hover {
+        background: rgba(255,255,255,.04);
+      }
+      .ftv-row.ftv-active {
+        background: var(--accent-bg);
+        color: var(--accent);
+      }
+      .ftv-chevron {
+        width: 12px;
+        font-size: 9px;
+        color: var(--text-dim);
+        text-align: center;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      .ftv-chevron-spacer {
+        width: 12px;
+        flex-shrink: 0;
+      }
+      .ftv-icon {
+        font-size: 11px;
+        flex-shrink: 0;
+        width: 16px;
+        text-align: center;
+      }
+      .ftv-label {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--text);
+      }
+      .ftv-row.ftv-active .ftv-label {
+        color: var(--accent);
+      }
+      .ftv-actions {
+        display: none;
+        gap: 2px;
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+      .ftv-row:hover .ftv-actions {
+        display: flex;
+      }
+      .ftv-action-btn {
+        background: none !important;
+        border: none !important;
+        padding: 0 2px !important;
+        font-size: 10px;
+        color: var(--text-dim);
+        cursor: pointer;
+        line-height: 1;
+        min-width: auto !important;
+        min-height: auto !important;
+      }
+      .ftv-action-btn:hover {
+        color: var(--accent) !important;
+        background: none !important;
+      }
+      .ftv-rename-input {
+        flex: 1;
+        font: 11px/1 var(--font-mono);
+        background: var(--bg);
+        border: 1px solid var(--accent);
+        color: var(--text);
+        padding: 1px 4px;
+        border-radius: 2px;
+        outline: none;
+      }
+
       /* ── Scrollbar ────────────────────────────── */
       ::-webkit-scrollbar { width: 4px; height: 4px }
       ::-webkit-scrollbar-track { background: transparent }
@@ -571,6 +710,15 @@
 
         <!-- RIGHT: Tabbed side panel ─────────────── -->
         <div id="side-panel">
+
+          <!-- File tree panel -->
+          <div id="file-tree-panel">
+            <div id="file-tree-header">
+              <span id="file-tree-title">&#128193; Files</span>
+              <span id="file-tree-toggle">▾</span>
+            </div>
+            <div id="file-tree-container"></div>
+          </div>
 
           <!-- Tab bar -->
           <div id="tab-bar">

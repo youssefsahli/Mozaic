@@ -16,9 +16,25 @@ import {
   identityLogic,
 } from "./engine/loop.js";
 import { parseMsc, type MscDocument } from "./parser/msc.js";
+import { parseWithImports } from "./engine/import-resolver.js";
 import { PixelEditor, type PixelEditorRefs } from "./editor/pixel-editor.js";
+import {
+  type FileNode,
+  type ProjectFiles,
+  createDefaultProject,
+  loadProject,
+  saveProject,
+  findNode,
+  collectFiles,
+  imageDataToDataUrl,
+  dataUrlToImageData,
+  createScriptFile,
+  createImageFile,
+  addChild,
+} from "./editor/file-system.js";
+import { FileTreeView } from "./editor/file-tree-view.js";
 
-type EditorMode = "script" | "config";
+type EditorMode = "script" | "config" | "image";
 const LAST_ROM_STORAGE_KEY = "mozaic:last-rom";
 const LAST_SCRIPT_STORAGE_KEY = "mozaic:last-script";
 
@@ -75,6 +91,10 @@ interface UiRefs {
   docsSearch: HTMLInputElement;
   docsResults: HTMLDivElement;
   docsContent: HTMLDivElement;
+  fileTreePanel: HTMLDivElement;
+  fileTreeHeader: HTMLDivElement;
+  fileTreeContainer: HTMLDivElement;
+  fileTreeToggle: HTMLSpanElement;
 }
 
 interface DocEntry {
@@ -102,10 +122,16 @@ interface RuntimeState {
   docsFiltered: DocEntry[];
   selectedDocId: string | null;
   activeTab: string;
+  /** Project file tree for multi-file editing. */
+  project: ProjectFiles;
+  fileTreeView: FileTreeView | null;
 }
 
 async function main(): Promise<void> {
   const ui = getUiRefs();
+  const savedProject = loadProject();
+  const project = savedProject ?? createDefaultProject();
+
   const runtime: RuntimeState = {
     ui,
     renderer: new Renderer(ui.canvas),
@@ -124,6 +150,8 @@ async function main(): Promise<void> {
     docsFiltered: [],
     selectedDocId: null,
     activeTab: "script",
+    project,
+    fileTreeView: null,
   };
 
   // Create the pixel editor orchestrator
@@ -140,6 +168,7 @@ async function main(): Promise<void> {
   });
 
   wireUi(runtime);
+  initFileTree(runtime);
   await loadDocsIndex(runtime);
   await loadAndApplyConfig(runtime);
 
@@ -152,6 +181,14 @@ async function main(): Promise<void> {
     const restoredScript = restoreLastScript();
     if (restoredScript !== null) {
       runtime.scriptText = restoredScript;
+      // Sync restored script into the active file node
+      if (runtime.project.activeFileId) {
+        const node = findNode(runtime.project.root, runtime.project.activeFileId);
+        if (node && node.fileType === "script") {
+          node.content = restoredScript;
+          saveProject(runtime.project);
+        }
+      }
     }
 
     const restored = await restoreLastRom(runtime);
@@ -194,6 +231,10 @@ function getUiRefs(): UiRefs {
     docsSearch: requiredElement<HTMLInputElement>("docs-search"),
     docsResults: requiredElement<HTMLDivElement>("docs-results"),
     docsContent: requiredElement<HTMLDivElement>("docs-content"),
+    fileTreePanel: requiredElement<HTMLDivElement>("file-tree-panel"),
+    fileTreeHeader: requiredElement<HTMLDivElement>("file-tree-header"),
+    fileTreeContainer: requiredElement<HTMLDivElement>("file-tree-container"),
+    fileTreeToggle: requiredElement<HTMLSpanElement>("file-tree-toggle"),
   };
 }
 
@@ -256,6 +297,107 @@ function initPixelEditor(runtime: RuntimeState): void {
   }
 }
 
+// ── File tree ────────────────────────────────────────────────
+
+/** Initialize the file tree view panel. */
+function initFileTree(runtime: RuntimeState): void {
+  const { ui } = runtime;
+
+  // Wire collapse toggle
+  ui.fileTreeHeader.addEventListener("click", () => {
+    ui.fileTreePanel.classList.toggle("is-collapsed");
+  });
+
+  runtime.fileTreeView = new FileTreeView(
+    ui.fileTreeContainer,
+    runtime.project,
+    {
+      onFileSelect: (node) => openFileNode(runtime, node),
+      onTreeChange: () => {
+        saveProject(runtime.project);
+      },
+      onFileDelete: (deletedId) => {
+        if (runtime.project.activeFileId === deletedId) {
+          // Pick the first available script file, or null
+          const scripts = collectFiles(runtime.project.root, "script");
+          const images = collectFiles(runtime.project.root, "image");
+          const all = [...scripts, ...images];
+          const next = all.length > 0 ? all[0] : null;
+          runtime.project.activeFileId = next?.id ?? null;
+          if (next) {
+            openFileNode(runtime, next);
+          } else {
+            runtime.scriptText = "";
+            setEditorText(runtime, "");
+            switchEditorMode(runtime, "script");
+          }
+          saveProject(runtime.project);
+        }
+      },
+    }
+  );
+
+  // If there is an active file, open it
+  if (runtime.project.activeFileId) {
+    const node = findNode(runtime.project.root, runtime.project.activeFileId);
+    if (node) openFileNode(runtime, node, true);
+  }
+}
+
+/** Save the current editor content back to the active file node. */
+function saveActiveFileContent(runtime: RuntimeState): void {
+  if (!runtime.project.activeFileId) return;
+  const node = findNode(runtime.project.root, runtime.project.activeFileId);
+  if (!node || node.kind !== "file") return;
+
+  if (node.fileType === "script") {
+    node.content = runtime.scriptText;
+  } else if (node.fileType === "image" && runtime.imageData) {
+    node.content = imageDataToDataUrl(runtime.imageData);
+    node.imageWidth = runtime.imageData.width;
+    node.imageHeight = runtime.imageData.height;
+  }
+  saveProject(runtime.project);
+}
+
+/** Open a file node in the appropriate editor. */
+async function openFileNode(
+  runtime: RuntimeState,
+  node: FileNode,
+  skipSave = false
+): Promise<void> {
+  // Save current file before switching
+  if (!skipSave) {
+    saveActiveFileContent(runtime);
+  }
+
+  runtime.project.activeFileId = node.id;
+  saveProject(runtime.project);
+
+  if (node.fileType === "script") {
+    runtime.scriptText = node.content ?? "";
+    switchEditorMode(runtime, "script");
+    switchTab(runtime, "script");
+  } else if (node.fileType === "image") {
+    // Load image data from the stored dataURL
+    if (node.content) {
+      try {
+        const imgData = await dataUrlToImageData(node.content);
+        runtime.imageData = imgData;
+        runtime.baked = bake(imgData);
+        initPixelEditor(runtime);
+        switchTab(runtime, "pixel");
+      } catch {
+        runtime.ui.mscStatus.textContent = `Failed to load image: ${node.name}`;
+        runtime.ui.mscStatus.style.color = "#d16969";
+      }
+    }
+  }
+
+  runtime.fileTreeView?.render();
+}
+
+
 function wireUi(runtime: RuntimeState): void {
   const { ui } = runtime;
 
@@ -306,16 +448,25 @@ function wireUi(runtime: RuntimeState): void {
   scriptInput.addEventListener("change", async () => {
     const file = scriptInput.files?.[0];
     if (!file) return;
-    runtime.scriptText = await file.text();
+    const text = await file.text();
+    // Create a file node if it doesn't exist yet
+    const newNode = createScriptFile(file.name, text);
+    addChild(runtime.project.root, newNode);
+    runtime.project.activeFileId = newNode.id;
+    saveProject(runtime.project);
+    runtime.scriptText = text;
     persistScript(runtime.scriptText);
     switchEditorMode(runtime, "script");
+    runtime.fileTreeView?.render();
   });
 
   ui.mscEditor.addEventListener("input", () => {
     if (runtime.editorMode === "script") {
       runtime.scriptText = ui.mscEditor.value;
       persistScript(runtime.scriptText);
-    } else {
+      // Persist to active file node
+      saveActiveFileContent(runtime);
+    } else if (runtime.editorMode === "config") {
       runtime.configText = ui.mscEditor.value;
     }
     refreshHighlight(runtime);
@@ -501,6 +652,27 @@ async function loadRom(runtime: RuntimeState, source: string): Promise<void> {
   }
   persistScript(runtime.scriptText);
 
+  // Add loaded files to project tree
+  const imgDataUrl = imageDataToDataUrl(runtime.imageData);
+  const baseName = source.split("/").pop()?.replace(/\.[^.]+$/, "") ?? "rom";
+  const imgNode = createImageFile(
+    `${baseName}.png`,
+    imgDataUrl,
+    runtime.imageData.width,
+    runtime.imageData.height
+  );
+  addChild(runtime.project.root, imgNode);
+
+  if (runtime.scriptText) {
+    const scriptNode = createScriptFile(`${baseName}.msc`, runtime.scriptText);
+    addChild(runtime.project.root, scriptNode);
+    runtime.project.activeFileId = scriptNode.id;
+  } else {
+    runtime.project.activeFileId = imgNode.id;
+  }
+  saveProject(runtime.project);
+  runtime.fileTreeView?.render();
+
   switchEditorMode(runtime, "script");
   initPixelEditor(runtime);
   schedulePersistRom(runtime);
@@ -547,6 +719,20 @@ function createNewRom(runtime: RuntimeState): void {
   runtime.baked = bake(runtime.imageData);
   runtime.scriptText = runtime.config.editor.defaultScript;
   persistScript(runtime.scriptText);
+
+  // Add to project as a new image file
+  const dataUrl = imageDataToDataUrl(runtime.imageData);
+  const imgNode = createImageFile(
+    `sprite_${Date.now().toString(36)}.png`,
+    dataUrl,
+    newRomWidth,
+    newRomHeight
+  );
+  addChild(runtime.project.root, imgNode);
+  runtime.project.activeFileId = imgNode.id;
+  saveProject(runtime.project);
+  runtime.fileTreeView?.render();
+
   switchEditorMode(runtime, "script");
   initPixelEditor(runtime);
   schedulePersistRom(runtime);
@@ -719,6 +905,7 @@ function schedulePersistRom(runtime: RuntimeState): void {
   }
   runtime.persistTimer = window.setTimeout(() => {
     persistRom(runtime);
+    saveActiveFileContent(runtime);
     runtime.persistTimer = null;
   }, 150);
 }
@@ -816,10 +1003,17 @@ function setEditorText(runtime: RuntimeState, text: string): void {
 
 function switchEditorMode(runtime: RuntimeState, mode: EditorMode): void {
   runtime.editorMode = mode;
-  runtime.ui.textEditorTitle.textContent =
-    mode === "script" ? "Script Editor (.msc)" : "Config Editor (JSON)";
-  const text = mode === "script" ? runtime.scriptText : runtime.configText;
-  setEditorText(runtime, text);
+  if (mode === "script") {
+    runtime.ui.textEditorTitle.textContent = "Script Editor (.msc)";
+    const text = runtime.scriptText;
+    setEditorText(runtime, text);
+  } else if (mode === "config") {
+    runtime.ui.textEditorTitle.textContent = "Config Editor (JSON)";
+    setEditorText(runtime, runtime.configText);
+  } else if (mode === "image") {
+    // Image files are edited in the pixel tab; switch there
+    runtime.ui.textEditorTitle.textContent = "Pixel Editor";
+  }
 }
 
 function refreshHighlight(runtime: RuntimeState): void {
@@ -867,6 +1061,23 @@ function validateEditor(runtime: RuntimeState): void {
       return;
     }
 
+    // Use import resolution if we have a project context
+    if (runtime.project.activeFileId) {
+      const { errors } = parseWithImports(
+        runtime.scriptText,
+        runtime.project.activeFileId,
+        runtime.project
+      );
+      if (errors.length > 0) {
+        runtime.ui.mscStatus.textContent = errors.join("; ");
+        runtime.ui.mscStatus.style.color = "#d16969";
+      } else {
+        runtime.ui.mscStatus.textContent = "Script parsed successfully.";
+        runtime.ui.mscStatus.style.color = "#6a9955";
+      }
+      return;
+    }
+
     try {
       parseMsc(runtime.scriptText);
       runtime.ui.mscStatus.textContent = "Script parsed successfully.";
@@ -891,6 +1102,22 @@ function validateEditor(runtime: RuntimeState): void {
 function getScriptDocument(runtime: RuntimeState): MscDocument | null {
   const scriptText = runtime.scriptText.trim();
   if (!scriptText) return emptyScript();
+
+  // If we have a project with an active file, use import resolution
+  if (runtime.project.activeFileId) {
+    const { document, errors } = parseWithImports(
+      runtime.scriptText,
+      runtime.project.activeFileId,
+      runtime.project
+    );
+    if (errors.length > 0) {
+      runtime.ui.mscStatus.textContent = errors.join("; ");
+      runtime.ui.mscStatus.style.color = "#d16969";
+      // Still return the partial document — non-fatal
+    }
+    return document;
+  }
+
   try {
     return parseMsc(runtime.scriptText);
   } catch {
