@@ -1028,6 +1028,7 @@ function createNewRom(
     runtime.imageData.height
   );
   addChild(runtime.project.root, imgNode);
+  runtime.project.activeFileId = imgNode.id;
   saveProject(runtime.project);
   runtime.fileTreeView?.render();
 
@@ -1040,7 +1041,8 @@ function createNewRom(
   initPixelEditor(runtime);
   schedulePersistRom(runtime);
   restart(runtime);
-  runtime.ui.mscStatus.textContent = `New ${runtime.imageData.width}×${runtime.imageData.height} ROM created (${variant}).`;
+  const variantLabel = variant === "amiga" ? "Amiga Demo" : variant === "checkerboard" ? "Checkerboard" : "Empty ROM";
+  runtime.ui.mscStatus.textContent = `New ${runtime.imageData.width}×${runtime.imageData.height} ROM created (${variantLabel}).`;
   runtime.ui.mscStatus.style.color = "#6a9955";
 }
 
