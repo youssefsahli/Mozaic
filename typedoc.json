@@ -1,0 +1,21 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "tsconfig": "tsconfig.json",
+  "entryPointStrategy": "expand",
+  "entryPoints": [
+    "src/editor",
+    "src/engine",
+    "src/parser",
+    "src/index.ts"
+  ],
+  "json": "docs/api-spec.json",
+  "exclude": [
+    "**/__tests__/**"
+  ],
+  "excludePrivate": true,
+  "excludeProtected": false,
+  "excludeInternal": true,
+  "sort": [
+    "source-order"
+  ]
+}

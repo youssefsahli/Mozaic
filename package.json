@@ -8,7 +8,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "docs:api": "typedoc --options typedoc.json",
+    "docs:api:watch": "typedoc --options typedoc.json --watch"
   },
   "repository": {
     "type": "git",
@@ -29,6 +31,7 @@
   "homepage": "https://github.com/youssefsahli/Mozaic#readme",
   "devDependencies": {
     "jsdom": "^28.1.0",
+    "typedoc": "^0.28.7",
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "vitest": "^4.0.18"

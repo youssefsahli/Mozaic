@@ -103,3 +103,20 @@ Runtime executes structured AST data only; it does not parse `.msc` text during 
 | `parser/lexer.ts` | MSC tokenizer — line-by-line YAML-like token stream |
 | `parser/ast.ts` | Token-stream → `MscDocument` AST builder |
 | `parser/msc.ts` | Public `parseMsc(source)` façade |
+
+## 6. In-Editor Documentation Cross-Links
+
+The Docs tab mirrors this architecture guide through searchable chapter entries in `public/docs/search-index.json`.
+
+### A. Core Chapters
+- `Architecture Overview` (`id: arch-overview`) — high-level runtime model and state regions.
+- `Bake Pipeline` (`id: arch-bake`) — one-time extraction and cache stages.
+- `Runtime Tick` (`id: arch-runtime`) — frame-by-frame execution pipeline.
+- `MSC Script Syntax` (`id: msc-syntax`) and `Schema and Events` (`id: msc-schema-events`) — script structure and trigger/action model.
+
+### B. Components Chapters
+- `Components Chapter` (`id: chapter-components`) — conceptual breakdown by Editor, Engine, Parser, and integration layers.
+- `Components List` (`id: components-list`) — concrete module-by-module reference map for quick lookup.
+
+### C. Maintenance Rule
+When adding or changing modules in this architecture document, update both components entries in `public/docs/search-index.json` so in-editor documentation stays aligned.

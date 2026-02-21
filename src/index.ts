@@ -130,6 +130,20 @@ interface DocEntry {
   content: string;
 }
 
+type DocBlock =
+  | { type: "heading"; level: 1 | 2 | 3; text: string }
+  | { type: "paragraph"; text: string }
+  | { type: "list"; items: string[] }
+  | { type: "code"; text: string };
+
+interface TypedocReflection {
+  name?: string;
+  kind?: number;
+  children?: TypedocReflection[];
+}
+
+const API_SPEC_DOC_ENTRY_ID = "api-spec-live";
+
 interface RuntimeState {
   ui: UiRefs;
   renderer: Renderer;
@@ -147,6 +161,7 @@ interface RuntimeState {
   docsEntries: DocEntry[];
   docsFiltered: DocEntry[];
   selectedDocId: string | null;
+  docsRenderVersion: number;
   activeTab: string;
   /** Project file tree for multi-file editing. */
   project: ProjectFiles;
@@ -175,6 +190,7 @@ async function main(): Promise<void> {
     docsEntries: [],
     docsFiltered: [],
     selectedDocId: null,
+    docsRenderVersion: 0,
     activeTab: "script",
     project,
     fileTreeView: null,
@@ -189,7 +205,10 @@ async function main(): Promise<void> {
       ui.mscStatus.textContent = text;
       ui.mscStatus.style.color = color;
     },
-    onColorChange: (oldHex, newHex) => swapColorInScript(runtime, oldHex, newHex),
+    onColorChange: (oldHex, newHex) => {
+      swapColorInScript(runtime, oldHex, newHex);
+      void applyPaletteColorToProjectImages(runtime, oldHex, newHex);
+    },
     onPaletteChange: () => {
       renderPaletteChips(runtime);
       renderEditorUsedColors(runtime);
@@ -1023,16 +1042,316 @@ function renderDocsList(runtime: RuntimeState): void {
 
 function renderSelectedDoc(runtime: RuntimeState): void {
   if (!runtime.selectedDocId) {
-    runtime.ui.docsContent.textContent = "No matching documentation entries.";
+    runtime.ui.docsContent.innerHTML = '<div class="docs-empty">No matching documentation entries.</div>';
     return;
   }
 
   const selected = runtime.docsEntries.find((entry) => entry.id === runtime.selectedDocId);
   if (!selected) {
-    runtime.ui.docsContent.textContent = "No matching documentation entries.";
+    runtime.ui.docsContent.innerHTML = '<div class="docs-empty">No matching documentation entries.</div>';
     return;
   }
-  runtime.ui.docsContent.textContent = `${selected.title}\n\n${selected.content}`;
+
+  const renderVersion = ++runtime.docsRenderVersion;
+  if (selected.id === API_SPEC_DOC_ENTRY_ID) {
+    void renderApiSpecDoc(runtime, selected, renderVersion);
+    return;
+  }
+
+  renderDocEntry(runtime, selected, selected.content);
+}
+
+function renderDocEntry(runtime: RuntimeState, selected: DocEntry, content: string): void {
+
+  const container = runtime.ui.docsContent;
+  container.innerHTML = "";
+
+  const article = document.createElement("article");
+  article.className = "docs-article";
+
+  const header = document.createElement("header");
+  header.className = "docs-article-header";
+
+  const title = document.createElement("h2");
+  title.className = "docs-article-title";
+  title.textContent = selected.title;
+
+  const category = document.createElement("span");
+  category.className = "docs-badge";
+  category.textContent = selected.category;
+
+  header.appendChild(title);
+  header.appendChild(category);
+  article.appendChild(header);
+
+  const blocks = parseDocBlocks(content);
+  const headings: Array<{ id: string; text: string }> = [];
+
+  for (const block of blocks) {
+    if (block.type === "heading") {
+      const heading = document.createElement(block.level === 1 ? "h3" : "h4");
+      heading.className = block.level === 1 ? "docs-section-title" : "docs-subsection-title";
+      const headingId = createHeadingId(block.text, headings.length);
+      heading.id = headingId;
+      heading.textContent = block.text;
+      article.appendChild(heading);
+      headings.push({ id: headingId, text: block.text });
+      continue;
+    }
+
+    if (block.type === "paragraph") {
+      const paragraph = document.createElement("p");
+      paragraph.className = "docs-paragraph";
+      paragraph.textContent = block.text;
+      article.appendChild(paragraph);
+      continue;
+    }
+
+    if (block.type === "list") {
+      const list = document.createElement("ul");
+      list.className = "docs-list";
+      for (const itemText of block.items) {
+        const item = document.createElement("li");
+        item.textContent = itemText;
+        list.appendChild(item);
+      }
+      article.appendChild(list);
+      continue;
+    }
+
+    const pre = document.createElement("pre");
+    pre.className = "docs-code";
+    pre.textContent = block.text;
+    article.appendChild(pre);
+  }
+
+  if (headings.length > 0) {
+    const outline = document.createElement("nav");
+    outline.className = "docs-outline";
+
+    const outlineTitle = document.createElement("div");
+    outlineTitle.className = "docs-outline-title";
+    outlineTitle.textContent = "Outline";
+    outline.appendChild(outlineTitle);
+
+    const outlineList = document.createElement("ul");
+    outlineList.className = "docs-outline-list";
+    for (const heading of headings) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = `#${heading.id}`;
+      link.textContent = heading.text;
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        const target = article.querySelector<HTMLElement>(`#${CSS.escape(heading.id)}`);
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      item.appendChild(link);
+      outlineList.appendChild(item);
+    }
+    outline.appendChild(outlineList);
+
+    container.appendChild(outline);
+  }
+
+  container.appendChild(article);
+}
+
+async function renderApiSpecDoc(
+  runtime: RuntimeState,
+  selected: DocEntry,
+  renderVersion: number
+): Promise<void> {
+  const loading = `${selected.content}\n\n## Loading\n- Fetching generated API spec...`;
+  renderDocEntry(runtime, selected, loading);
+
+  try {
+    const response = await fetch(`/docs/api-spec.json?t=${Date.now()}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error("API spec fetch failed");
+
+    const project = (await response.json()) as TypedocReflection;
+
+    if (
+      renderVersion !== runtime.docsRenderVersion ||
+      runtime.selectedDocId !== selected.id
+    ) {
+      return;
+    }
+
+    renderDocEntry(runtime, selected, buildApiSpecContent(selected.content, project));
+  } catch {
+    if (
+      renderVersion !== runtime.docsRenderVersion ||
+      runtime.selectedDocId !== selected.id
+    ) {
+      return;
+    }
+
+    const fallback = `${selected.content}\n\n## Error\n- Could not load docs/api-spec.json\n- Regenerate with: npm run docs:api`;
+    renderDocEntry(runtime, selected, fallback);
+  }
+}
+
+function buildApiSpecContent(intro: string, project: TypedocReflection): string {
+  const stats = {
+    modules: 0,
+    functions: 0,
+    classes: 0,
+    interfaces: 0,
+    typeAliases: 0,
+    enums: 0,
+    variables: 0,
+  };
+
+  const visit = (node: TypedocReflection): void => {
+    switch (node.kind) {
+      case 2:
+        stats.modules += 1;
+        break;
+      case 64:
+        stats.functions += 1;
+        break;
+      case 128:
+        stats.classes += 1;
+        break;
+      case 256:
+        stats.interfaces += 1;
+        break;
+      case 2097152:
+        stats.typeAliases += 1;
+        break;
+      case 8:
+        stats.enums += 1;
+        break;
+      case 32:
+        stats.variables += 1;
+        break;
+    }
+    for (const child of node.children ?? []) {
+      visit(child);
+    }
+  };
+  visit(project);
+
+  const modulePreview = (project.children ?? [])
+    .filter((node) => node.kind === 2)
+    .slice(0, 16)
+    .map((moduleNode) => {
+      const exports = (moduleNode.children ?? [])
+        .filter((child) => child.kind !== 4096 && Boolean(child.name))
+        .slice(0, 8)
+        .map((child) => child.name as string);
+      const summary = exports.length > 0 ? exports.join(", ") : "(no exported symbols)";
+      return `- ${moduleNode.name ?? "(unnamed module)"}: ${summary}`;
+    });
+
+  return [
+    intro,
+    "",
+    "## Async API Snapshot",
+    "- Loaded asynchronously from docs/api-spec.json",
+    `- Refreshed: ${new Date().toLocaleString()}`,
+    "",
+    "## Counts",
+    `- Modules: ${stats.modules}`,
+    `- Functions: ${stats.functions}`,
+    `- Classes: ${stats.classes}`,
+    `- Interfaces: ${stats.interfaces}`,
+    `- Type aliases: ${stats.typeAliases}`,
+    `- Enums: ${stats.enums}`,
+    `- Variables: ${stats.variables}`,
+    "",
+    "## Module Export Preview",
+    ...(modulePreview.length > 0 ? modulePreview : ["- No modules found in spec."]),
+    "",
+    "## Regenerate",
+    "```bash",
+    "npm run docs:api",
+    "```",
+  ].join("\n");
+}
+
+function createHeadingId(text: string, index: number): string {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `doc-${slug || "section"}-${index}`;
+}
+
+function parseDocBlocks(content: string): DocBlock[] {
+  const lines = content.replace(/\r/g, "").split("\n");
+  const blocks: DocBlock[] = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      index += 1;
+      continue;
+    }
+
+    if (trimmed.startsWith("```")) {
+      index += 1;
+      const codeLines: string[] = [];
+      while (index < lines.length && !lines[index].trim().startsWith("```")) {
+        codeLines.push(lines[index]);
+        index += 1;
+      }
+      if (index < lines.length) {
+        index += 1;
+      }
+      blocks.push({ type: "code", text: codeLines.join("\n") });
+      continue;
+    }
+
+    const headingMatch = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length as 1 | 2 | 3;
+      blocks.push({ type: "heading", level, text: headingMatch[2].trim() });
+      index += 1;
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      const items: string[] = [];
+      while (index < lines.length) {
+        const listLine = lines[index].trim();
+        const listMatch = listLine.match(/^[-*]\s+(.+)$/);
+        if (!listMatch) break;
+        items.push(listMatch[1].trim());
+        index += 1;
+      }
+      if (items.length > 0) {
+        blocks.push({ type: "list", items });
+      }
+      continue;
+    }
+
+    const paragraph: string[] = [];
+    while (index < lines.length) {
+      const nextTrimmed = lines[index].trim();
+      if (
+        !nextTrimmed ||
+        nextTrimmed.startsWith("```") ||
+        /^#{1,3}\s+/.test(nextTrimmed) ||
+        /^[-*]\s+/.test(nextTrimmed)
+      ) {
+        break;
+      }
+      paragraph.push(nextTrimmed);
+      index += 1;
+    }
+    if (paragraph.length > 0) {
+      blocks.push({ type: "paragraph", text: paragraph.join(" ") });
+    }
+  }
+
+  return blocks;
 }
 
 function defaultDocs(): DocEntry[] {
@@ -1042,14 +1361,14 @@ function defaultDocs(): DocEntry[] {
       title: "Mozaic Architecture",
       category: "Architecture",
       content:
-        "State buffer core, bake pipeline, and pure runtime tick. See docs/MOZAIC_ARCHITECTURE.md for full details.",
+        "# Overview\n- State buffer core\n- Bake pipeline\n- Pure runtime tick\n\n## Deep Dive\nSee docs/MOZAIC_ARCHITECTURE.md for the full architecture reference.",
     },
     {
       id: "fallback-editor",
       title: "Pixel Editor",
       category: "Editor",
       content:
-        "Brush, eraser, palettes, zoom, overlays, undo/redo and debug layer selection are available in the editor panel.",
+        "# Core Features\n- Brush and eraser tools\n- Palette and color swap\n- Zoom, overlays, undo/redo\n- Debug layer selection\n\n## Tip\nUse Alt+Click in overlay mode to pick the nearest debug layer.",
     },
   ];
 }
@@ -1608,6 +1927,77 @@ function swapColorInScript(runtime: RuntimeState, oldHex: string, newHex: string
   setEditorText(runtime, runtime.scriptText);
   runtime.ui.mscStatus.textContent = `Color swap: ${oldHex} → ${newHex} applied in script.`;
   runtime.ui.mscStatus.style.color = "#6a9955";
+}
+
+async function applyPaletteColorToProjectImages(
+  runtime: RuntimeState,
+  oldHex: string,
+  newHex: string
+): Promise<void> {
+  const oldClean = oldHex.replace("#", "").toLowerCase();
+  const newClean = newHex.replace("#", "").toLowerCase();
+  if (oldClean === newClean) return;
+
+  const imageNodes = collectFiles(runtime.project.root, "image");
+  if (imageNodes.length === 0) return;
+
+  const [oR, oG, oB] = hexToRgb(oldHex);
+  const [nR, nG, nB] = hexToRgb(newHex);
+
+  let updatedCount = 0;
+  let decodeErrors = 0;
+
+  for (const node of imageNodes) {
+    if (!node.content) continue;
+
+    if (node.id === runtime.project.activeFileId && runtime.imageData) {
+      node.content = imageDataToDataUrl(runtime.imageData);
+      node.imageWidth = runtime.imageData.width;
+      node.imageHeight = runtime.imageData.height;
+      updatedCount += 1;
+      continue;
+    }
+
+    try {
+      const imageData = await dataUrlToImageData(node.content);
+      let changed = false;
+      const data = imageData.data;
+
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] === oR && data[i + 1] === oG && data[i + 2] === oB) {
+          data[i] = nR;
+          data[i + 1] = nG;
+          data[i + 2] = nB;
+          changed = true;
+        }
+      }
+
+      if (!changed) continue;
+
+      node.content = imageDataToDataUrl(imageData);
+      node.imageWidth = imageData.width;
+      node.imageHeight = imageData.height;
+      updatedCount += 1;
+    } catch {
+      decodeErrors += 1;
+    }
+  }
+
+  if (updatedCount === 0 && decodeErrors === 0) return;
+
+  saveProject(runtime.project);
+  runtime.fileTreeView?.render();
+
+  if (decodeErrors > 0) {
+    showStatus(
+      runtime,
+      `Palette remap updated ${updatedCount} image file(s), ${decodeErrors} failed to decode.`,
+      "var(--warning)"
+    );
+    return;
+  }
+
+  showStatus(runtime, `Palette remap updated ${updatedCount} image file(s).`, "var(--success)");
 }
 
 /**

@@ -233,8 +233,6 @@ export class FileTreeView {
     // Click to select file or toggle folder
     row.addEventListener("click", () => {
       if (node.kind === "file") {
-        this.project.activeFileId = node.id;
-        saveProject(this.project);
         this.callbacks.onFileSelect(node);
         this.render();
       } else {
