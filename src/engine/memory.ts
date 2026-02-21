@@ -4,6 +4,21 @@
  * Provides fixed-layout access helpers for Mozaic's RGBA-backed state buffer.
  */
 
+// ── Entity Slot Layout (16 bytes per entity) ─────────────────
+export const ENTITY_SLOT_SIZE = 16;
+export const ENTITY_ACTIVE = 0;
+export const ENTITY_TYPE_ID = 1;
+export const ENTITY_POS_X = 2;
+export const ENTITY_POS_Y = 4;
+export const ENTITY_VEL_X = 6;
+export const ENTITY_VEL_Y = 8;
+export const ENTITY_HEALTH = 10;
+export const ENTITY_DATA_START = 11;
+
+// ── Global Camera Shake Offsets (within globals block) ───────
+export const CAMERA_SHAKE_X = 508;
+export const CAMERA_SHAKE_Y = 510;
+
 export const STATE_GRID_WIDTH = 64;
 export const STATE_GRID_HEIGHT = 64;
 export const CHANNELS_PER_PIXEL = 4;
@@ -137,4 +152,20 @@ function assertOffset(buffer: Uint8ClampedArray, byteOffset: number): void {
 
 function clampByte(value: number): number {
   return Math.min(255, Math.max(0, Math.round(value)));
+}
+
+export function readSignedInt16(
+  buffer: Uint8ClampedArray,
+  byteOffset: number
+): number {
+  const unsigned = readInt16(buffer, byteOffset);
+  return unsigned > 32767 ? unsigned - 65536 : unsigned;
+}
+
+export function writeSignedInt16(
+  buffer: Uint8ClampedArray,
+  byteOffset: number,
+  value: number
+): void {
+  writeInt16(buffer, byteOffset, value);
 }
