@@ -23,12 +23,16 @@ NextState = LogicCore(CurrentState, InputTextMap, Ruleset)
 
 ## File Formats
 
-| Extension | Purpose |
-|-----------|---------|
-| `.mzk`    | Mozaic Kinetic Asset (image) |
-| `.msc`    | Mozaic Script (logic / linker) |
-| `.png` / `.jpg` | Standard images (Mozaic-signature detection) |
-| `.txt` / `.yaml` | Plain-text sidecar scripts |
+## File Formats
+
+| Format | Extension | Purpose |
+|--------|-----------|---------|
+| **Mozaic Kinetic Asset** | `.mzk` | Combined image + metadata (primary ROM format) |
+| **Mozaic Script** | `.msc` | Game logic, input mapping, and linker directives |
+| **Image** | `.png` / `.jpg` | Standard raster images with Mozaic-signature detection |
+| **Text Script** | `.txt` / `.yaml` | Plain-text sidecar scripts (alt. to `.msc`) |
+
+**Loading precedence:** `.mzk` files load with embedded `.msc`; standalone `.png`/`.jpg` files pair with `.msc`/`.txt` sidecars by name matching.
 
 ## Getting Started
 
