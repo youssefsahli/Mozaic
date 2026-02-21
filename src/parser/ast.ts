@@ -18,6 +18,7 @@ export interface MscEntity {
   visual?: string;
   physics?: MscEntityPhysics[];
   inputs?: MscInput[];
+  components?: Record<string, Record<string, number>>;
 }
 
 export interface MscEvent {
@@ -144,6 +145,12 @@ function parseEntity(
       const value = token.value ?? "";
       if (key === "Visual") {
         entity.visual = stripQuotes(value);
+      } else if (value) {
+        const props = parseComponentProps(value);
+        if (props !== null) {
+          if (!entity.components) entity.components = {};
+          entity.components[key] = props;
+        }
       }
       i++;
       continue;
@@ -210,6 +217,25 @@ function parseEvents(
   }
 
   return i;
+}
+
+function parseComponentProps(value: string): Record<string, number> | null {
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
+  const inner = trimmed.slice(1, -1).trim();
+  if (!inner) return {};
+
+  const props: Record<string, number> = {};
+  const parts = inner.split(",");
+  for (const part of parts) {
+    const colonIdx = part.indexOf(":");
+    if (colonIdx === -1) return null;
+    const key = part.slice(0, colonIdx).trim();
+    const val = Number(part.slice(colonIdx + 1).trim());
+    if (!key || Number.isNaN(val)) return null;
+    props[key] = val;
+  }
+  return props;
 }
 
 function stripQuotes(value: string): string {

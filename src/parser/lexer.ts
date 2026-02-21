@@ -39,7 +39,7 @@ function tokenizeLine(raw: string, line: number): MscLineToken {
     };
   }
 
-  const colonIdx = trimmed.lastIndexOf(":");
+  const colonIdx = findMappingColon(trimmed);
   if (colonIdx !== -1) {
     return {
       line,
@@ -53,4 +53,20 @@ function tokenizeLine(raw: string, line: number): MscLineToken {
   }
 
   return { line, raw, trimmed, indent, kind: "other" };
+}
+
+/**
+ * Find the first colon that is not inside parentheses or braces.
+ * This handles values like `{ force: 2 }` and triggers like
+ * `Collision(Hero:#FFFF00, Level:#FF0000):` correctly.
+ */
+function findMappingColon(str: string): number {
+  let depth = 0;
+  for (let i = 0; i < str.length; i++) {
+    const c = str[i];
+    if (c === "(" || c === "{") depth++;
+    else if (c === ")" || c === "}") depth--;
+    else if (c === ":" && depth === 0) return i;
+  }
+  return -1;
 }

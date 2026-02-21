@@ -25,6 +25,7 @@ import type { InputState } from "./input.js";
 import type { BakedAsset } from "./baker.js";
 import type { MscDocument, MscSchema } from "../parser/msc.js";
 import { detectColorCollision } from "./physics.js";
+import type { ComponentRegistry } from "./components.js";
 import {
   readInt8,
   writeInt8,
@@ -32,6 +33,10 @@ import {
   writeInt16,
   readInt32,
   writeInt32,
+  MEMORY_BLOCKS,
+  ENTITY_SLOT_SIZE,
+  ENTITY_ACTIVE,
+  ENTITY_TYPE_ID,
 } from "./memory.js";
 
 // ── Memory helpers ────────────────────────────────────────────
@@ -196,8 +201,12 @@ function isTriggerFired(
 /**
  * Build a LogicFn that executes a compiled MscDocument against the engine state.
  * Pass the return value as the `logic` option to EngineLoop instead of identityLogic.
+ *
+ * When a ComponentRegistry is provided, the evaluator also iterates
+ * through the entity pool, skips dead entities, looks up each entity's
+ * AST definition by Type ID, and executes all attached components.
  */
-export function buildEvaluatorLogic(): LogicFn {
+export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
   return (
     state: EngineState,
     input: InputState,
@@ -205,12 +214,42 @@ export function buildEvaluatorLogic(): LogicFn {
     script: MscDocument
   ): EngineState => {
     const { buffer } = state;
-    const { schema, events } = script;
+    const { schema, events, entities } = script;
 
     for (const event of events) {
       if (!isTriggerFired(event.trigger, state, input, baked)) continue;
       for (const action of event.actions) {
         execAction(action, schema, buffer);
+      }
+    }
+
+    // ── ECS entity tick ───────────────────────────────────────
+    if (registry) {
+      const entityNames = Object.keys(entities);
+      const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+      const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
+
+      for (
+        let ptr = poolStart;
+        ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
+        ptr += ENTITY_SLOT_SIZE
+      ) {
+        if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
+
+        const typeId = readInt8(buffer, ptr + ENTITY_TYPE_ID);
+        if (typeId >= entityNames.length) continue;
+
+        const entityDef = entities[entityNames[typeId]];
+        if (!entityDef?.components) continue;
+
+        for (const [componentId, props] of Object.entries(
+          entityDef.components
+        )) {
+          const fn = registry.get(componentId);
+          if (fn) {
+            fn(buffer, ptr, props, input, baked, state);
+          }
+        }
       }
     }
 
