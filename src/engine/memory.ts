@@ -162,6 +162,11 @@ export function readSignedInt16(
   return unsigned > 32767 ? unsigned - 65536 : unsigned;
 }
 
+/**
+ * Write a signed 16-bit integer.  Delegates to writeInt16 which
+ * already handles two's complement via `value & 0xffff`.
+ * This wrapper exists for API symmetry with readSignedInt16.
+ */
 export function writeSignedInt16(
   buffer: Uint8ClampedArray,
   byteOffset: number,

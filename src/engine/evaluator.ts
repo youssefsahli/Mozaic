@@ -231,7 +231,7 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
 
       for (
         let ptr = poolStart;
-        ptr + ENTITY_SLOT_SIZE <= poolEnd + 1;
+        ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
         ptr += ENTITY_SLOT_SIZE
       ) {
         if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;

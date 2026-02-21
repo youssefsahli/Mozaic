@@ -238,6 +238,7 @@ export const particleEmitterComponent: ComponentFn = (
 ) => {
   const rate = props.rate ?? 1;
   const lifetime = props.lifetime ?? 30;
+  const typeId = props.typeId ?? 0;
   const px = readInt16(buffer, entityPtr + ENTITY_POS_X);
   const py = readInt16(buffer, entityPtr + ENTITY_POS_Y);
 
@@ -247,13 +248,14 @@ export const particleEmitterComponent: ComponentFn = (
 
   for (
     let ptr = poolStart;
-    ptr + ENTITY_SLOT_SIZE <= poolEnd + 1 && spawned < rate;
+    ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd && spawned < rate;
     ptr += ENTITY_SLOT_SIZE
   ) {
     if (ptr === entityPtr) continue;
     if (readInt8(buffer, ptr + ENTITY_ACTIVE) !== 0) continue;
 
     writeInt8(buffer, ptr + ENTITY_ACTIVE, 1);
+    writeInt8(buffer, ptr + ENTITY_TYPE_ID, typeId);
     writeInt16(buffer, ptr + ENTITY_POS_X, px);
     writeInt16(buffer, ptr + ENTITY_POS_Y, py);
 
