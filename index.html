@@ -263,6 +263,17 @@
         color: transparent;
         caret-color: #eee;
       }
+      #msc-editor:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 1px var(--accent);
+      }
+      #msc-editor::selection {
+        background: rgba(85,187,153,.25);
+      }
+      #msc-highlight::selection,
+      #msc-highlight *::selection {
+        background: transparent;
+      }
       #msc-status {
         min-height: 14px;
         font-size: 11px;
@@ -379,6 +390,65 @@
         font-size: 9px; color: var(--text-dim);
         text-transform: uppercase; letter-spacing: .04em;
         flex-shrink: 0; align-self: center;
+      }
+
+      /* ── Autocomplete dropdown ──────────── */
+      #msc-autocomplete {
+        position: absolute;
+        display: none;
+        z-index: 200;
+        min-width: 160px;
+        max-height: 180px;
+        overflow-y: auto;
+        background: var(--surface-2);
+        border: 1px solid var(--border-hi);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+        padding: 2px;
+        font: 11px/1.4 var(--font-mono);
+      }
+      #msc-autocomplete.is-open { display: block }
+      .autocomplete-item {
+        padding: 4px 8px;
+        cursor: pointer;
+        border-radius: 2px;
+        color: var(--text);
+        white-space: nowrap;
+      }
+      .autocomplete-item:hover,
+      .autocomplete-item.is-selected {
+        background: var(--accent-bg);
+        color: var(--accent);
+      }
+      .autocomplete-hint {
+        font-size: 9px;
+        color: var(--text-dim);
+        margin-left: 6px;
+      }
+
+      /* ── Used colors bar (text editor) ── */
+      #editor-used-colors {
+        display: flex;
+        gap: 2px;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+        min-height: 0;
+        padding: 2px 0;
+      }
+      .editor-color-swatch {
+        width: 16px;
+        height: 16px;
+        border: 1px solid var(--border);
+        border-radius: 2px;
+        cursor: pointer;
+        transition: border-color 80ms, transform 80ms;
+        padding: 0;
+        background: none;
+      }
+      .editor-color-swatch:hover {
+        border-color: var(--accent);
+        transform: scale(1.2);
+        z-index: 2;
       }
 
       /* ── Toggle chips ─────────────────────────── */
@@ -599,6 +669,46 @@
         background: var(--surface-3) !important;
         border-color: var(--border) !important;
         color: var(--text) !important;
+      }
+
+      /* ── Header "New" dropdown menu ──────────── */
+      .header-menu-anchor { position: relative; display: inline-block }
+      .header-dropdown {
+        position: absolute;
+        top: 100%; left: 0;
+        z-index: 100;
+        min-width: 200px;
+        background: var(--surface-2);
+        border: 1px solid var(--border-hi);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        padding: 4px;
+        display: none;
+        flex-direction: column;
+      }
+      .header-dropdown.is-open { display: flex }
+      .header-dropdown-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+      }
+      .header-dropdown-label {
+        font-size: 10px;
+        color: var(--text-dim);
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        white-space: nowrap;
+      }
+      .header-dropdown-select {
+        flex: 1;
+        padding: 2px 4px;
+        font: 11px var(--font-mono);
+        background: var(--surface-3);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: var(--radius);
+        cursor: pointer;
       }
 
       /* ── Add-file dropdown menu ─────────────── */
@@ -931,19 +1041,73 @@
       .ftv-action-btn { padding: 1px 4px !important; font-size: 11px; border-radius: 3px !important; opacity: .7; transition: all 80ms }
       .ftv-action-btn:hover { background: var(--accent-bg) !important; opacity: 1 }
 
-      /* ── Pixel Editor polish ─────────────────── */
-      .tool-btn { width: 28px !important; height: 28px !important; min-width: 28px !important; border-radius: var(--radius) !important; transition: all 80ms }
-      .tool-btn:hover { background: var(--surface-3) !important; border-color: var(--border-hi) !important }
-      .tool-btn.is-active { box-shadow: var(--shadow-sm) }
-      .toolbox-sep { width: 20px; margin: 4px auto }
-      #pixel-toolbox { padding: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-lg) }
-      #pixel-editor-wrap { border-radius: var(--radius-lg); background: #0a0a0a; box-shadow: inset 0 1px 4px rgba(0,0,0,.3) }
-      #pixel-bottom-bar { border-radius: var(--radius-lg) }
-      #palette-swatches { padding: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); min-height: 24px }
-      .palette-swatch { width: 18px; height: 18px; border-color: rgba(255,255,255,.1); border-radius: 3px; transition: border-color 80ms, transform 80ms }
-      .palette-swatch:hover { transform: scale(1.15); z-index: 2 }
-      .palette-swatch.is-active { box-shadow: 0 0 0 1.5px var(--accent); transform: scale(1.15); z-index: 2 }
+      /* ── Pixel Editor — Modern UI ────────── */
+      .tool-btn {
+        width: 30px !important; height: 30px !important; min-width: 30px !important;
+        border-radius: var(--radius) !important;
+        transition: all 100ms ease;
+        font-size: 14px;
+      }
+      .tool-btn:hover {
+        background: var(--surface-3) !important;
+        border-color: var(--border-hi) !important;
+        transform: translateY(-1px);
+      }
+      .tool-btn.is-active {
+        box-shadow: 0 0 0 1.5px var(--accent), var(--shadow-sm);
+        background: var(--accent-bg) !important;
+        border-color: var(--accent) !important;
+      }
+      .toolbox-sep { width: 22px; margin: 6px auto; background: var(--border); opacity: .5 }
+      #pixel-toolbox {
+        padding: 6px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+      }
+      #pixel-editor-wrap {
+        border-radius: var(--radius-lg);
+        background: #080808;
+        box-shadow: inset 0 2px 8px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.2);
+      }
+      #pixel-bottom-bar {
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+      }
+      #palette-swatches {
+        padding: 5px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        min-height: 26px;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,.15);
+      }
+      .palette-swatch {
+        width: 20px; height: 20px;
+        border-color: rgba(255,255,255,.08);
+        border-radius: 3px;
+        transition: border-color 100ms, transform 100ms, box-shadow 100ms;
+      }
+      .palette-swatch:hover {
+        transform: scale(1.2); z-index: 2;
+        box-shadow: 0 2px 6px rgba(0,0,0,.3);
+      }
+      .palette-swatch.is-active {
+        box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(85,187,153,.2);
+        transform: scale(1.2); z-index: 2;
+      }
       #msc-editor-wrap { border-radius: var(--radius-lg) }
+      #pixel-controls {
+        background: var(--surface);
+        border-radius: var(--radius);
+        padding: 6px;
+      }
+      #pixel-footer {
+        padding: 4px 6px;
+        background: rgba(20,20,20,.5);
+        border-radius: var(--radius);
+      }
     </style>
   </head>
   <body>
@@ -957,7 +1121,28 @@
         </div>
         <div id="header-divider"></div>
         <div id="header-actions">
-          <button id="new-rom-button" type="button" title="Create new ROM">+ New</button>
+          <div class="header-menu-anchor">
+            <button id="new-rom-button" type="button" title="Create new ROM">+ New</button>
+            <div id="new-rom-menu" class="header-dropdown">
+              <div class="header-dropdown-row">
+                <label class="header-dropdown-label">Palette:</label>
+                <select id="new-rom-palette" class="header-dropdown-select"></select>
+              </div>
+              <div class="ftv-dropdown-sep"></div>
+              <button type="button" class="ftv-dropdown-item" data-new-rom="empty">
+                <span class="ftv-dropdown-label">Empty ROM</span>
+                <span class="ftv-dropdown-hint">Blank</span>
+              </button>
+              <button type="button" class="ftv-dropdown-item" data-new-rom="amiga">
+                <span class="ftv-dropdown-label">Amiga Demo</span>
+                <span class="ftv-dropdown-hint">Classic</span>
+              </button>
+              <button type="button" class="ftv-dropdown-item" data-new-rom="checkerboard">
+                <span class="ftv-dropdown-label">Checkerboard</span>
+                <span class="ftv-dropdown-hint">Pattern</span>
+              </button>
+            </div>
+          </div>
           <button id="open-rom-button" type="button" title="Open ROM image">Open ROM</button>
           <button id="open-script-button" type="button" title="Import script file">&#8593; Import</button>
           <div class="header-sep"></div>
@@ -1054,10 +1239,12 @@
                 <button id="download-file-button" type="button" class="toolbar-btn" title="Download file">&#8595;</button>
               </div>
               <div id="palette-color-chips" aria-label="Named palette colors — click to insert into script"></div>
+              <div id="editor-used-colors" aria-label="Palette colors — click to insert hex"></div>
               <div id="msc-editor-wrap">
                 <div id="line-numbers" aria-hidden="true">1</div>
                 <pre id="msc-highlight"></pre>
                 <textarea id="msc-editor" spellcheck="false" aria-label="MSC editor"></textarea>
+                <div id="msc-autocomplete" role="listbox" aria-label="Autocomplete suggestions"></div>
               </div>
               <div id="msc-status"></div>
             </section>
@@ -1111,7 +1298,7 @@
                 </div>
               </div>
               <div id="pixel-footer">
-                <span>Alt+Click picks layer</span>
+                <span>Alt+Click picks layer · Right-click to color pick · Scroll to zoom</span>
                 <span id="pixel-coords">&ndash;, &ndash;</span>
               </div>
               <div id="pixel-bottom-bar">

@@ -1,8 +1,32 @@
 /**
  * Pixel Editor — Tool System
  *
- * Each tool is a strategy object with onDown/onMove/onUp callbacks.
- * Tools draw to a draft canvas context or directly modify imageData.
+ * Implements the strategy pattern for pixel editing tools. Each tool
+ * provides three lifecycle callbacks:
+ *
+ * - **onDown** — Called when the pointer is pressed. Sets up initial
+ *   state and may perform immediate operations (e.g., flood fill).
+ * - **onMove** — Called on pointer movement. Handles continuous
+ *   drawing operations with Bresenham line interpolation.
+ * - **onUp** — Called when the pointer is released. Finalizes the
+ *   stroke and triggers any post-processing.
+ *
+ * ## Available Tools
+ *
+ * | Type    | Name     | Description                                    |
+ * |---------|----------|------------------------------------------------|
+ * | Draw(0) | Pencil   | Pixel-precise drawing with pressure support    |
+ * | Erase(1)| Eraser   | Marks pixels for removal with visual feedback  |
+ * | Fill(2) | Fill     | Stack-based flood fill modifying imageData     |
+ * | Select(3)| Select  | Rectangle selection with marching ants preview |
+ * | Pipette(4)| Pipette| Color picker from canvas pixels                |
+ *
+ * ## Rendering Pipeline
+ *
+ * Draw and Erase tools render to the draft canvas overlay. When the
+ * stroke ends, the orchestrator merges the draft layer into the
+ * document ImageData. Fill operates directly on imageData for
+ * immediate feedback.
  */
 
 import type {

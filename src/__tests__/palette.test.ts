@@ -9,6 +9,9 @@ import {
   importHex,
   applyIndexedColorChange,
   getActiveColor,
+  loadPreset,
+  getPresetNames,
+  extractFromImage,
 } from "../editor/palette.js";
 
 describe("setColorName", () => {
@@ -130,5 +133,47 @@ describe("palette round-trip", () => {
     state.activeIndex = 1;
     removeColor(state, 1);
     expect(state.activeIndex).toBe(0);
+  });
+});
+
+describe("loadPreset", () => {
+  it("loads a known preset by name", () => {
+    const colors = loadPreset("Gameboy");
+    expect(colors).not.toBeNull();
+    expect(colors!.length).toBe(4);
+    expect(colors![0].hex).toBe("#0f380f");
+  });
+
+  it("returns null for unknown preset", () => {
+    expect(loadPreset("NonExistentPalette")).toBeNull();
+  });
+});
+
+describe("getPresetNames", () => {
+  it("returns an array of preset names", () => {
+    const names = getPresetNames();
+    expect(names.length).toBeGreaterThan(0);
+    expect(names).toContain("Gameboy");
+    expect(names).toContain("Pico-8");
+  });
+});
+
+describe("extractFromImage", () => {
+  it("extracts unique colors from ImageData", () => {
+    const data = new Uint8ClampedArray(2 * 2 * 4);
+    // Pixel 0: red
+    data[0] = 255; data[1] = 0; data[2] = 0; data[3] = 255;
+    // Pixel 1: green
+    data[4] = 0; data[5] = 255; data[6] = 0; data[7] = 255;
+    // Pixel 2: red again
+    data[8] = 255; data[9] = 0; data[10] = 0; data[11] = 255;
+    // Pixel 3: transparent (should be skipped)
+    data[12] = 0; data[13] = 0; data[14] = 255; data[15] = 0;
+    const img = { data, width: 2, height: 2, colorSpace: "srgb" } as ImageData;
+    const colors = extractFromImage(img);
+    expect(colors).toContain("#ff0000");
+    expect(colors).toContain("#00ff00");
+    expect(colors).not.toContain("#0000ff"); // transparent pixel skipped
+    expect(colors.length).toBe(2);
   });
 });

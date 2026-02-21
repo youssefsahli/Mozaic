@@ -18,6 +18,7 @@ import {
 import { parseMsc, type MscDocument } from "./parser/msc.js";
 import { parseWithImports } from "./engine/import-resolver.js";
 import { PixelEditor, type PixelEditorRefs } from "./editor/pixel-editor.js";
+import { getPresetNames } from "./editor/palette.js";
 import {
   type FileNode,
   type ProjectFiles,
@@ -70,10 +71,21 @@ const DEFAULT_CONFIG: MozaicConfig = {
   },
 };
 
+const MSC_KEYWORDS = [
+  "Entity", "Source", "Import", "Schema", "Events", "Visual",
+  "Entity.Player", "Entity.Enemy", "Entity.NPC", "Entity.Item",
+  "Visual:", "Source:", "Import:", "Schema:", "Events:",
+  "addr:", "type:", "Int8", "Int16", "Int24",
+  "CollisionGroup:", "PathFollow:", "Audio:",
+  "Inputs:", "Rules:", "Bake:",
+];
+
 interface UiRefs {
   appRoot: HTMLDivElement;
   canvas: HTMLCanvasElement;
   newRomButton: HTMLButtonElement;
+  newRomMenu: HTMLDivElement;
+  newRomPalette: HTMLSelectElement;
   openRomButton: HTMLButtonElement;
   openScriptButton: HTMLButtonElement;
   openConfigButton: HTMLButtonElement;
@@ -108,6 +120,7 @@ interface UiRefs {
   statusFileInfo: HTMLSpanElement;
   statusCursorPos: HTMLSpanElement;
   lineNumbers: HTMLDivElement;
+  editorUsedColors: HTMLDivElement;
 }
 
 interface DocEntry {
@@ -177,7 +190,10 @@ async function main(): Promise<void> {
       ui.mscStatus.style.color = color;
     },
     onColorChange: (oldHex, newHex) => swapColorInScript(runtime, oldHex, newHex),
-    onPaletteChange: () => renderPaletteChips(runtime),
+    onPaletteChange: () => {
+      renderPaletteChips(runtime);
+      renderEditorUsedColors(runtime);
+    },
   });
 
   wireUi(runtime);
@@ -226,6 +242,8 @@ function getUiRefs(): UiRefs {
     appRoot: requiredElement<HTMLDivElement>("mozaic-app"),
     canvas: requiredElement<HTMLCanvasElement>("mozaic-canvas"),
     newRomButton: requiredElement<HTMLButtonElement>("new-rom-button"),
+    newRomMenu: requiredElement<HTMLDivElement>("new-rom-menu"),
+    newRomPalette: requiredElement<HTMLSelectElement>("new-rom-palette"),
     openRomButton: requiredElement<HTMLButtonElement>("open-rom-button"),
     openScriptButton: requiredElement<HTMLButtonElement>("open-script-button"),
     openConfigButton: requiredElement<HTMLButtonElement>("open-config-button"),
@@ -260,6 +278,7 @@ function getUiRefs(): UiRefs {
     statusFileInfo: requiredElement<HTMLSpanElement>("status-file-info"),
     statusCursorPos: requiredElement<HTMLSpanElement>("status-cursor-pos"),
     lineNumbers: requiredElement<HTMLDivElement>("line-numbers"),
+    editorUsedColors: requiredElement<HTMLDivElement>("editor-used-colors"),
   };
 }
 
@@ -626,8 +645,39 @@ function wireUi(runtime: RuntimeState): void {
   scriptInput.style.display = "none";
   document.body.appendChild(scriptInput);
 
-  ui.newRomButton.addEventListener("click", () => {
-    createNewRom(runtime);
+  // New ROM dropdown toggle
+  ui.newRomButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    ui.newRomMenu.classList.toggle("is-open");
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener("click", () => {
+    ui.newRomMenu.classList.remove("is-open");
+  });
+
+  // Populate palette preset dropdown in new ROM menu
+  {
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Default";
+    ui.newRomPalette.appendChild(defaultOpt);
+    for (const name of getPresetNames()) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      ui.newRomPalette.appendChild(opt);
+    }
+  }
+
+  // New ROM menu item handlers
+  document.querySelectorAll<HTMLButtonElement>("#new-rom-menu [data-new-rom]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const variant = btn.dataset.newRom;
+      const paletteName = ui.newRomPalette.value;
+      ui.newRomMenu.classList.remove("is-open");
+      createNewRom(runtime, variant as "empty" | "amiga" | "checkerboard", paletteName || undefined);
+    });
   });
   ui.openRomButton.addEventListener("click", () => romInput.click());
   ui.openScriptButton.addEventListener("click", () => {
@@ -696,6 +746,124 @@ function wireUi(runtime: RuntimeState): void {
     persistScript(runtime.scriptText);
     switchEditorMode(runtime, "script");
     runtime.fileTreeView?.render();
+  });
+
+  // Tab key inserts 2 spaces instead of changing focus
+  ui.mscEditor.addEventListener("keydown", (e) => {
+    if (e.key === "Tab") {
+      e.preventDefault();
+      const start = ui.mscEditor.selectionStart;
+      const end = ui.mscEditor.selectionEnd;
+      const value = ui.mscEditor.value;
+      ui.mscEditor.value = value.substring(0, start) + "  " + value.substring(end);
+      ui.mscEditor.selectionStart = ui.mscEditor.selectionEnd = start + 2;
+      ui.mscEditor.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  });
+
+  // Autocomplete
+  const acDropdown = document.getElementById("msc-autocomplete")!;
+  let acItems: string[] = [];
+  let acIndex = -1;
+
+  function showAutocomplete(items: string[], rect: DOMRect, wordStart: number): void {
+    acDropdown.innerHTML = "";
+    acItems = items;
+    acIndex = -1;
+    for (let i = 0; i < items.length; i++) {
+      const div = document.createElement("div");
+      div.className = "autocomplete-item";
+      div.textContent = items[i];
+      div.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        applyAutocomplete(items[i], wordStart);
+      });
+      acDropdown.appendChild(div);
+    }
+    acDropdown.style.left = `${rect.left}px`;
+    acDropdown.style.top = `${rect.bottom + 2}px`;
+    acDropdown.classList.add("is-open");
+  }
+
+  function hideAutocomplete(): void {
+    acDropdown.classList.remove("is-open");
+    acItems = [];
+    acIndex = -1;
+  }
+
+  function applyAutocomplete(text: string, wordStart: number): void {
+    const editor = ui.mscEditor;
+    const end = editor.selectionStart;
+    const before = editor.value.substring(0, wordStart);
+    const after = editor.value.substring(end);
+    editor.value = before + text + after;
+    const cursor = wordStart + text.length;
+    editor.selectionStart = editor.selectionEnd = cursor;
+    editor.focus();
+    editor.dispatchEvent(new Event("input", { bubbles: true }));
+    hideAutocomplete();
+  }
+
+  function updateAutocompleteHighlight(): void {
+    const items = acDropdown.querySelectorAll(".autocomplete-item");
+    items.forEach((el, i) => el.classList.toggle("is-selected", i === acIndex));
+    if (acIndex >= 0 && items[acIndex]) {
+      items[acIndex].scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  ui.mscEditor.addEventListener("keydown", (e) => {
+    if (acDropdown.classList.contains("is-open")) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        acIndex = Math.min(acIndex + 1, acItems.length - 1);
+        updateAutocompleteHighlight();
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        acIndex = Math.max(acIndex - 1, 0);
+        updateAutocompleteHighlight();
+        return;
+      }
+      if (e.key === "Enter" && acIndex >= 0) {
+        e.preventDefault();
+        const wordInfo = getCurrentWord(ui.mscEditor);
+        applyAutocomplete(acItems[acIndex], wordInfo.start);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        hideAutocomplete();
+        return;
+      }
+    }
+  });
+
+  ui.mscEditor.addEventListener("input", () => {
+    if (runtime.editorMode !== "script") {
+      hideAutocomplete();
+      return;
+    }
+    const wordInfo = getCurrentWord(ui.mscEditor);
+    if (wordInfo.word.length >= 2) {
+      const lower = wordInfo.word.toLowerCase();
+      const matches = MSC_KEYWORDS.filter((k) =>
+        k.toLowerCase().startsWith(lower) && k.toLowerCase() !== lower
+      );
+      if (matches.length > 0) {
+        const wrapRect = document.getElementById("msc-editor-wrap")!.getBoundingClientRect();
+        showAutocomplete(matches, wrapRect, wordInfo.start);
+      } else {
+        hideAutocomplete();
+      }
+    } else {
+      hideAutocomplete();
+    }
+  });
+
+  ui.mscEditor.addEventListener("blur", () => {
+    setTimeout(() => hideAutocomplete(), 150);
   });
 
   ui.mscEditor.addEventListener("input", () => {
@@ -954,31 +1122,59 @@ function restart(runtime: RuntimeState): void {
   resizeGameCanvas(ui);
 }
 
-function createNewRom(runtime: RuntimeState): void {
+function createNewRom(
+  runtime: RuntimeState,
+  variant: "empty" | "amiga" | "checkerboard" = "empty",
+  paletteName?: string
+): void {
   const { newRomWidth, newRomHeight, newRomColor } = runtime.config.game;
-  runtime.imageData = createBlankImageData(newRomWidth, newRomHeight, newRomColor);
+
+  // Generate image based on variant
+  switch (variant) {
+    case "amiga":
+      runtime.imageData = createAmigaStyleRom();
+      break;
+    case "checkerboard":
+      runtime.imageData = createCheckerboardRom(newRomWidth, newRomHeight);
+      break;
+    default:
+      runtime.imageData = createBlankImageData(newRomWidth, newRomHeight, newRomColor);
+      break;
+  }
+
   runtime.baked = bake(runtime.imageData);
   runtime.scriptText = runtime.config.editor.defaultScript;
   persistScript(runtime.scriptText);
 
-  // Add to project as a new image file
+  // Clear old project and create fresh one
+  const freshProject = createDefaultProject();
+  runtime.project.root = freshProject.root;
+  runtime.project.activeFileId = freshProject.activeFileId;
+
+  // Add the new image file to project
   const dataUrl = imageDataToDataUrl(runtime.imageData);
   const imgNode = createImageFile(
     `sprite_${Date.now().toString(36)}.png`,
     dataUrl,
-    newRomWidth,
-    newRomHeight
+    runtime.imageData.width,
+    runtime.imageData.height
   );
   addChild(runtime.project.root, imgNode);
   runtime.project.activeFileId = imgNode.id;
   saveProject(runtime.project);
   runtime.fileTreeView?.render();
 
+  // Apply palette if specified
+  if (paletteName && runtime.pixelEditor) {
+    runtime.pixelEditor.loadPalettePreset(paletteName);
+  }
+
   switchEditorMode(runtime, "script");
   initPixelEditor(runtime);
   schedulePersistRom(runtime);
   restart(runtime);
-  runtime.ui.mscStatus.textContent = `New ${newRomWidth}x${newRomHeight} ROM created.`;
+  const variantLabel = variant === "amiga" ? "Amiga Demo" : variant === "checkerboard" ? "Checkerboard" : "Empty ROM";
+  runtime.ui.mscStatus.textContent = `New ${runtime.imageData.width}×${runtime.imageData.height} ROM created (${variantLabel}).`;
   runtime.ui.mscStatus.style.color = "#6a9955";
 }
 
@@ -1438,12 +1634,57 @@ function renderPaletteChips(runtime: RuntimeState): void {
   }
 }
 
+/**
+ * Render all palette colors as small swatches in the text editor bar.
+ * Clicking a swatch inserts its hex value at the cursor position.
+ */
+function renderEditorUsedColors(runtime: RuntimeState): void {
+  const container = runtime.ui.editorUsedColors;
+  if (!container) return;
+  container.innerHTML = "";
+
+  const colors = runtime.pixelEditor?.getPaletteColors() ?? [];
+  if (colors.length === 0) return;
+
+  for (const color of colors) {
+    const swatch = document.createElement("button");
+    swatch.type = "button";
+    swatch.className = "editor-color-swatch";
+    swatch.style.background = color.hex;
+    swatch.title = color.name ? `${color.name} (${color.hex})` : color.hex;
+
+    swatch.addEventListener("click", () => {
+      insertAtCursor(runtime.ui.mscEditor, color.hex);
+      runtime.scriptText = runtime.ui.mscEditor.value;
+      persistScript(runtime.scriptText);
+      refreshHighlight(runtime);
+      validateEditor(runtime);
+    });
+
+    container.appendChild(swatch);
+  }
+}
+
 function cloneImageData(imageData: ImageData): ImageData {
   return new ImageData(
     new Uint8ClampedArray(imageData.data),
     imageData.width,
     imageData.height
   );
+}
+
+function createCheckerboardRom(w = 64, h = 64): ImageData {
+  const data = new Uint8ClampedArray(w * h * 4);
+  const cellSize = 8;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const isLight = ((Math.floor(x / cellSize) + Math.floor(y / cellSize)) % 2) === 0;
+      const i = (y * w + x) * 4;
+      const v = isLight ? 40 : 20;
+      data[i] = v; data[i + 1] = v; data[i + 2] = v; data[i + 3] = 255;
+    }
+  }
+  return new ImageData(data, w, h);
 }
 
 function createAmigaStyleRom(): ImageData {
@@ -1708,6 +1949,18 @@ function showStatus(runtime: RuntimeState, text: string, color: string): void {
   runtime.ui.statusFileInfo.innerHTML = `<span style="color:${color}">${escapeHtml(text)}</span>`;
   // Auto-restore after 3 seconds
   setTimeout(() => updateEditorFileInfo(runtime), 3000);
+}
+
+const WORD_CHAR_RE = /[\w.$:]/;
+
+function getCurrentWord(textarea: HTMLTextAreaElement): { word: string; start: number } {
+  const pos = textarea.selectionStart;
+  const text = textarea.value;
+  let start = pos;
+  while (start > 0 && WORD_CHAR_RE.test(text[start - 1])) {
+    start--;
+  }
+  return { word: text.substring(start, pos), start };
 }
 
 main().catch(console.error);
