@@ -656,6 +656,11 @@ function wireUi(runtime: RuntimeState): void {
     ui.newRomMenu.classList.remove("is-open");
   });
 
+  // Keep dropdown open while interacting with its controls
+  ui.newRomMenu.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+
   // Populate palette preset dropdown in new ROM menu
   {
     const defaultOpt = document.createElement("option");
@@ -1464,14 +1469,27 @@ function refreshHighlight(runtime: RuntimeState): void {
 }
 
 function highlightMsc(source: string): string {
-  let html = escapeHtml(source);
-  html = html.replace(/^\s*#.*$/gm, (line) => `<span class="msc-comment">${line}</span>`);
+  const comments: string[] = [];
+  let html = source
+    .split("\n")
+    .map((line) => {
+      if (/^\s*#/.test(line)) {
+        const index = comments.push(escapeHtml(line)) - 1;
+        return `\u0000MSC_COMMENT_${index}\u0000`;
+      }
+      return escapeHtml(line);
+    })
+    .join("\n");
+
   html = html.replace(/(["'][^"'\n]*["'])/g, '<span class="msc-string">$1</span>');
   html = html.replace(
     /^(\s*)(Entity\.[\w.]+|Source|Import|Schema|Events|Visual)(\s*:)/gm,
     '$1<span class="msc-keyword">$2</span>$3'
   );
   html = html.replace(/\$\w+/g, '<span class="msc-symbol">$&</span>');
+  html = html.replace(/\u0000MSC_COMMENT_(\d+)\u0000/g, (_, index: string) => {
+    return `<span class="msc-comment">${comments[Number(index)]}</span>`;
+  });
   return html;
 }
 
