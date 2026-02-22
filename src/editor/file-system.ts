@@ -260,7 +260,7 @@ export function saveProject(project: ProjectFiles): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
   } catch (e) {
-    console.warn("Mozaic: failed to persist project —", e);
+    console.warn("Mozaic: failed to persist project:", e);
   }
 }
 

@@ -302,7 +302,9 @@ export const fillTool: Tool = {
     // Don't fill if target is already the fill color
     if (tR === fR && tG === fG && tB === fB && tA === 255) return;
 
-    // Stack-based flood fill (limit prevents runaway memory on huge images)
+    // Stack-based flood fill
+    // Each pixel can push at most 4 neighbours (2 values each), but the
+    // visited bitmap prevents re-queuing, so 2× totalPixels is a safe cap.
     const stack: number[] = [docX, docY];
     const maxStackSize = totalPixels * 2;
 
