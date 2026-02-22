@@ -302,10 +302,12 @@ export const fillTool: Tool = {
     // Don't fill if target is already the fill color
     if (tR === fR && tG === fG && tB === fB && tA === 255) return;
 
-    // Stack-based flood fill
+    // Stack-based flood fill (limit prevents runaway memory on huge images)
     const stack: number[] = [docX, docY];
+    const maxStackSize = totalPixels * 2;
 
     while (stack.length > 0) {
+      if (stack.length > maxStackSize) break;
       const cy = stack.pop()!;
       const cx = stack.pop()!;
       const ci = cy * w + cx;

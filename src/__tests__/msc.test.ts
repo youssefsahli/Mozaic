@@ -65,4 +65,9 @@ describe("parseMsc", () => {
     expect(doc.imports).toHaveLength(0);
     expect(Object.keys(doc.schema)).toHaveLength(0);
   });
+
+  it("filters out empty import paths", () => {
+    const doc = parseMsc('Import: ""\nImport: "valid.msc"\n');
+    expect(doc.imports).toEqual(["valid.msc"]);
+  });
 });

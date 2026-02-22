@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { inspectPixelAt } from "../editor/grid-overlay.js";
+import { inspectPixelAt, polygonCentroid, pointToSegmentDistance, distanceToPolyline } from "../editor/grid-overlay.js";
 import type { MscSchema } from "../parser/msc.js";
 
 function makeBuffer(pixels: Array<[number, number, number, number]>): Uint8ClampedArray {
@@ -50,5 +50,32 @@ describe("inspectPixelAt", () => {
     // docX=5 is beyond the 1-pixel-wide, 1-pixel-tall buffer
     const result = inspectPixelAt(5, 0, 1, buf);
     expect(result).toBe("Pixel 5,0");
+  });
+});
+
+describe("polygonCentroid", () => {
+  it("returns origin for empty polygon", () => {
+    expect(polygonCentroid([])).toEqual({ x: 0, y: 0 });
+  });
+
+  it("returns the point for a single-point polygon", () => {
+    expect(polygonCentroid([{ x: 5, y: 10 }])).toEqual({ x: 5, y: 10 });
+  });
+});
+
+describe("pointToSegmentDistance", () => {
+  it("handles zero-length segment (coincident endpoints)", () => {
+    const dist = pointToSegmentDistance({ x: 3, y: 4 }, { x: 0, y: 0 }, { x: 0, y: 0 });
+    expect(dist).toBe(5);
+  });
+});
+
+describe("distanceToPolyline", () => {
+  it("returns Infinity for empty polyline", () => {
+    expect(distanceToPolyline({ x: 0, y: 0 }, [], false)).toBe(Infinity);
+  });
+
+  it("returns distance for single-point polyline", () => {
+    expect(distanceToPolyline({ x: 3, y: 4 }, [{ x: 0, y: 0 }], false)).toBe(5);
   });
 });

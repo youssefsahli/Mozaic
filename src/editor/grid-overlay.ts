@@ -108,8 +108,9 @@ function drawGridLines(
   screenLineWidth = 1
 ): void {
   if (step <= 0) return;
+  const scaleA = ctx.getTransform().a || 1;
   ctx.strokeStyle = stroke;
-  ctx.lineWidth = screenLineWidth / ctx.getTransform().a;
+  ctx.lineWidth = screenLineWidth / scaleA;
   ctx.beginPath();
   for (let x = step; x < width; x += step) {
     ctx.moveTo(x, 0);
@@ -129,8 +130,9 @@ function drawPolyline(
   closePath: boolean
 ): void {
   if (points.length < 2) return;
+  const scaleA = ctx.getTransform().a || 1;
   ctx.strokeStyle = stroke;
-  ctx.lineWidth = 1 / ctx.getTransform().a;
+  ctx.lineWidth = 1 / scaleA;
   ctx.beginPath();
   ctx.moveTo(points[0].x + 0.5, points[0].y + 0.5);
   for (let i = 1; i < points.length; i++) {
@@ -147,7 +149,8 @@ function drawPoints(
   radius = 1
 ): void {
   ctx.fillStyle = fill;
-  const invScale = 1 / ctx.getTransform().a;
+  const scaleA = ctx.getTransform().a || 1;
+  const invScale = 1 / scaleA;
   const size = (radius * 2 + 1) * invScale;
   for (const point of points) {
     ctx.fillRect(
@@ -168,7 +171,8 @@ function drawOverlayLabel(
   strong = false
 ): void {
   ctx.save();
-  const invScale = 1 / ctx.getTransform().a;
+  const scaleA = ctx.getTransform().a || 1;
+  const invScale = 1 / scaleA;
   const fontSize = (strong ? 7 : 6) * invScale;
   ctx.font = `${fontSize}px monospace`;
   ctx.fillStyle = color;
