@@ -246,8 +246,12 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
           entityDef.components
         )) {
           const fn = registry.get(componentId);
-          if (fn) {
+          if (!fn) continue;
+          try {
             fn(buffer, ptr, props, input, baked, state);
+          } catch {
+            // Swallow per-component errors so one broken component
+            // doesn't crash the entire frame loop.
           }
         }
       }

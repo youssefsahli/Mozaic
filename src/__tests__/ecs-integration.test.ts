@@ -252,4 +252,38 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
 
     expect(readSchemaVar(buf, schema, "$X")).toBe(42);
   });
+
+  it("survives a throwing component without crashing the frame", () => {
+    const buf = createStateBuffer();
+    const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+
+    writeInt8(buf, poolStart + ENTITY_ACTIVE, 1);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 0);
+    writeSignedInt16(buf, poolStart + ENTITY_VEL_Y, 0);
+
+    const registry = createDefaultRegistry();
+    registry.register("Boom", () => {
+      throw new Error("kaboom");
+    });
+
+    const script: MscDocument = {
+      imports: [],
+      schema: {},
+      entities: {
+        Hero: {
+          components: { Boom: {}, Gravity: { force: 7 } },
+        },
+      },
+      events: [],
+    };
+
+    const logic = buildEvaluatorLogic(registry);
+    // Should not throw; the broken component is swallowed
+    expect(() =>
+      logic(makeState(buf), makeInput(), makeBaked(), script)
+    ).not.toThrow();
+
+    // Gravity component after Boom should still have run
+    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_Y)).toBe(7);
+  });
 });
