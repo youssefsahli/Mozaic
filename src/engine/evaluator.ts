@@ -246,8 +246,14 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
           entityDef.components
         )) {
           const fn = registry.get(componentId);
-          if (fn) {
+          if (!fn) continue;
+          try {
             fn(buffer, ptr, props, input, baked, state);
+          } catch (err) {
+            console.warn(
+              `[Mozaic ECS] Component "${componentId}" threw on entity at offset ${ptr}:`,
+              err
+            );
           }
         }
       }

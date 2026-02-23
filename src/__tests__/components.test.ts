@@ -82,6 +82,33 @@ describe("ComponentRegistry", () => {
     expect(registry.get("Missing")).toBeUndefined();
     expect(registry.has("Missing")).toBe(false);
   });
+
+  it("unregisters a component by ID", () => {
+    const registry = new ComponentRegistry();
+    const dummy = () => {};
+    registry.register("Test", dummy);
+    expect(registry.unregister("Test")).toBe(true);
+    expect(registry.has("Test")).toBe(false);
+    expect(registry.get("Test")).toBeUndefined();
+  });
+
+  it("returns false when unregistering an unknown ID", () => {
+    const registry = new ComponentRegistry();
+    expect(registry.unregister("Missing")).toBe(false);
+  });
+
+  it("lists all registered component IDs", () => {
+    const registry = new ComponentRegistry();
+    registry.register("A", () => {});
+    registry.register("B", () => {});
+    registry.register("C", () => {});
+    expect(registry.list().sort()).toEqual(["A", "B", "C"]);
+  });
+
+  it("returns an empty list when no components are registered", () => {
+    const registry = new ComponentRegistry();
+    expect(registry.list()).toEqual([]);
+  });
 });
 
 describe("createDefaultRegistry", () => {

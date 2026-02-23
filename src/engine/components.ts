@@ -67,12 +67,21 @@ export class ComponentRegistry {
     this.components.set(id, fn);
   }
 
+  unregister(id: string): boolean {
+    return this.components.delete(id);
+  }
+
   get(id: string): ComponentFn | undefined {
     return this.components.get(id);
   }
 
   has(id: string): boolean {
     return this.components.has(id);
+  }
+
+  /** Return all registered component IDs. */
+  list(): string[] {
+    return Array.from(this.components.keys());
   }
 }
 

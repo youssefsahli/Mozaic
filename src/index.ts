@@ -13,8 +13,9 @@ import { InputManager } from "./engine/input.js";
 import {
   EngineLoop,
   createInitialState,
-  identityLogic,
 } from "./engine/loop.js";
+import { buildEvaluatorLogic } from "./engine/evaluator.js";
+import { createDefaultRegistry } from "./engine/components.js";
 import { parseMsc, type MscDocument } from "./parser/msc.js";
 import { parseWithImports } from "./engine/import-resolver.js";
 import { PixelEditor, type PixelEditorRefs } from "./editor/pixel-editor.js";
@@ -1489,7 +1490,7 @@ function restart(runtime: RuntimeState): void {
   const loop = new EngineLoop(createInitialState(imageData), {
     baked,
     script,
-    logic: identityLogic,
+    logic: buildEvaluatorLogic(createDefaultRegistry()),
     renderer: runtime.renderer,
     inputManager,
   });
