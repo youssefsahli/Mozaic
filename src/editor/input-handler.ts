@@ -13,7 +13,7 @@
  */
 
 import type { CameraState, EditorConfig, PointerInfo } from "./types.js";
-import { screenToDocMut, zoomAtPoint, pan } from "./camera.js";
+import { screenToDocMut, zoomAtPoint, pan, snapZoom } from "./camera.js";
 
 export interface InputCallbacks {
   onToolDown(info: PointerInfo): void;
@@ -231,6 +231,10 @@ export function attachInputHandler(
       isPinching = false;
       pinchLastDist = 0;
 
+      // Snap zoom to nearest integer for crisp pixel rendering
+      snapZoom(camera);
+      callbacks.onCameraChange();
+
       // If one touch remains, transition it to a single-finger pan
       if (touchPointers.size === 1) {
         const remaining = touchPointers.entries().next().value;
@@ -282,6 +286,20 @@ export function attachInputHandler(
 
   // ── Pinch-zoom + two-finger pan ─────────────────────────────
 
+  /**
+   * Minimum distance (px) between two touch points to consider it
+   * a valid pinch gesture. Avoids jittery zoom when fingers are
+   * nearly touching.
+   */
+  const PINCH_MIN_DISTANCE = 10;
+
+  /**
+   * Smoothing factor applied to the pinch scale ratio each frame.
+   * 0 = no smoothing (raw), 1 = fully damped (frozen).
+   * 0.25 gives a responsive-yet-smooth feel.
+   */
+  const PINCH_SMOOTHING = 0.25;
+
   function startPinch(): void {
     const pts = Array.from(touchPointers.values());
     if (pts.length < 2) return;
@@ -306,13 +324,13 @@ export function attachInputHandler(
       pan(camera, panDx, panDy);
     }
 
-    // Pinch zoom: continuous distance tracking
-    if (pinchLastDist > 0 && dist > 0) {
-      const scale = dist / pinchLastDist;
-      if (Math.abs(scale - 1) > 0.01) {
-        const newZoom = Math.round(camera.zoom * scale);
-        zoomAtPoint(camera, midX - rect.left, midY - rect.top, newZoom);
-      }
+    // Pinch zoom: smooth fractional scaling
+    if (pinchLastDist > PINCH_MIN_DISTANCE && dist > PINCH_MIN_DISTANCE) {
+      const rawScale = dist / pinchLastDist;
+      // Apply exponential smoothing to dampen sensor noise
+      const smoothedScale = 1 + (rawScale - 1) * (1 - PINCH_SMOOTHING);
+      const newZoom = camera.zoom * smoothedScale;
+      zoomAtPoint(camera, midX - rect.left, midY - rect.top, newZoom);
     }
 
     // Update tracking for next frame
