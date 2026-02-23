@@ -150,15 +150,16 @@ export function renderBackground(layers: LayerStack, cam: CameraState): void {
   const { bgCtx, width, height, checkerPattern } = layers;
   bgCtx.clearRect(0, 0, width, height);
   if (!checkerPattern) return;
+  const zoom = cam.zoom || 1;
 
   bgCtx.save();
-  bgCtx.setTransform(cam.zoom, 0, 0, cam.zoom, -cam.x * cam.zoom, -cam.y * cam.zoom);
+  bgCtx.setTransform(zoom, 0, 0, zoom, -cam.x * zoom, -cam.y * zoom);
   bgCtx.fillStyle = checkerPattern;
   // Fill enough area to cover the viewport in document space
   const docLeft = cam.x - 1;
   const docTop = cam.y - 1;
-  const docW = width / cam.zoom + 2;
-  const docH = height / cam.zoom + 2;
+  const docW = width / zoom + 2;
+  const docH = height / zoom + 2;
   bgCtx.fillRect(docLeft, docTop, docW, docH);
   bgCtx.restore();
 }

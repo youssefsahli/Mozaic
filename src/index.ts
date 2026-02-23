@@ -515,11 +515,18 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
     const files = scriptFileInput.files;
     if (!files || files.length === 0) return;
     let lastNode: FileNode | null = null;
+    let imported = 0;
     for (const file of Array.from(files)) {
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+      if (!["msc", "txt", "yaml", "yml"].includes(ext)) {
+        showStatus(runtime, `Skipped unsupported file: ${file.name}`, "var(--warning)");
+        continue;
+      }
       const text = await file.text();
       const node = createScriptFile(file.name, text);
       addChild(runtime.project.root, node);
       lastNode = node;
+      imported++;
     }
     if (lastNode) {
       runtime.project.activeFileId = lastNode.id;
@@ -529,7 +536,7 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
       switchEditorMode(runtime, "script");
       switchTab(runtime, "script");
       runtime.fileTreeView?.render();
-      showStatus(runtime, `Imported ${files.length} script(s).`, "var(--success)");
+      showStatus(runtime, `Imported ${imported} script(s).`, "var(--success)");
     }
     scriptFileInput.value = "";
   });
@@ -539,18 +546,29 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
     const files = imageFileInput.files;
     if (!files || files.length === 0) return;
     let lastNode: FileNode | null = null;
+    let imported = 0;
     for (const file of Array.from(files)) {
-      const imgData = await fileToImageData(file);
-      const dataUrl = imageDataToDataUrl(imgData);
-      const node = createImageFile(file.name, dataUrl, imgData.width, imgData.height);
-      addChild(runtime.project.root, node);
-      lastNode = node;
+      const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+      if (!["png", "jpg", "jpeg", "webp"].includes(ext)) {
+        showStatus(runtime, `Skipped unsupported file: ${file.name}`, "var(--warning)");
+        continue;
+      }
+      try {
+        const imgData = await fileToImageData(file);
+        const dataUrl = imageDataToDataUrl(imgData);
+        const node = createImageFile(file.name, dataUrl, imgData.width, imgData.height);
+        addChild(runtime.project.root, node);
+        lastNode = node;
+        imported++;
+      } catch {
+        showStatus(runtime, `Failed to load image: ${file.name}`, "var(--error)");
+      }
     }
     if (lastNode) {
       runtime.project.activeFileId = lastNode.id;
       saveProject(runtime.project);
       openFileNode(runtime, lastNode);
-      showStatus(runtime, `Imported ${files.length} image(s).`, "var(--success)");
+      showStatus(runtime, `Imported ${imported} image(s).`, "var(--success)");
     }
     imageFileInput.value = "";
   });
@@ -1840,17 +1858,22 @@ function validateEditor(runtime: RuntimeState): void {
 
     // Use import resolution if we have a project context
     if (runtime.project.activeFileId) {
-      const { errors } = parseWithImports(
-        runtime.scriptText,
-        runtime.project.activeFileId,
-        runtime.project
-      );
-      if (errors.length > 0) {
-        runtime.ui.mscStatus.textContent = errors.join("; ");
+      try {
+        const { errors } = parseWithImports(
+          runtime.scriptText,
+          runtime.project.activeFileId,
+          runtime.project
+        );
+        if (errors.length > 0) {
+          runtime.ui.mscStatus.textContent = errors.join("; ");
+          runtime.ui.mscStatus.style.color = "#d16969";
+        } else {
+          runtime.ui.mscStatus.textContent = "Script parsed successfully.";
+          runtime.ui.mscStatus.style.color = "#6a9955";
+        }
+      } catch (error) {
+        runtime.ui.mscStatus.textContent = `Parse error: ${String(error)}`;
         runtime.ui.mscStatus.style.color = "#d16969";
-      } else {
-        runtime.ui.mscStatus.textContent = "Script parsed successfully.";
-        runtime.ui.mscStatus.style.color = "#6a9955";
       }
       return;
     }

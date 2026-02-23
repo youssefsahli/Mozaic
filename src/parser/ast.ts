@@ -65,7 +65,10 @@ export function buildMscAst(tokens: MscLineToken[]): MscDocument {
     }
 
     if (key === "Import") {
-      doc.imports.push(stripQuotes(value));
+      const importPath = stripQuotes(value);
+      if (importPath) {
+        doc.imports.push(importPath);
+      }
       i++;
       continue;
     }
@@ -114,10 +117,13 @@ function parseSchema(
         /^(\$\w+):\s*\{\s*addr:\s*(\d+),\s*type:\s*(Int8|Int16|Int32)\s*\}$/
       );
       if (schemaMatch) {
-        schema[schemaMatch[1]] = {
-          addr: parseInt(schemaMatch[2], 10),
-          type: schemaMatch[3] as "Int8" | "Int16" | "Int32",
-        };
+        const addr = parseInt(schemaMatch[2], 10);
+        if (!Number.isNaN(addr) && addr >= 0) {
+          schema[schemaMatch[1]] = {
+            addr,
+            type: schemaMatch[3] as "Int8" | "Int16" | "Int32",
+          };
+        }
       }
     }
 

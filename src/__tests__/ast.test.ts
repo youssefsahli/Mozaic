@@ -30,4 +30,16 @@ describe("buildMscAst", () => {
     });
     expect(ast.events[0].trigger).toBe("Collision(Hero:#Feet, Level:#FFFF00)");
   });
+
+  it("skips empty Import values", () => {
+    const ast = buildMscAst(tokenizeMsc('Import: ""\nImport: "valid.msc"\n'));
+    expect(ast.imports).toEqual(["valid.msc"]);
+  });
+
+  it("skips schema entries with negative addr", () => {
+    const src = 'Schema:\n  - $Bad: { addr: -1, type: Int8 }\n  - $Good: { addr: 0, type: Int8 }\n';
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.schema["$Bad"]).toBeUndefined();
+    expect(ast.schema["$Good"]).toBeDefined();
+  });
 });

@@ -303,9 +303,13 @@ export const fillTool: Tool = {
     if (tR === fR && tG === fG && tB === fB && tA === 255) return;
 
     // Stack-based flood fill
+    // Each pixel can push at most 4 neighbours (2 values each), but the
+    // visited bitmap prevents re-queuing, so 2× totalPixels is a safe cap.
     const stack: number[] = [docX, docY];
+    const maxStackSize = totalPixels * 2;
 
     while (stack.length > 0) {
+      if (stack.length > maxStackSize) break;
       const cy = stack.pop()!;
       const cx = stack.pop()!;
       const ci = cy * w + cx;
