@@ -180,18 +180,15 @@ export class FileTreeView {
       icon.classList.add("ftv-image-icon");
       icon.innerHTML = FTV_ICONS.image;
     } else {
+      icon.classList.add("ftv-script-icon");
       const ext = node.name.split(".").pop()?.toLowerCase() ?? "";
       if (ext === "json") {
-        icon.classList.add("ftv-script-icon");
         icon.innerHTML = FTV_ICONS.json;
       } else if (ext === "md") {
-        icon.classList.add("ftv-script-icon");
         icon.innerHTML = FTV_ICONS.markdown;
       } else if (ext === "txt") {
-        icon.classList.add("ftv-script-icon");
         icon.innerHTML = FTV_ICONS.text;
       } else {
-        icon.classList.add("ftv-script-icon");
         icon.innerHTML = FTV_ICONS.script;
       }
     }
