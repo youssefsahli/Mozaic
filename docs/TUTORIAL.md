@@ -35,7 +35,7 @@ Tips:
 - Use mouse wheel to zoom (zooms at cursor position).
 - On touch devices, pinch with two fingers to zoom smoothly and pan simultaneously.
 - Hold **Space** and drag to pan the canvas, or use middle-mouse drag.
-- When `stylusOnly` mode is enabled, touch input only navigates while the pen draws.
+- When `stylusOnly` mode is enabled (toggle in editor settings or `mozaic.config.json`), touch input only navigates while the pen draws.
 
 ## 4) Add script logic
 

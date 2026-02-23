@@ -56,7 +56,12 @@ In-app tools:
 - **MSC Editor**: edit script text with syntax highlighting, then press **Restart**.
 - **Pixel Editor**: paint pixels directly on the loaded ROM, then press **Restart**.
 - **Pixel Editor Polish**: zoom slider, brush size, eraser mode, palette swatches (with add), right-click eyedropper, inline grid, and custom grid with major lines.
-- **Pixel Editor Navigation**: smooth pinch-to-zoom with fractional zoom levels and exponential smoothing, scroll-wheel zoom at cursor, middle-mouse or Space+drag panning, stylus-only mode (touch navigates, pen draws), and pressure/tilt sensitivity.
+- **Pixel Editor Navigation**:
+  - Smooth pinch-to-zoom with fractional zoom levels and exponential smoothing
+  - Scroll-wheel zoom at cursor position
+  - Middle-mouse or Space+drag panning
+  - Stylus-only mode (touch navigates, pen draws)
+  - Pressure and tilt sensitivity
 - **Editing Workflow**: Undo, Redo, Clear actions, plus live cursor coordinates in the editor footer.
 - **Tool Presets**: one-click `Pencil 1px`, `Brush 3px`, and `Eraser` presets.
 - **Bake Debug Overlay**: toggle collision polygons and baked path lines directly in the pixel editor preview.
