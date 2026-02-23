@@ -440,6 +440,7 @@ export class PixelEditor {
     renderBackground(this.layers, this.camera);
     renderDocument(this.layers, this.camera, this.imageData);
     this.renderGridOverlay();
+    this.renderSelectionOverlay();
   }
 
   private renderGridOverlay(): void {
@@ -453,6 +454,29 @@ export class PixelEditor {
       this.baked,
       options
     );
+  }
+
+  /** Redraw the selection rectangle on the draft canvas at current camera coordinates. */
+  private renderSelectionOverlay(): void {
+    if (!this.layers || !this.selection) return;
+    const { draftCtx, width, height } = this.layers;
+    const { camera, selection } = this;
+
+    draftCtx.clearRect(0, 0, width, height);
+
+    const sx = (selection.x - camera.x) * camera.zoom;
+    const sy = (selection.y - camera.y) * camera.zoom;
+    const sw = selection.w * camera.zoom;
+    const sh = selection.h * camera.zoom;
+
+    draftCtx.strokeStyle = "rgba(85,187,153,0.8)";
+    draftCtx.lineWidth = 1;
+    draftCtx.setLineDash([4, 4]);
+    draftCtx.strokeRect(sx + 0.5, sy + 0.5, sw, sh);
+    draftCtx.setLineDash([]);
+
+    draftCtx.fillStyle = "rgba(85,187,153,0.1)";
+    draftCtx.fillRect(sx, sy, sw, sh);
   }
 
   // ── Tool context builder ──────────────────────────────────
@@ -561,6 +585,9 @@ export class PixelEditor {
 
   private setTool(type: ToolType): void {
     this.activeTool = getToolByType(type);
+    if (type !== (3 as ToolType)) {
+      this.selection = null;
+    }
     if (this.layers) {
       clearDraft(this.layers);
     }
