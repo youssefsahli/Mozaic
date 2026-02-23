@@ -436,7 +436,7 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
   // Hidden file inputs for import
   const scriptFileInput = document.createElement("input");
   scriptFileInput.type = "file";
-  scriptFileInput.accept = ".msc,.txt";
+  scriptFileInput.accept = ".msc,.txt,.json,.md";
   scriptFileInput.multiple = true;
   scriptFileInput.style.display = "none";
   document.body.appendChild(scriptFileInput);
@@ -471,6 +471,42 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
           switchTab(runtime, "script");
           runtime.fileTreeView?.render();
           showStatus(runtime, "New script created.", "var(--success)");
+          break;
+        }
+        case "new-text": {
+          const node = createScriptFile("untitled.txt", "");
+          addChild(runtime.project.root, node);
+          runtime.project.activeFileId = node.id;
+          saveProject(runtime.project);
+          runtime.scriptText = node.content ?? "";
+          switchEditorMode(runtime, "script");
+          switchTab(runtime, "script");
+          runtime.fileTreeView?.render();
+          showStatus(runtime, "New text file created.", "var(--success)");
+          break;
+        }
+        case "new-json": {
+          const node = createScriptFile("untitled.json", "{\n  \n}\n");
+          addChild(runtime.project.root, node);
+          runtime.project.activeFileId = node.id;
+          saveProject(runtime.project);
+          runtime.scriptText = node.content ?? "";
+          switchEditorMode(runtime, "script");
+          switchTab(runtime, "script");
+          runtime.fileTreeView?.render();
+          showStatus(runtime, "New JSON file created.", "var(--success)");
+          break;
+        }
+        case "new-markdown": {
+          const node = createScriptFile("untitled.md", "# Untitled\n");
+          addChild(runtime.project.root, node);
+          runtime.project.activeFileId = node.id;
+          saveProject(runtime.project);
+          runtime.scriptText = node.content ?? "";
+          switchEditorMode(runtime, "script");
+          switchTab(runtime, "script");
+          runtime.fileTreeView?.render();
+          showStatus(runtime, "New markdown file created.", "var(--success)");
           break;
         }
         case "new-image": {
@@ -518,7 +554,7 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
     let imported = 0;
     for (const file of Array.from(files)) {
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-      if (!["msc", "txt", "yaml", "yml"].includes(ext)) {
+      if (!["msc", "txt", "yaml", "yml", "json", "md"].includes(ext)) {
         showStatus(runtime, `Skipped unsupported file: ${file.name}`, "var(--warning)");
         continue;
       }
@@ -678,7 +714,7 @@ function wireUi(runtime: RuntimeState): void {
 
   const scriptInput = document.createElement("input");
   scriptInput.type = "file";
-  scriptInput.accept = ".msc,.txt,.yaml,.yml";
+  scriptInput.accept = ".msc,.txt,.yaml,.yml,.json,.md";
   scriptInput.style.display = "none";
   document.body.appendChild(scriptInput);
 

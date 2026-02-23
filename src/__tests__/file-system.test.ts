@@ -171,6 +171,36 @@ describe("resolveImportPath", () => {
     const { root, main } = buildTree();
     expect(resolveImportPath(root, main.id, "nonexistent")).toBeNull();
   });
+
+  it("resolves .json files without extension", () => {
+    const root = createFolder("project");
+    const main = createScriptFile("main.msc", "# main\n");
+    const config = createScriptFile("config.json", '{"key": "value"}');
+    addChild(root, main);
+    addChild(root, config);
+    const resolved = resolveImportPath(root, main.id, "config");
+    expect(resolved).toBe(config);
+  });
+
+  it("resolves .md files without extension", () => {
+    const root = createFolder("project");
+    const main = createScriptFile("main.msc", "# main\n");
+    const readme = createScriptFile("readme.md", "# Readme\n");
+    addChild(root, main);
+    addChild(root, readme);
+    const resolved = resolveImportPath(root, main.id, "readme");
+    expect(resolved).toBe(readme);
+  });
+
+  it("resolves .txt files without extension", () => {
+    const root = createFolder("project");
+    const main = createScriptFile("main.msc", "# main\n");
+    const notes = createScriptFile("notes.txt", "Some notes\n");
+    addChild(root, main);
+    addChild(root, notes);
+    const resolved = resolveImportPath(root, main.id, "notes");
+    expect(resolved).toBe(notes);
+  });
 });
 
 // ── Import Resolver Tests ──────────────────────────────────
