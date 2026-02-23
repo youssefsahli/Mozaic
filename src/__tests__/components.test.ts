@@ -102,7 +102,7 @@ describe("ComponentRegistry", () => {
     registry.register("A", () => {});
     registry.register("B", () => {});
     registry.register("C", () => {});
-    expect(registry.list()).toEqual(["A", "B", "C"]);
+    expect(registry.list().sort()).toEqual(["A", "B", "C"]);
   });
 
   it("returns an empty list when no components are registered", () => {

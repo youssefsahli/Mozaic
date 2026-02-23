@@ -249,9 +249,11 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
           if (!fn) continue;
           try {
             fn(buffer, ptr, props, input, baked, state);
-          } catch {
-            // Swallow per-component errors so one broken component
-            // doesn't crash the entire frame loop.
+          } catch (err) {
+            console.warn(
+              `[Mozaic ECS] Component "${componentId}" threw on entity at offset ${ptr}:`,
+              err
+            );
           }
         }
       }
