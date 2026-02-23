@@ -25,8 +25,8 @@
         --radius:     4px;
         --radius-lg:  6px;
         --font-mono:  ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
-        --header-h:   42px;
-        --tab-h:      34px;
+        --header-h:   34px;
+        --tab-h:      28px;
         --handle-w:   5px;
         --ease:       200ms cubic-bezier(0.4,0,0.2,1);
         --shadow-sm:  0 1px 2px rgba(0,0,0,.3);
@@ -54,8 +54,8 @@
         border-bottom: 1px solid var(--border);
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 0 14px;
+        gap: 8px;
+        padding: 0 10px;
         flex-shrink: 0;
       }
       #header-brand {
@@ -199,8 +199,8 @@
         flex-direction: column;
         overflow-y: auto;
         overflow-x: hidden;
-        padding: 10px;
-        gap: 8px;
+        padding: 6px;
+        gap: 6px;
       }
       .tab-pane.is-active {
         display: flex;
@@ -1202,6 +1202,12 @@
         background: rgba(20,20,20,.5);
         border-radius: var(--radius);
       }
+      .tool-btn svg {
+        width: 16px; height: 16px;
+        fill: none; stroke: currentColor;
+        stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round;
+      }
+      .tool-btn.is-active svg { stroke: var(--accent) }
     </style>
   </head>
   <body>
@@ -1277,6 +1283,21 @@
                       <span class="ftv-dropdown-label">New Script</span>
                       <span class="ftv-dropdown-hint">.msc</span>
                     </button>
+                    <button type="button" class="ftv-dropdown-item" data-action="new-text">
+                      <span class="ftv-dropdown-icon"><svg viewBox="0 0 16 16"><path d="M4 1.5h8V14H4z"/><line x1="6" y1="5" x2="10" y2="5"/><line x1="6" y1="7.5" x2="10" y2="7.5"/><line x1="6" y1="10" x2="9" y2="10"/></svg></span>
+                      <span class="ftv-dropdown-label">New Text File</span>
+                      <span class="ftv-dropdown-hint">.txt</span>
+                    </button>
+                    <button type="button" class="ftv-dropdown-item" data-action="new-json">
+                      <span class="ftv-dropdown-icon"><svg viewBox="0 0 16 16"><path d="M5 2.5C3.5 2.5 3 3.5 3 4.5v2c0 .8-.5 1.5-1 1.5.5 0 1 .7 1 1.5v2c0 1 .5 2 2 2"/><path d="M11 2.5c1.5 0 2 1 2 2v2c0 .8.5 1.5 1 1.5-.5 0-1 .7-1 1.5v2c0 1-.5 2-2 2"/></svg></span>
+                      <span class="ftv-dropdown-label">New JSON File</span>
+                      <span class="ftv-dropdown-hint">.json</span>
+                    </button>
+                    <button type="button" class="ftv-dropdown-item" data-action="new-markdown">
+                      <span class="ftv-dropdown-icon"><svg viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1.5"/><path d="M4 10V6l2 2.5L8 6v4"/><path d="M11 8.5l1.5-1.5L14 8.5"/></svg></span>
+                      <span class="ftv-dropdown-label">New Markdown</span>
+                      <span class="ftv-dropdown-hint">.md</span>
+                    </button>
                     <button type="button" class="ftv-dropdown-item" data-action="new-image">
                       <span class="ftv-dropdown-icon"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1.5"/></svg></span>
                       <span class="ftv-dropdown-label">New Image</span>
@@ -1290,7 +1311,7 @@
                     <button type="button" class="ftv-dropdown-item" data-action="import-script">
                       <span class="ftv-dropdown-icon"><svg viewBox="0 0 16 16"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10"/></svg></span>
                       <span class="ftv-dropdown-label">Import Script…</span>
-                      <span class="ftv-dropdown-hint">.msc .txt</span>
+                      <span class="ftv-dropdown-hint">.msc .txt .json .md</span>
                     </button>
                     <button type="button" class="ftv-dropdown-item" data-action="import-image">
                       <span class="ftv-dropdown-icon"><svg viewBox="0 0 16 16"><path d="M8 2v9m0 0l-3-3m3 3l3-3M3 13h10"/></svg></span>
@@ -1372,17 +1393,20 @@
               </div>
               <div id="pixel-workspace">
                 <div id="pixel-toolbox">
-                  <button id="preset-pencil-button" class="tool-btn" type="button" title="Pencil (B)">&#9998;</button>
-                  <button id="preset-brush-button" class="tool-btn" type="button" title="Brush (3px)">&#10680;</button>
-                  <button id="preset-eraser-button" class="tool-btn" type="button" title="Eraser (E)">&#9746;</button>
-                  <button id="eraser-toggle-button" class="tool-btn" type="button" title="Toggle eraser (E)">&#9746;</button>
-                  <button id="fill-tool-button" class="tool-btn" type="button" title="Fill (G)">&#9781;</button>
-                  <button id="select-tool-button" class="tool-btn" type="button" title="Select (M)">&#11034;</button>
-                  <button id="pipette-tool-button" class="tool-btn" type="button" title="Pipette (I)">&#10023;</button>
+                  <button id="preset-pencil-button" class="tool-btn" type="button" title="Pencil (B)"><svg viewBox="0 0 16 16"><path d="M2.5 13.5l1-4L11 2l2.5 2.5-7.5 7.5z"/><path d="M9 4l3 3"/></svg></button>
+                  <button id="preset-brush-button" class="tool-btn" type="button" title="Brush (3px)"><svg viewBox="0 0 16 16"><path d="M10 1.5l4 4-6 6H4v-4z"/><path d="M3 12.5c-1 1-1.5 2-1 2.5s1.5 0 2.5-1"/></svg></button>
+                  <button id="preset-eraser-button" class="tool-btn" type="button" title="Eraser (E)"><svg viewBox="0 0 16 16"><path d="M6 14h7M3.5 10l4-6.5 5 5-4 6.5z"/><path d="M3.5 10l5 5"/></svg></button>
+                  <button id="eraser-toggle-button" class="tool-btn" type="button" title="Toggle eraser (E)"><svg viewBox="0 0 16 16"><path d="M6 14h7M3.5 10l4-6.5 5 5-4 6.5z"/><path d="M3.5 10l5 5"/></svg></button>
+                  <button id="fill-tool-button" class="tool-btn" type="button" title="Fill (G)"><svg viewBox="0 0 16 16"><path d="M3 13l2-6 6-4 2 2-4 6z"/><path d="M12 9c1 1 2.5 3 2 4s-2-.5-2-2"/></svg></button>
+                  <button id="select-tool-button" class="tool-btn" type="button" title="Select (M)"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx=".5" stroke-dasharray="2 2"/></svg></button>
+                  <button id="pipette-tool-button" class="tool-btn" type="button" title="Pipette (I)"><svg viewBox="0 0 16 16"><path d="M12 2l2 2-1.5 1.5-2-2z"/><path d="M10.5 5.5l-6 6L3 14l2.5-1.5 6-6z"/></svg></button>
                   <div class="toolbox-sep"></div>
-                  <button id="undo-button" class="tool-btn" type="button" title="Undo (Ctrl+Z)">&#8630;</button>
-                  <button id="redo-button" class="tool-btn" type="button" title="Redo (Ctrl+Y)">&#8631;</button>
-                  <button id="clear-button" class="tool-btn" type="button" title="Clear canvas">&#9249;</button>
+                  <button id="entity-brush-button" class="tool-btn" type="button" title="Entity Brush (N)"><svg viewBox="0 0 16 16"><circle cx="8" cy="6" r="3"/><path d="M4 14c0-2.5 1.8-4 4-4s4 1.5 4 4"/></svg></button>
+                  <button id="data-inspector-button" class="tool-btn" type="button" title="Data Inspector (D)"><svg viewBox="0 0 16 16"><circle cx="7" cy="7" r="4"/><path d="M10 10l3.5 3.5"/></svg></button>
+                  <div class="toolbox-sep"></div>
+                  <button id="undo-button" class="tool-btn" type="button" title="Undo (Ctrl+Z)"><svg viewBox="0 0 16 16"><path d="M4 7l-2.5-2.5L4 2"/><path d="M1.5 4.5H10a4 4 0 010 8H6"/></svg></button>
+                  <button id="redo-button" class="tool-btn" type="button" title="Redo (Ctrl+Y)"><svg viewBox="0 0 16 16"><path d="M12 7l2.5-2.5L12 2"/><path d="M14.5 4.5H6a4 4 0 000 8h4"/></svg></button>
+                  <button id="clear-button" class="tool-btn" type="button" title="Clear canvas"><svg viewBox="0 0 16 16"><path d="M3 4h10M6 4V3h4v1M4.5 4v8.5h7V4"/><line x1="7" y1="6.5" x2="7" y2="10.5"/><line x1="9" y1="6.5" x2="9" y2="10.5"/></svg></button>
                 </div>
                 <div id="pixel-editor-wrap">
                   <div id="pixel-stage">
@@ -1412,6 +1436,11 @@
 
             <!-- Tab: Debug ─────────────────────────── -->
             <section class="tab-pane" id="pane-debug">
+              <div class="section-label">Layers</div>
+              <div class="chip-row">
+                <label><input id="layer-static-toggle" type="radio" name="editor-layer" checked /><span>Static World</span></label>
+                <label><input id="layer-ecs-toggle" type="radio" name="editor-layer" /><span>ECS Visualizer</span></label>
+              </div>
               <div class="section-label">Grid</div>
               <div class="chip-row">
                 <label><input id="grid-inline-toggle" type="checkbox" checked /><span>Grid</span></label>

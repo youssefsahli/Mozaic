@@ -174,6 +174,8 @@ export function resolveImportPath(
     resolvedPath,
     `${resolvedPath}.msc`,
     `${resolvedPath}.txt`,
+    `${resolvedPath}.json`,
+    `${resolvedPath}.md`,
   ];
 
   for (const candidate of candidates) {
