@@ -39,12 +39,14 @@ import {
   loadProject,
   saveProject,
   findNode,
+  findParent,
   collectFiles,
   imageDataToDataUrl,
   dataUrlToImageData,
   createScriptFile,
   createImageFile,
   addChild,
+  resolveImportPath,
 } from "./editor/file-system.js";
 import { FileTreeView } from "./editor/file-tree-view.js";
 
@@ -178,6 +180,8 @@ interface RuntimeState {
   /** Project file tree for multi-file editing. */
   project: ProjectFiles;
   fileTreeView: FileTreeView | null;
+  /** IDs of files currently open as editor tabs, in order. */
+  openFileIds: string[];
 }
 
 async function main(): Promise<void> {
@@ -206,6 +210,7 @@ async function main(): Promise<void> {
     activeTab: "script",
     project,
     fileTreeView: null,
+    openFileIds: [],
   };
 
   // Create the pixel editor orchestrator
@@ -465,6 +470,11 @@ function initFileTree(runtime: RuntimeState): void {
         saveProject(runtime.project);
       },
       onFileDelete: (deletedId) => {
+        // Remove from open editor tabs
+        const tabIdx = runtime.openFileIds.indexOf(deletedId);
+        if (tabIdx !== -1) {
+          runtime.openFileIds.splice(tabIdx, 1);
+        }
         if (runtime.project.activeFileId === deletedId) {
           // Pick the first available script file, or null
           const scripts = collectFiles(runtime.project.root, "script");
@@ -481,6 +491,7 @@ function initFileTree(runtime: RuntimeState): void {
           }
           saveProject(runtime.project);
         }
+        renderEditorTabs(runtime);
       },
     }
   );
@@ -541,12 +552,9 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
         case "new-script": {
           const node = createScriptFile("untitled.msc", "# New script\n");
           addChild(runtime.project.root, node);
-          runtime.project.activeFileId = node.id;
           saveProject(runtime.project);
-          runtime.scriptText = node.content ?? "";
-          switchEditorMode(runtime, "script");
-          switchTab(runtime, "script");
           runtime.fileTreeView?.render();
+          void openFileNode(runtime, node);
           showStatus(runtime, "New script created.", "var(--success)");
           break;
         }
@@ -579,36 +587,27 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
         case "new-text": {
           const node = createScriptFile("untitled.txt", "");
           addChild(runtime.project.root, node);
-          runtime.project.activeFileId = node.id;
           saveProject(runtime.project);
-          runtime.scriptText = node.content ?? "";
-          switchEditorMode(runtime, "script");
-          switchTab(runtime, "script");
           runtime.fileTreeView?.render();
+          void openFileNode(runtime, node);
           showStatus(runtime, "New text file created.", "var(--success)");
           break;
         }
         case "new-json": {
           const node = createScriptFile("untitled.json", "{\n  \n}\n");
           addChild(runtime.project.root, node);
-          runtime.project.activeFileId = node.id;
           saveProject(runtime.project);
-          runtime.scriptText = node.content ?? "";
-          switchEditorMode(runtime, "script");
-          switchTab(runtime, "script");
           runtime.fileTreeView?.render();
+          void openFileNode(runtime, node);
           showStatus(runtime, "New JSON file created.", "var(--success)");
           break;
         }
         case "new-markdown": {
           const node = createScriptFile("untitled.md", "# Untitled\n");
           addChild(runtime.project.root, node);
-          runtime.project.activeFileId = node.id;
           saveProject(runtime.project);
-          runtime.scriptText = node.content ?? "";
-          switchEditorMode(runtime, "script");
-          switchTab(runtime, "script");
           runtime.fileTreeView?.render();
+          void openFileNode(runtime, node);
           showStatus(runtime, "New markdown file created.", "var(--success)");
           break;
         }
@@ -668,13 +667,10 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
       imported++;
     }
     if (lastNode) {
-      runtime.project.activeFileId = lastNode.id;
       saveProject(runtime.project);
-      runtime.scriptText = lastNode.content ?? "";
-      persistScript(runtime.scriptText);
-      switchEditorMode(runtime, "script");
-      switchTab(runtime, "script");
       runtime.fileTreeView?.render();
+      persistScript(lastNode.content ?? "");
+      void openFileNode(runtime, lastNode);
       showStatus(runtime, `Imported ${imported} script(s).`, "var(--success)");
     }
     scriptFileInput.value = "";
@@ -777,6 +773,11 @@ async function openFileNode(
     saveActiveFileContent(runtime);
   }
 
+  // Track this file as open in the editor tabs (script files only)
+  if (node.fileType === "script" && !runtime.openFileIds.includes(node.id)) {
+    runtime.openFileIds.push(node.id);
+  }
+
   runtime.project.activeFileId = node.id;
   saveProject(runtime.project);
 
@@ -801,6 +802,7 @@ async function openFileNode(
   }
 
   runtime.fileTreeView?.render();
+  renderEditorTabs(runtime);
   updateEditorFileInfo(runtime);
   updateLineNumbers(runtime);
 }
@@ -921,12 +923,10 @@ function wireUi(runtime: RuntimeState): void {
     // Create a file node if it doesn't exist yet
     const newNode = createScriptFile(file.name, text);
     addChild(runtime.project.root, newNode);
-    runtime.project.activeFileId = newNode.id;
     saveProject(runtime.project);
-    runtime.scriptText = text;
-    persistScript(runtime.scriptText);
-    switchEditorMode(runtime, "script");
+    persistScript(text);
     runtime.fileTreeView?.render();
+    void openFileNode(runtime, newNode);
   });
 
   // Tab key inserts 2 spaces instead of changing focus
@@ -940,6 +940,19 @@ function wireUi(runtime: RuntimeState): void {
       ui.mscEditor.selectionStart = ui.mscEditor.selectionEnd = start + 2;
       ui.mscEditor.dispatchEvent(new Event("input", { bubbles: true }));
     }
+  });
+
+  // Ctrl+Click to open/create the file referenced under the cursor
+  ui.mscEditor.addEventListener("click", (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    const pos = ui.mscEditor.selectionStart;
+    const text = ui.mscEditor.value;
+    const lineStart = text.lastIndexOf("\n", pos - 1) + 1;
+    const lineEnd = text.indexOf("\n", pos);
+    const line = text.substring(lineStart, lineEnd === -1 ? undefined : lineEnd);
+    const filename = extractImportFilename(line, pos - lineStart);
+    if (!filename) return;
+    openOrCreateFileByName(runtime, filename);
   });
 
   // Autocomplete
@@ -1026,6 +1039,32 @@ function wireUi(runtime: RuntimeState): void {
       hideAutocomplete();
       return;
     }
+    const pos = ui.mscEditor.selectionStart;
+    const text = ui.mscEditor.value;
+    const lineStart = text.lastIndexOf("\n", pos - 1) + 1;
+    const lineUpToCursor = text.substring(lineStart, pos);
+
+    // Import filename autocomplete: suggest project script filenames
+    const importMatch = lineUpToCursor.match(/^\s*Import\s*:\s*"?([^"\s]*)$/);
+    if (importMatch) {
+      const partial = importMatch[1].toLowerCase();
+      const scriptFiles = collectFiles(runtime.project.root, "script");
+      const filenames = scriptFiles.map((f) => f.name);
+      const matches = filenames.filter((f) => {
+        const lf = f.toLowerCase();
+        return lf.startsWith(partial) && lf !== partial;
+      });
+      if (matches.length > 0) {
+        const wrapRect = document.getElementById("msc-editor-wrap")!.getBoundingClientRect();
+        const wordStart = pos - importMatch[1].length;
+        showAutocomplete(matches, wrapRect, wordStart);
+      } else {
+        hideAutocomplete();
+      }
+      return;
+    }
+
+    // Keyword autocomplete
     const wordInfo = getCurrentWord(ui.mscEditor);
     if (wordInfo.word.length >= 2) {
       const lower = wordInfo.word.toLowerCase();
@@ -2535,6 +2574,148 @@ function getCurrentWord(textarea: HTMLTextAreaElement): { word: string; start: n
     start--;
   }
   return { word: text.substring(start, pos), start };
+}
+
+// ── Editor file tabs ──────────────────────────────────────────
+
+/** Render (or re-render) the file tabs bar above the script editor. */
+function renderEditorTabs(runtime: RuntimeState): void {
+  const container = document.getElementById("editor-tabs");
+  if (!container) return;
+  container.innerHTML = "";
+
+  for (const fileId of runtime.openFileIds) {
+    const node = findNode(runtime.project.root, fileId);
+    if (!node) continue;
+
+    const tab = document.createElement("div");
+    tab.className = "editor-tab";
+    tab.role = "tab";
+    tab.setAttribute("aria-selected", fileId === runtime.project.activeFileId ? "true" : "false");
+    if (fileId === runtime.project.activeFileId) {
+      tab.classList.add("is-active");
+    }
+
+    const label = document.createElement("span");
+    label.className = "editor-tab-label";
+    label.textContent = node.name;
+    tab.appendChild(label);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "editor-tab-close";
+    closeBtn.title = "Close tab";
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeFileTab(runtime, fileId);
+    });
+    tab.appendChild(closeBtn);
+
+    tab.addEventListener("click", () => {
+      const fileNode = findNode(runtime.project.root, fileId);
+      if (fileNode) void openFileNode(runtime, fileNode);
+    });
+
+    container.appendChild(tab);
+  }
+}
+
+/** Close a file tab and switch to the nearest remaining tab. */
+function closeFileTab(runtime: RuntimeState, fileId: string): void {
+  const idx = runtime.openFileIds.indexOf(fileId);
+  if (idx === -1) return;
+  runtime.openFileIds.splice(idx, 1);
+
+  if (runtime.project.activeFileId === fileId) {
+    const nextId =
+      runtime.openFileIds[idx] ?? runtime.openFileIds[idx - 1] ?? null;
+    if (nextId) {
+      const nextNode = findNode(runtime.project.root, nextId);
+      if (nextNode) {
+        void openFileNode(runtime, nextNode);
+        return;
+      }
+    }
+    runtime.project.activeFileId = null;
+    runtime.scriptText = "";
+    setEditorText(runtime, "");
+    updateEditorFileInfo(runtime);
+    saveProject(runtime.project);
+  }
+
+  renderEditorTabs(runtime);
+}
+
+// ── Ctrl+Click helpers ────────────────────────────────────────
+
+/**
+ * Extract a potential import filename from the given line at the given column.
+ * Supports:
+ *   - Import: "filename"  (Import statement)
+ *   - Import: filename    (unquoted import)
+ *   - Any quoted string containing a dot (generic file reference)
+ */
+function extractImportFilename(line: string, cursorCol: number): string | null {
+  // 1. Import statement (highest priority)
+  const importLineMatch = line.match(
+    /^\s*Import\s*:\s*(?:"([^"]+)"|(\S+))/
+  );
+  if (importLineMatch) {
+    return importLineMatch[1] ?? importLineMatch[2] ?? null;
+  }
+
+  // 2. Quoted string around the cursor that looks like a filename
+  const quoteRe = /"([^"]+)"/g;
+  let m: RegExpExecArray | null;
+  while ((m = quoteRe.exec(line)) !== null) {
+    if (cursorCol >= m.index && cursorCol <= quoteRe.lastIndex) {
+      if (m[1].includes(".")) return m[1];
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Open an existing project file by name, or create it if it doesn't exist.
+ * Used by the Ctrl+Click "go to file" action.
+ */
+function openOrCreateFileByName(runtime: RuntimeState, filename: string): void {
+  // Resolve relative to the active file's directory
+  if (runtime.project.activeFileId) {
+    const target = resolveImportPath(
+      runtime.project.root,
+      runtime.project.activeFileId,
+      filename
+    );
+    if (target && target.kind === "file") {
+      void openFileNode(runtime, target);
+      return;
+    }
+  }
+
+  // Fallback: search all files by name
+  const allFiles = collectFiles(runtime.project.root);
+  const existing = allFiles.find((f) => f.name === filename);
+  if (existing) {
+    void openFileNode(runtime, existing);
+    return;
+  }
+
+  // File not found — create it as a sibling to the current active file
+  const parent = runtime.project.activeFileId
+    ? (findParent(runtime.project.root, runtime.project.activeFileId) ??
+       runtime.project.root)
+    : runtime.project.root;
+
+  const newNode = createScriptFile(filename, "# New script\n");
+  addChild(parent, newNode);
+  saveProject(runtime.project);
+  runtime.fileTreeView?.render();
+  void openFileNode(runtime, newNode);
+  showStatus(runtime, `Created: ${filename}`, "var(--success)");
 }
 
 main().catch(console.error);

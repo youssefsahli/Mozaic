@@ -392,11 +392,87 @@
         flex-shrink: 0; align-self: center;
       }
 
+      /* ── Editor File Tabs ───────────────────────── */
+      #editor-tabs {
+        display: flex;
+        align-items: stretch;
+        overflow-x: auto;
+        overflow-y: hidden;
+        flex-shrink: 0;
+        background: var(--bg);
+        border-bottom: 1px solid var(--border);
+        min-height: 0;
+        scrollbar-width: none;
+      }
+      #editor-tabs:empty { display: none }
+      #editor-tabs::-webkit-scrollbar { display: none }
+      .editor-tab {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 0 4px 0 10px;
+        height: 28px;
+        border-right: 1px solid var(--border);
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        font-size: 11px;
+        color: var(--text-dim);
+        background: var(--surface-2);
+        transition: color 80ms, background 80ms;
+        user-select: none;
+        max-width: 180px;
+        min-width: 60px;
+        position: relative;
+      }
+      .editor-tab:hover { background: var(--surface-3); color: var(--text) }
+      .editor-tab.is-active {
+        background: var(--surface) !important;
+        color: var(--text) !important;
+        border-top: 2px solid var(--accent);
+      }
+      .editor-tab.is-active::after {
+        content: '';
+        position: absolute;
+        bottom: -1px; left: 0; right: 0;
+        height: 1px;
+        background: var(--surface);
+      }
+      .editor-tab-label {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
+      .editor-tab-close {
+        width: 16px; height: 16px;
+        flex-shrink: 0;
+        display: flex; align-items: center; justify-content: center;
+        border: none !important;
+        background: transparent !important;
+        color: var(--text-dim) !important;
+        padding: 0 !important;
+        font-size: 14px !important;
+        line-height: 1;
+        min-width: 16px !important;
+        cursor: pointer !important;
+        border-radius: 3px !important;
+        opacity: 0;
+        transition: opacity 80ms, background 80ms, color 80ms;
+      }
+      .editor-tab:hover .editor-tab-close,
+      .editor-tab.is-active .editor-tab-close { opacity: .6 }
+      .editor-tab-close:hover {
+        opacity: 1 !important;
+        background: rgba(255,255,255,.1) !important;
+        color: var(--text) !important;
+      }
+
       /* ── Autocomplete dropdown ──────────── */
       #msc-autocomplete {
-        position: absolute;
+        position: fixed;
         display: none;
-        z-index: 200;
+        z-index: 1000;
         min-width: 160px;
         max-height: 180px;
         overflow-y: auto;
@@ -1347,6 +1423,7 @@
 
             <!-- Tab: Script Editor ─────────────────── -->
             <section class="tab-pane is-active" id="msc-section">
+              <div id="editor-tabs" role="tablist" aria-label="Open editor files"></div>
               <div class="editor-toolbar">
                 <span class="editor-toolbar-icon" id="editor-file-icon"><svg viewBox="0 0 16 16"><path d="M4 2h6l3 3v9H4z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 2v3h3" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></span>
                 <span class="editor-toolbar-name" id="editor-file-name">untitled.msc</span>
@@ -1362,7 +1439,6 @@
                 <div id="line-numbers" aria-hidden="true">1</div>
                 <pre id="msc-highlight"></pre>
                 <textarea id="msc-editor" spellcheck="false" aria-label="MSC editor"></textarea>
-                <div id="msc-autocomplete" role="listbox" aria-label="Autocomplete suggestions"></div>
               </div>
               <div id="msc-status"></div>
             </section>
@@ -1482,6 +1558,7 @@
         <span class="status-item">Mozaic Engine</span>
       </div>
     </div><!-- #mozaic-app -->
+    <div id="msc-autocomplete" role="listbox" aria-label="Autocomplete suggestions"></div>
     <script type="module" src="/src/index.ts"></script>
   </body>
 </html>
