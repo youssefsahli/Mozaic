@@ -100,16 +100,6 @@ Runtime executes structured AST data only; it does not parse `.msc` text during 
 | `engine/input.ts` | Keyboard + gamepad polling, action-map sampling |
 | `engine/pool.ts` | Zero-alloc `RingBuffer`, `ObjectPool`, and `EntityFreeList` |
 | `engine/renderer.ts` | WebGL full-screen quad renderer (NEAREST-filtered texture) |
-| `editor/pixel-editor.ts` | Orchestrator wiring camera, layers, tools, input, palette, and history |
-| `editor/camera.ts` | Virtual camera with pan/zoom, pivot-anchored zoom, and fractional pinch support |
-| `editor/input-handler.ts` | Pointer/touch/wheel event routing with pinch-to-zoom and palm rejection |
-| `editor/layers.ts` | Multi-canvas layer stack (background, document, draft, grid overlay) |
-| `editor/tools.ts` | Tool strategies: draw, erase, fill, select, pipette, entity brush |
-| `editor/palette.ts` | Indexed color management with preset library and import/export |
-| `editor/history.ts` | Undo/redo stack with snapshot compression |
-| `editor/grid-overlay.ts` | Pixel grid, collision polygon, path, and state inspector overlays |
-| `editor/file-system.ts` | Virtual file tree with project I/O and multi-file workflows |
-| `editor/types.ts` | Shared TypeScript type definitions for editor modules |
 | `parser/lexer.ts` | MSC tokenizer — line-by-line YAML-like token stream |
 | `parser/ast.ts` | Token-stream → `MscDocument` AST builder |
 | `parser/msc.ts` | Public `parseMsc(source)` façade |
