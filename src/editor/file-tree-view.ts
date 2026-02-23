@@ -205,11 +205,17 @@ export class FileTreeView {
     actions.className = "ftv-actions";
 
     if (node.kind === "folder") {
-      // Add file
-      const addFileBtn = this.makeActionBtn("+", "New script", () => {
-        this.addFile(node, "script");
+      // Add script file
+      const addFileBtn = this.makeActionBtn("+", "New .msc script", () => {
+        this.addFile(node, "script", "untitled.msc");
       });
       actions.appendChild(addFileBtn);
+
+      // Add MZK asset
+      const addMzkBtn = this.makeActionBtn("M", "New .mzk asset", () => {
+        this.addFile(node, "image", "new_asset.mzk");
+      });
+      actions.appendChild(addMzkBtn);
 
       // Add image file
       const addImgBtn = this.makeActionBtn("◇", "New image", () => {
@@ -277,7 +283,7 @@ export class FileTreeView {
 
   // ── Mutations ──────────────────────────────────────────────
 
-  private addFile(parent: FileNode, type: FileType): void {
+  private addFile(parent: FileNode, type: FileType, defaultName?: string): void {
     parent.expanded = true;
     let newNode: FileNode;
 
@@ -290,9 +296,9 @@ export class FileTreeView {
       ctx.fillStyle = "#000000";
       ctx.fillRect(0, 0, 64, 64);
       const dataUrl = canvas.toDataURL("image/png");
-      newNode = createImageFile("new_sprite.png", dataUrl, 64, 64);
+      newNode = createImageFile(defaultName ?? "new_sprite.png", dataUrl, 64, 64);
     } else {
-      newNode = createScriptFile("untitled.msc", "# New script\n");
+      newNode = createScriptFile(defaultName ?? "untitled.msc", "# New script\n");
     }
 
     addChild(parent, newNode);

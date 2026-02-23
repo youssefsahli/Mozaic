@@ -19,6 +19,17 @@ import { createDefaultRegistry } from "./engine/components.js";
 import { parseMsc, type MscDocument } from "./parser/msc.js";
 import { parseWithImports } from "./engine/import-resolver.js";
 import { PixelEditor, type PixelEditorRefs } from "./editor/pixel-editor.js";
+import {
+  MEMORY_BLOCKS,
+  ENTITY_SLOT_SIZE,
+  ENTITY_ACTIVE,
+  ENTITY_TYPE_ID,
+  ENTITY_POS_X,
+  ENTITY_POS_Y,
+  readInt8,
+  writeInt8,
+  writeInt16,
+} from "./engine/memory.js";
 import { getPresetNames } from "./editor/palette.js";
 import {
   type FileNode,
@@ -213,6 +224,70 @@ async function main(): Promise<void> {
     onPaletteChange: () => {
       renderPaletteChips(runtime);
       renderEditorUsedColors(runtime);
+    },
+    onEntityPlace: (entityType, docX, docY) => {
+      if (!runtime.imageData) return;
+
+      const script = parseMsc(runtime.scriptText);
+      const entityTypes = Object.keys(script.entities);
+      const typeId = entityTypes.indexOf(entityType);
+
+      if (typeId === -1) {
+        showStatus(runtime, `Unknown entity type: ${entityType}`, "var(--danger)");
+        return;
+      }
+
+      const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+      const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
+      const buffer = runtime.imageData.data;
+
+      let foundSlot = -1;
+      // Search for a free slot (Active byte == 0)
+      for (
+        let ptr = poolStart;
+        ptr + ENTITY_SLOT_SIZE <= poolEnd;
+        ptr += ENTITY_SLOT_SIZE
+      ) {
+        const active = readInt8(buffer, ptr + ENTITY_ACTIVE);
+        if (active === 0) {
+          foundSlot = ptr;
+          break;
+        }
+      }
+
+      if (foundSlot === -1) {
+        showStatus(runtime, "Entity pool full!", "var(--danger)");
+        return;
+      }
+
+      // Initialize the slot
+      buffer.fill(0, foundSlot, foundSlot + ENTITY_SLOT_SIZE);
+      writeInt8(buffer, foundSlot + ENTITY_ACTIVE, 1);
+      writeInt8(buffer, foundSlot + ENTITY_TYPE_ID, typeId);
+      writeInt16(buffer, foundSlot + ENTITY_POS_X, Math.round(docX));
+      writeInt16(buffer, foundSlot + ENTITY_POS_Y, Math.round(docY));
+
+      // Persist & Update
+      runtime.baked = bake(runtime.imageData);
+      runtime.pixelEditor?.setBaked(runtime.baked);
+      runtime.pixelEditor?.render();
+      
+      // Hot-reload engine buffer
+      if (runtime.loop) {
+        const state = runtime.loop.getState();
+        if (state.buffer.length === buffer.length) {
+          // Sync the entity pool change immediately
+          state.buffer.set(buffer.subarray(foundSlot, foundSlot + ENTITY_SLOT_SIZE), foundSlot);
+        }
+      }
+
+      schedulePersistRom(runtime);
+
+      showStatus(
+        runtime,
+        `Placed ${entityType} #${typeId} at (${Math.floor(docX)}, ${Math.floor(docY)})`,
+        "var(--success)"
+      );
     },
   });
 
@@ -445,7 +520,7 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
 
   const imageFileInput = document.createElement("input");
   imageFileInput.type = "file";
-  imageFileInput.accept = ".png,.jpg,.jpeg,.webp";
+  imageFileInput.accept = ".png,.jpg,.jpeg,.webp,.mzk";
   imageFileInput.multiple = true;
   imageFileInput.style.display = "none";
   document.body.appendChild(imageFileInput);
@@ -473,6 +548,32 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
           switchTab(runtime, "script");
           runtime.fileTreeView?.render();
           showStatus(runtime, "New script created.", "var(--success)");
+          break;
+        }
+        case "new-mzk": {
+          const canvas = document.createElement("canvas");
+          canvas.width = 64;
+          canvas.height = 64;
+          const ctx = canvas.getContext("2d")!;
+          ctx.fillStyle = "#000000";
+          ctx.fillRect(0, 0, 64, 64);
+          const dataUrl = canvas.toDataURL("image/png");
+          
+          const node = createImageFile("new_asset.mzk", dataUrl, 64, 64);
+          addChild(runtime.project.root, node);
+          runtime.project.activeFileId = node.id;
+          saveProject(runtime.project);
+          
+          // Switch to pixel editor for this image
+          runtime.imageData = createBlankImageData(64, 64, "#000000");
+          runtime.baked = bake(runtime.imageData);
+          runtime.pixelEditor?.setImageData(runtime.imageData);
+          runtime.pixelEditor?.setBaked(runtime.baked);
+          
+          switchEditorMode(runtime, "image");
+          switchTab(runtime, "pixel");
+          runtime.fileTreeView?.render();
+          showStatus(runtime, "New MZK asset created.", "var(--success)");
           break;
         }
         case "new-text": {
@@ -2332,13 +2433,17 @@ function updateEditorFileInfo(runtime: RuntimeState): void {
   if (node) {
     ui.editorFileName.textContent = node.name;
     ui.headerFileInfo.innerHTML = `<span class="header-file-dot"></span> ${escapeHtml(node.name)}`;
-    ui.statusFileInfo.innerHTML = `<span class="status-accent">${escapeHtml(node.name)}</span> \u2014 ${node.fileType ?? "file"}`;
+    ui.statusFileInfo.innerHTML = `<span style="color:#6a9955">${escapeHtml(node.name)}</span> \u2014 ${node.fileType ?? "file"}`;
     ui.editorModifiedDot.hidden = true;
 
     if (node.fileType === "script") {
       ui.editorFileIcon.innerHTML = `<svg viewBox="0 0 16 16"><path d="M4 2h6l3 3v9H4z" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M10 2v3h3" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`;
     } else {
       ui.editorFileIcon.innerHTML = `<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>`;
+      
+      if (node.name.endsWith(".mzk")) {
+        ui.headerFileInfo.innerHTML += ` <span style="font-size: 0.8em; background: var(--accent); color: #fff; padding: 1px 4px; border-radius: 3px;">MZK</span>`;
+      }
     }
 
     if (node.fileType === "image") {

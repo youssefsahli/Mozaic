@@ -302,16 +302,21 @@ export function attachInputHandler(
     // Two-finger pan: track midpoint movement
     const panDx = midX - pinchLastMidX;
     const panDy = midY - pinchLastMidY;
-    if (panDx !== 0 || panDy !== 0) {
+    if (Math.abs(panDx) > 0.5 || Math.abs(panDy) > 0.5) {
       pan(camera, panDx, panDy);
     }
 
-    // Pinch zoom: continuous distance tracking
+    // Pinch zoom: continuous scaling with inertia
     if (pinchLastDist > 0 && dist > 0) {
       const scale = dist / pinchLastDist;
-      if (Math.abs(scale - 1) > 0.01) {
-        const newZoom = Math.round(camera.zoom * scale);
-        zoomAtPoint(camera, midX - rect.left, midY - rect.top, newZoom);
+      if (Math.abs(scale - 1) > 0.005) {
+        // Use smooth scaling, clamp zoom, and inertia
+        let newZoom = camera.zoom * scale;
+        // Clamp zoom to valid range
+        newZoom = Math.max(1, Math.min(64, newZoom));
+        // Optionally add inertia for natural feel
+        camera.zoom = camera.zoom + (newZoom - camera.zoom) * 0.25;
+        zoomAtPoint(camera, midX - rect.left, midY - rect.top, camera.zoom);
       }
     }
 
