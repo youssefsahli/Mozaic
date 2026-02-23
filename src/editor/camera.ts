@@ -3,12 +3,19 @@
  *
  * Pure functions for viewport transforms. All operate on a mutable
  * CameraState object — zero allocation per call.
+ *
+ * ## Zoom Behaviour
+ *
+ * Zoom values are fractional during gestures (pinch-to-zoom) for
+ * smooth visual feedback, and may be snapped to integers on gesture
+ * end via {@link snapZoom}. The valid range is {@link MIN_ZOOM} to
+ * {@link MAX_ZOOM}.
  */
 
 import type { CameraState, Vec2 } from "./types.js";
 
-const MIN_ZOOM = 1;
-const MAX_ZOOM = 64;
+export const MIN_ZOOM = 1;
+export const MAX_ZOOM = 64;
 
 /** Convert screen (viewport) coordinates to document pixel coordinates. */
 export function screenToDoc(cam: CameraState, sx: number, sy: number): Vec2 {
@@ -94,6 +101,13 @@ export function createCamera(
   return cam;
 }
 
-function clampZoom(z: number): number {
+/** Clamp zoom to the valid range, guarding against NaN / Infinity. */
+export function clampZoom(z: number): number {
+  if (!Number.isFinite(z)) return MIN_ZOOM;
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z));
+}
+
+/** Round zoom to the nearest integer (post-gesture snap). */
+export function snapZoom(cam: CameraState): void {
+  cam.zoom = clampZoom(Math.round(cam.zoom));
 }
