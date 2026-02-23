@@ -39,7 +39,7 @@
  */
 
 import type { BakedAsset } from "../engine/baker.js";
-import type { MscDocument } from "../parser/msc.js";
+import type { MscDocument, MscEntity } from "../parser/msc.js";
 import type {
   CameraState,
   ToolType,
@@ -61,7 +61,7 @@ import {
   disposeLayers,
   type LayerStack,
 } from "./layers.js";
-import { getToolByType, type Tool, type ToolContext } from "./tools.js";
+import { getToolByType, type Tool, type ToolContext, copySelection, clearSelection, pasteClipboard, type ClipboardBuffer } from "./tools.js";
 import { attachInputHandler, type InputHandler } from "./input-handler.js";
 import {
   createPaletteState,
@@ -124,6 +124,7 @@ export interface PixelEditorRefs {
   paletteImportButton: HTMLButtonElement | null;
   paletteExportButton: HTMLButtonElement | null;
   paletteUpdateButton: HTMLButtonElement | null;
+  entityBrushButton: HTMLButtonElement | null;
 }
 
 /** Callbacks from the pixel editor back to the main app. */
@@ -135,6 +136,8 @@ export interface PixelEditorCallbacks {
   onColorChange?: (oldHex: string, newHex: string) => void;
   /** Called whenever the palette changes (for refreshing external displays). */
   onPaletteChange?: () => void;
+  /** Called when the entity brush places an entity. */
+  onEntityPlace?: (entityType: string, docX: number, docY: number) => void;
 }
 
 // ── Orchestrator ──────────────────────────────────────────────
@@ -157,6 +160,9 @@ export class PixelEditor {
   private brush: BrushSettings;
   private config: EditorConfig;
   private selection: SelectionRect | null = null;
+  private clipboard: ClipboardBuffer | null = null;
+  private entityDefs: Record<string, MscEntity> = {};
+  private activeEntityType: string | null = null;
   private selectedCollisionIndex: number | null = null;
   private selectedPathIndex: number | null = null;
   private resizeObserver: ResizeObserver | null = null;
@@ -265,6 +271,11 @@ export class PixelEditor {
    */
   setScript(script: MscDocument | null): void {
     this.script = script;
+    // Update entity definitions from script
+    this.entityDefs = script?.entities ?? {};
+    if (this.activeEntityType && !this.entityDefs[this.activeEntityType]) {
+      this.activeEntityType = Object.keys(this.entityDefs)[0] ?? null;
+    }
   }
 
   /** Re-render everything. */
@@ -369,8 +380,9 @@ export class PixelEditor {
     // Merge draft layer into document imageData
     const isPipette = this.activeTool.type === (4 as ToolType);
     const isSelect = this.activeTool.type === (3 as ToolType);
+    const isEntityBrush = this.activeTool.type === (5 as ToolType);
 
-    if (!isPipette && !isSelect) {
+    if (!isPipette && !isSelect && !isEntityBrush) {
       const changed = mergeDraftToDocument(this.layers, this.imageData);
       if (changed) {
         // Hot reload: write changed pixels directly to the engine state buffer
@@ -457,6 +469,11 @@ export class PixelEditor {
       eraseBitmapH: layers.eraseBitmapH,
       onColorPicked: (hex) => this.handleColorPicked(hex),
       onSelectionChange: (rect) => { this.selection = rect; },
+      entityDefs: this.entityDefs,
+      activeEntityType: this.activeEntityType,
+      onEntityPlace: (entityType, docX, docY) => {
+        this.callbacks.onEntityPlace?.(entityType, docX, docY);
+      },
     };
   }
 
@@ -564,6 +581,7 @@ export class PixelEditor {
     refs.fillToolButton?.classList.toggle("is-active", type === (2 as ToolType));
     refs.selectToolButton?.classList.toggle("is-active", type === (3 as ToolType));
     refs.pipetteToolButton?.classList.toggle("is-active", type === (4 as ToolType));
+    refs.entityBrushButton?.classList.toggle("is-active", type === (5 as ToolType));
   }
 
   // ── Zoom slider sync ──────────────────────────────────────
@@ -621,6 +639,13 @@ export class PixelEditor {
     });
     refs.pipetteToolButton?.addEventListener("click", () => {
       this.setTool(4 as ToolType);
+    });
+    refs.entityBrushButton?.addEventListener("click", () => {
+      // Default to first entity type if none selected
+      if (!this.activeEntityType && Object.keys(this.entityDefs).length > 0) {
+        this.activeEntityType = Object.keys(this.entityDefs)[0];
+      }
+      this.setTool(5 as ToolType);
     });
 
     // Undo / Redo / Clear
@@ -782,6 +807,46 @@ export class PixelEditor {
         return;
       }
 
+      // Ctrl+C — copy selection
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        if (this.selection && this.imageData) {
+          e.preventDefault();
+          this.clipboard = copySelection(this.imageData, this.selection);
+        }
+        return;
+      }
+
+      // Ctrl+X — cut selection
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
+        if (this.selection && this.imageData) {
+          e.preventDefault();
+          this.clipboard = copySelection(this.imageData, this.selection);
+          this.history.pushSnapshot(this.imageData);
+          clearSelection(this.imageData, this.selection);
+          this.baked = this.callbacks.onBake(this.imageData);
+          this.callbacks.onPersist();
+          this.renderAll();
+          this.updateHistoryButtons();
+        }
+        return;
+      }
+
+      // Ctrl+V — paste at selection origin (or top-left)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        if (this.clipboard && this.imageData) {
+          e.preventDefault();
+          this.history.pushSnapshot(this.imageData);
+          const destX = this.selection?.x ?? 0;
+          const destY = this.selection?.y ?? 0;
+          pasteClipboard(this.imageData, this.clipboard, destX, destY);
+          this.baked = this.callbacks.onBake(this.imageData);
+          this.callbacks.onPersist();
+          this.renderAll();
+          this.updateHistoryButtons();
+        }
+        return;
+      }
+
       // Tool shortcuts
       switch (e.key.toLowerCase()) {
         case "b": this.setTool(0 as ToolType); break;
@@ -789,6 +854,7 @@ export class PixelEditor {
         case "g": this.setTool(2 as ToolType); break;
         case "m": this.setTool(3 as ToolType); break;
         case "i": this.setTool(4 as ToolType); break;
+        case "n": this.setTool(5 as ToolType); break;
       }
     });
 

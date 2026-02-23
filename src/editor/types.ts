@@ -24,6 +24,7 @@ export const enum ToolType {
   Fill = 2,
   Select = 3,
   Pipette = 4,
+  EntityBrush = 5,
 }
 
 export interface PointerInfo {

@@ -343,6 +343,7 @@ function getEditorRefs(ui: UiRefs): PixelEditorRefs {
     paletteImportButton: document.getElementById("palette-import-button") as HTMLButtonElement | null,
     paletteExportButton: document.getElementById("palette-export-button") as HTMLButtonElement | null,
     paletteUpdateButton: document.getElementById("palette-update-button") as HTMLButtonElement | null,
+    entityBrushButton: document.getElementById("entity-brush-button") as HTMLButtonElement | null,
   };
 }
 

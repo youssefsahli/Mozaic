@@ -39,15 +39,20 @@ export function renderOverlay(
   ctx.setTransform(cam.zoom, 0, 0, cam.zoom, -cam.x * cam.zoom, -cam.y * cam.zoom);
 
   if (options.inlineGrid) {
-    drawGridLines(ctx, docW, docH, 1, "rgba(255,255,255,0.22)");
+    drawGridLines(ctx, docW, docH, 1, "rgba(255,255,255,0.12)", 0.5);
   }
 
   if (options.customGrid) {
     const step = options.gridSize;
     const majorEvery = options.gridMajor;
-    drawGridLines(ctx, docW, docH, step, "rgba(255,255,255,0.18)", 1);
-    drawGridLines(ctx, docW, docH, step * majorEvery, "rgba(255,255,255,0.60)", 2);
+    drawGridLines(ctx, docW, docH, step, "rgba(255,255,255,0.12)", 0.5);
+    if (majorEvery > 1) {
+      drawGridLines(ctx, docW, docH, step * majorEvery, "rgba(255,255,255,0.50)", 1);
+    }
   }
+
+  // Draw document boundary rectangle
+  drawDocumentBorder(ctx, docW, docH);
 
   if (baked) {
     renderBakeDebugOverlay(ctx, baked, options);
@@ -121,6 +126,17 @@ function drawGridLines(
     ctx.lineTo(width, y);
   }
   ctx.stroke();
+}
+
+function drawDocumentBorder(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number
+): void {
+  const scaleA = ctx.getTransform().a || 1;
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1.5 / scaleA;
+  ctx.strokeRect(0, 0, width, height);
 }
 
 function drawPolyline(
