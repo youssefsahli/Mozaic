@@ -23,8 +23,6 @@ NextState = LogicCore(CurrentState, InputTextMap, Ruleset)
 
 ## File Formats
 
-## File Formats
-
 | Format | Extension | Purpose |
 |--------|-----------|---------|
 | **Mozaic Kinetic Asset** | `.mzk` | Combined image + metadata (primary ROM format) |
@@ -58,6 +56,7 @@ In-app tools:
 - **MSC Editor**: edit script text with syntax highlighting, then press **Restart**.
 - **Pixel Editor**: paint pixels directly on the loaded ROM, then press **Restart**.
 - **Pixel Editor Polish**: zoom slider, brush size, eraser mode, palette swatches (with add), right-click eyedropper, inline grid, and custom grid with major lines.
+- **Pixel Editor Navigation**: smooth pinch-to-zoom with fractional zoom levels and exponential smoothing, scroll-wheel zoom at cursor, middle-mouse or Space+drag panning, stylus-only mode (touch navigates, pen draws), and pressure/tilt sensitivity.
 - **Editing Workflow**: Undo, Redo, Clear actions, plus live cursor coordinates in the editor footer.
 - **Tool Presets**: one-click `Pencil 1px`, `Brush 3px`, and `Eraser` presets.
 - **Bake Debug Overlay**: toggle collision polygons and baked path lines directly in the pixel editor preview.
@@ -96,6 +95,17 @@ src/
     input.ts            Input Mapping (keyboard + gamepad)
     pool.ts             Zero-allocation object pools (RingBuffer, ObjectPool, EntityFreeList)
     renderer.ts         WebGL Renderer
+  editor/
+    pixel-editor.ts     Orchestrator wiring camera, layers, tools, input, palette, history
+    camera.ts           Virtual camera (pan, zoom, pivot-anchored pinch-zoom)
+    input-handler.ts    Pointer/touch/wheel routing with pinch-to-zoom & palm rejection
+    layers.ts           Multi-canvas layer stack (background, document, draft, grid)
+    tools.ts            Tool strategies (draw, erase, fill, select, pipette, entity brush)
+    palette.ts          Indexed color management with preset library
+    history.ts          Undo/redo stack with snapshot compression
+    grid-overlay.ts     Pixel grid, collision polygon, and path overlays
+    file-system.ts      Virtual file tree with project I/O
+    types.ts            Shared TypeScript type definitions
   parser/
     lexer.ts            MSC lexer (tokenization)
     ast.ts              MSC AST generator from token stream
