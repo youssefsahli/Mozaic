@@ -36,6 +36,7 @@ import type {
   CameraState,
   SelectionRect,
 } from "./types.js";
+import type { MscEntity } from "../parser/msc.js";
 
 export interface ToolContext {
   imageData: ImageData;
@@ -49,6 +50,10 @@ export interface ToolContext {
   /** Callbacks from the orchestrator. */
   onColorPicked: (hex: string) => void;
   onSelectionChange: (rect: SelectionRect | null) => void;
+  /** Entity brush: available entity definitions and spawn callback. */
+  entityDefs: Record<string, MscEntity>;
+  activeEntityType: string | null;
+  onEntityPlace: (entityType: string, docX: number, docY: number) => void;
 }
 
 export interface Tool {
@@ -429,9 +434,109 @@ function pickColor(info: PointerInfo, ctx: ToolContext): void {
   ctx.onColorPicked(hex);
 }
 
+// ── Entity Brush Tool ─────────────────────────────────────────
+
+export const entityBrushTool: Tool = {
+  type: 5 as ToolType,
+  cursor: "crosshair",
+
+  onDown(info: PointerInfo, ctx: ToolContext): void {
+    if (!ctx.activeEntityType) return;
+    const docX = Math.floor(info.docX);
+    const docY = Math.floor(info.docY);
+    ctx.onEntityPlace(ctx.activeEntityType, docX, docY);
+
+    // Visual feedback: draw a small marker on the draft canvas
+    const { draftCtx, camera } = ctx;
+    const sx = (docX - camera.x) * camera.zoom;
+    const sy = (docY - camera.y) * camera.zoom;
+    const size = Math.max(4, camera.zoom);
+    draftCtx.strokeStyle = "rgba(64,200,255,0.9)";
+    draftCtx.lineWidth = 1;
+    draftCtx.strokeRect(sx - size / 2, sy - size / 2, size, size);
+    draftCtx.fillStyle = "rgba(64,200,255,0.3)";
+    draftCtx.fillRect(sx - size / 2, sy - size / 2, size, size);
+  },
+
+  onMove(): void {},
+  onUp(): void {},
+};
+
+// ── Clipboard operations for Select tool ──────────────────────
+
+export interface ClipboardBuffer {
+  data: Uint8ClampedArray;
+  width: number;
+  height: number;
+}
+
+/** Copy pixels within the selection rectangle from imageData. */
+export function copySelection(
+  imageData: ImageData,
+  sel: SelectionRect
+): ClipboardBuffer | null {
+  if (sel.w <= 0 || sel.h <= 0) return null;
+  const x0 = Math.max(0, sel.x);
+  const y0 = Math.max(0, sel.y);
+  const x1 = Math.min(imageData.width, sel.x + sel.w);
+  const y1 = Math.min(imageData.height, sel.y + sel.h);
+  const w = x1 - x0;
+  const h = y1 - y0;
+  if (w <= 0 || h <= 0) return null;
+
+  const data = new Uint8ClampedArray(w * h * 4);
+  for (let dy = 0; dy < h; dy++) {
+    const srcOff = ((y0 + dy) * imageData.width + x0) * 4;
+    const dstOff = dy * w * 4;
+    data.set(imageData.data.subarray(srcOff, srcOff + w * 4), dstOff);
+  }
+  return { data, width: w, height: h };
+}
+
+/** Clear pixels within the selection rectangle. */
+export function clearSelection(
+  imageData: ImageData,
+  sel: SelectionRect
+): void {
+  const x0 = Math.max(0, sel.x);
+  const y0 = Math.max(0, sel.y);
+  const x1 = Math.min(imageData.width, sel.x + sel.w);
+  const y1 = Math.min(imageData.height, sel.y + sel.h);
+  for (let dy = y0; dy < y1; dy++) {
+    const off = (dy * imageData.width + x0) * 4;
+    imageData.data.fill(0, off, off + (x1 - x0) * 4);
+  }
+}
+
+/** Paste clipboard buffer into imageData at the given position. */
+export function pasteClipboard(
+  imageData: ImageData,
+  clip: ClipboardBuffer,
+  destX: number,
+  destY: number
+): void {
+  for (let dy = 0; dy < clip.height; dy++) {
+    const ty = destY + dy;
+    if (ty < 0 || ty >= imageData.height) continue;
+    for (let dx = 0; dx < clip.width; dx++) {
+      const tx = destX + dx;
+      if (tx < 0 || tx >= imageData.width) continue;
+      const srcOff = (dy * clip.width + dx) * 4;
+      const dstOff = (ty * imageData.width + tx) * 4;
+      // Only paste non-transparent pixels
+      if (clip.data[srcOff + 3] > 0) {
+        imageData.data[dstOff] = clip.data[srcOff];
+        imageData.data[dstOff + 1] = clip.data[srcOff + 1];
+        imageData.data[dstOff + 2] = clip.data[srcOff + 2];
+        imageData.data[dstOff + 3] = clip.data[srcOff + 3];
+      }
+    }
+  }
+}
+
 // ── Tool registry ──────────────────────────────────────────────
 
-export const TOOLS: Tool[] = [drawTool, eraseTool, fillTool, selectTool, pipetteTool];
+export const TOOLS: Tool[] = [drawTool, eraseTool, fillTool, selectTool, pipetteTool, entityBrushTool];
 
 export function getToolByType(type: ToolType): Tool {
   return TOOLS[type as number] ?? drawTool;
