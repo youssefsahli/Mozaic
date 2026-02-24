@@ -77,6 +77,80 @@ describe("FileTreeView", () => {
     container.remove();
   });
 
+  it("ctrl-click on an image file creates a sibling image file", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const root = createFolder("project", true);
+    const image = createImageFile("sprite.mzk", "data:image/png;base64,AAA", 1, 1);
+    addChild(root, image);
+
+    const project: ProjectFiles = {
+      root,
+      activeFileId: image.id,
+      entryPointId: null,
+      projectWidth: 256,
+      projectHeight: 256,
+    };
+
+    let treeChanged = false;
+
+    new FileTreeView(container, project, {
+      onFileSelect: () => {},
+      onTreeChange: () => { treeChanged = true; },
+      onFileDelete: () => {},
+    });
+
+    const row = container.querySelector<HTMLDivElement>(`li[data-node-id="${image.id}"] .ftv-row`);
+    expect(row).not.toBeNull();
+
+    row?.dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true }));
+
+    expect(treeChanged).toBe(true);
+    // A new image file should have been added as a sibling
+    const imageFiles = root.children.filter((c) => c.kind === "file" && c.fileType === "image");
+    expect(imageFiles.length).toBe(2);
+
+    container.remove();
+  });
+
+  it("ctrl-click on a script file creates a sibling script file", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const root = createFolder("project", true);
+    const script = createScriptFile("main.msc", "# main");
+    addChild(root, script);
+
+    const project: ProjectFiles = {
+      root,
+      activeFileId: script.id,
+      entryPointId: script.id,
+      projectWidth: 256,
+      projectHeight: 256,
+    };
+
+    let treeChanged = false;
+
+    new FileTreeView(container, project, {
+      onFileSelect: () => {},
+      onTreeChange: () => { treeChanged = true; },
+      onFileDelete: () => {},
+    });
+
+    const row = container.querySelector<HTMLDivElement>(`li[data-node-id="${script.id}"] .ftv-row`);
+    expect(row).not.toBeNull();
+
+    row?.dispatchEvent(new MouseEvent("click", { bubbles: true, ctrlKey: true }));
+
+    expect(treeChanged).toBe(true);
+    // A new script file should have been added as a sibling
+    const scriptFiles = root.children.filter((c) => c.kind === "file" && c.fileType === "script");
+    expect(scriptFiles.length).toBe(2);
+
+    container.remove();
+  });
+
   it("shows Set as Main Entry Point action for non-entry .msc files", () => {
     const container = document.createElement("div");
     document.body.appendChild(container);

@@ -276,7 +276,22 @@ export class FileTreeView {
     row.appendChild(actions);
 
     // Click to select file or toggle folder
-    row.addEventListener("click", () => {
+    row.addEventListener("click", (e) => {
+      // Ctrl-click: create a sibling file matching the clicked file's type
+      if (e.ctrlKey || e.metaKey) {
+        if (node.kind === "file") {
+          const parent = findParent(this.project.root, node.id);
+          if (parent) {
+            const type: FileType = node.fileType === "image" ? "image" : "script";
+            const defaultName = type === "image" ? "new_asset.mzk" : "untitled.msc";
+            this.addFile(parent, type, defaultName);
+          }
+        } else {
+          // Ctrl-click on folder: add a script file inside it
+          this.addFile(node, "script", "untitled.msc");
+        }
+        return;
+      }
       if (node.kind === "file") {
         this.callbacks.onFileSelect(node);
         this.render();
@@ -319,9 +334,11 @@ export class FileTreeView {
       const canvas = document.createElement("canvas");
       canvas.width = 64;
       canvas.height = 64;
-      const ctx = canvas.getContext("2d")!;
-      ctx.fillStyle = "#000000";
-      ctx.fillRect(0, 0, 64, 64);
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, 64, 64);
+      }
       const dataUrl = canvas.toDataURL("image/png");
       newNode = createImageFile(defaultName ?? "new_sprite.png", dataUrl, 64, 64);
     } else {
