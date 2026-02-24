@@ -11,9 +11,9 @@ import {
   readInt16,
   ENTITY_SLOT_SIZE,
   ENTITY_ACTIVE,
-  ENTITY_TYPE_ID,
   ENTITY_POS_X,
   ENTITY_POS_Y,
+  ENTITY_DATA_START,
   MEMORY_BLOCKS,
 } from "./memory.js";
 import type { MscSpriteDef } from "../parser/ast.js";
@@ -376,10 +376,10 @@ export class Renderer {
       const active = readInt8(state, ptr + ENTITY_ACTIVE);
       if (active === 0) continue;
 
-      const typeId = readInt8(state, ptr + ENTITY_TYPE_ID);
-      if (typeId === 0 || typeId >= spriteAtlas.length) continue;
+      const spriteId = readInt8(state, ptr + ENTITY_DATA_START);
+      if (spriteId === 0 || spriteId >= spriteAtlas.length) continue;
 
-      const sprite = spriteAtlas[typeId];
+      const sprite = spriteAtlas[spriteId];
       if (!sprite) continue;
 
       const posX = readInt16(state, ptr + ENTITY_POS_X);
