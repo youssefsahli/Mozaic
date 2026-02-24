@@ -866,6 +866,28 @@ async function openFileNode(
         runtime.imageData = imgData;
         runtime.baked = bake(imgData);
         initPixelEditor(runtime);
+
+        // Parse the companion .msc script so the Entity Brush can
+        // resolve entity type IDs (resolveEntityTypeId needs this.script).
+        if (runtime.pixelEditor) {
+          const baseName = node.name.replace(/\.[^.]+$/, "");
+          const parent = findParent(runtime.project.root, node.id);
+          const siblings = parent ? parent.children : runtime.project.root.children;
+          const companion = siblings.find(
+            (s) => s.kind === "file" && s.fileType === "script" && s.name === `${baseName}.msc`
+          );
+          const scriptNode = companion
+            ?? (runtime.project.entryPointId
+              ? findNode(runtime.project.root, runtime.project.entryPointId)
+              : null);
+          if (scriptNode && scriptNode.fileType === "script" && scriptNode.content) {
+            try {
+              const parsed = parseMsc(scriptNode.content);
+              runtime.pixelEditor.setScript(parsed);
+            } catch { /* parse errors are non-fatal here */ }
+          }
+        }
+
         switchTab(runtime, "pixel");
       } catch {
         runtime.ui.mscStatus.textContent = `Failed to load image: ${node.name}`;
