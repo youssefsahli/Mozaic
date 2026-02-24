@@ -4,6 +4,8 @@ import {
   createScriptFile,
   createImageFile,
   createDefaultProject,
+  createNewProject,
+  MIN_PROJECT_DIMENSION,
   findNode,
   findParent,
   getNodePath,
@@ -13,8 +15,14 @@ import {
   addChild,
   removeNode,
   renameNode,
+  type ProjectFiles,
 } from "../editor/file-system.js";
 import { parseWithImports } from "../engine/import-resolver.js";
+
+/** Helper to build a minimal ProjectFiles for tests. */
+function makeProject(root: ReturnType<typeof createFolder>, activeFileId: string): ProjectFiles {
+  return { root, activeFileId, entryPointId: null, projectWidth: 256, projectHeight: 256 };
+}
 
 // ── File System Tests ──────────────────────────────────────
 
@@ -26,6 +34,9 @@ describe("file-system", () => {
     expect(project.root.children[0].name).toBe("main.msc");
     expect(project.root.children[0].fileType).toBe("script");
     expect(project.activeFileId).toBe(project.root.children[0].id);
+    expect(project.entryPointId).toBe(project.root.children[0].id);
+    expect(project.projectWidth).toBe(256);
+    expect(project.projectHeight).toBe(256);
   });
 
   it("findNode traverses the tree", () => {
@@ -219,7 +230,7 @@ describe("parseWithImports", () => {
     addChild(root, main);
     addChild(root, enemies);
 
-    const project = { root, activeFileId: main.id };
+    const project = makeProject(root, main.id);
     const { document, errors } = parseWithImports(
       main.content!,
       main.id,
@@ -239,7 +250,7 @@ describe("parseWithImports", () => {
     );
     addChild(root, main);
 
-    const project = { root, activeFileId: main.id };
+    const project = makeProject(root, main.id);
     const { errors } = parseWithImports(main.content!, main.id, project);
 
     expect(errors.length).toBeGreaterThan(0);
@@ -253,7 +264,7 @@ describe("parseWithImports", () => {
     addChild(root, a);
     addChild(root, b);
 
-    const project = { root, activeFileId: a.id };
+    const project = makeProject(root, a.id);
     const { errors } = parseWithImports(a.content!, a.id, project);
 
     // No infinite loop — circular import skipped silently
@@ -273,7 +284,7 @@ describe("parseWithImports", () => {
     addChild(root, main);
     addChild(root, vars);
 
-    const project = { root, activeFileId: main.id };
+    const project = makeProject(root, main.id);
     const { document, errors } = parseWithImports(
       main.content!,
       main.id,
@@ -298,7 +309,7 @@ describe("parseWithImports", () => {
     addChild(root, main);
     addChild(root, other);
 
-    const project = { root, activeFileId: main.id };
+    const project = makeProject(root, main.id);
     const { document } = parseWithImports(main.content!, main.id, project);
 
     // Main file's Entity.Hero should win

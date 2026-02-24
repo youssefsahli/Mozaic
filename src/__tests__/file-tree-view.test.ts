@@ -21,6 +21,9 @@ describe("FileTreeView", () => {
     const project: ProjectFiles = {
       root,
       activeFileId: imageA.id,
+      entryPointId: null,
+      projectWidth: 256,
+      projectHeight: 256,
     };
 
     let selectedId: string | null = null;

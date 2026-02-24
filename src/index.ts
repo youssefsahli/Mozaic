@@ -1707,6 +1707,9 @@ function createNewRom(
   const freshProject = createDefaultProject();
   runtime.project.root = freshProject.root;
   runtime.project.activeFileId = freshProject.activeFileId;
+  runtime.project.entryPointId = freshProject.entryPointId;
+  runtime.project.projectWidth = freshProject.projectWidth;
+  runtime.project.projectHeight = freshProject.projectHeight;
 
   // Add the new image file to project
   const dataUrl = imageDataToDataUrl(runtime.imageData);
