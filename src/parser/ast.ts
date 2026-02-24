@@ -53,6 +53,7 @@ export interface MscDocument {
   events: MscEvent[];
   sprites: Map<string, MscSpriteDef>;
   spriteGrid: number;
+  animations?: number[][];
 }
 
 export function buildMscAst(tokens: MscLineToken[]): MscDocument {

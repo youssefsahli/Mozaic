@@ -74,7 +74,7 @@ export class EngineLoop {
     this.state = logic(this.state, input, baked, script);
 
     // 3b. ECS tick — apply component systems to entity memory
-    ecsTick(this.state, script);
+    ecsTick(this.state, input, baked, script);
 
     // 4. Render
     renderer.render(this.state.buffer, this.state.width, this.state.height);
