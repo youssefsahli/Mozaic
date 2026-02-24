@@ -332,9 +332,14 @@ export function saveProject(project: ProjectFiles): void {
   }
 }
 
+/** Check whether a filename has an image extension (.mzk, .png). */
+export function hasImageExtension(name: string): boolean {
+  return /\.(mzk|png)$/i.test(name);
+}
+
 /** Fix fileType for .mzk/.png files that were incorrectly stored as "script". */
 function fixImageFileTypes(node: FileNode): void {
-  if (node.kind === "file" && node.fileType !== "image" && /\.(mzk|png)$/i.test(node.name)) {
+  if (node.kind === "file" && node.fileType !== "image" && hasImageExtension(node.name)) {
     node.fileType = "image";
   }
   for (const child of node.children) {

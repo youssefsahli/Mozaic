@@ -50,6 +50,7 @@ import {
   addChild,
   resolveImportPath,
   findNodeByPath,
+  hasImageExtension,
 } from "./editor/file-system.js";
 import { FileTreeView } from "./editor/file-tree-view.js";
 import {
@@ -847,8 +848,7 @@ async function openFileNode(
   }
 
   // Track this file as open in the editor tabs (script files only, not images)
-  const looksLikeImage = /\.(mzk|png)$/i.test(node.name);
-  if (node.fileType === "script" && !looksLikeImage && !runtime.openFileIds.includes(node.id)) {
+  if (node.fileType === "script" && !hasImageExtension(node.name) && !runtime.openFileIds.includes(node.id)) {
     runtime.openFileIds.push(node.id);
   }
 
@@ -860,7 +860,7 @@ async function openFileNode(
   // been created with the wrong fileType in older versions.
   const isImageFile =
     node.fileType === "image" ||
-    /\.(mzk|png)$/i.test(node.name);
+    hasImageExtension(node.name);
 
   if (!isImageFile && node.fileType === "script") {
     runtime.scriptText = node.content ?? "";
@@ -3049,7 +3049,7 @@ function openOrCreateFileByName(runtime: RuntimeState, filename: string): void {
        runtime.project.root)
     : runtime.project.root;
 
-  const isImage = /\.(mzk|png)$/i.test(filename);
+  const isImage = hasImageExtension(filename);
   let newNode: FileNode;
   if (isImage) {
     const canvas = document.createElement("canvas");
