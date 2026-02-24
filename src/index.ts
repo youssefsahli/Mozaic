@@ -670,14 +670,16 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
           saveProject(runtime.project);
 
           // Load the generated image
-          const mainImg = findNode(runtime.project.root, newProj.activeFileId!);
-          if (mainImg?.content) {
-            dataUrlToImageData(mainImg.content).then((imgData) => {
-              runtime.imageData = imgData;
-              runtime.baked = bake(imgData);
-              initPixelEditor(runtime);
-              restart(runtime);
-            });
+          if (newProj.activeFileId) {
+            const mainImg = findNode(runtime.project.root, newProj.activeFileId);
+            if (mainImg?.content) {
+              dataUrlToImageData(mainImg.content).then((imgData) => {
+                runtime.imageData = imgData;
+                runtime.baked = bake(imgData);
+                initPixelEditor(runtime);
+                restart(runtime);
+              });
+            }
           }
 
           // Load the entry-point script text
@@ -1781,7 +1783,9 @@ async function playProject(runtime: RuntimeState): Promise<void> {
     runtime.ui.mscStatus.style.color = "#d16969";
   }
 
-  // Resolve the Source image
+  // Resolve the Source image.
+  // First try relative resolution (from the entry-point's directory),
+  // then fall back to an absolute path match in the project tree.
   let imageData: ImageData | null = null;
   if (script.source) {
     const imgNode = resolveImportPath(project.root, epNode.id, script.source)
@@ -1800,7 +1804,7 @@ async function playProject(runtime: RuntimeState): Promise<void> {
   // Fall back to current imageData if source could not be resolved
   if (!imageData) {
     if (!runtime.imageData) {
-      showPlaceholder(runtime.ui.canvas, "No ROM loaded.", "Open a ROM file first.");
+      showPlaceholder(runtime.ui.canvas, "No image available.", "Ensure the entry point references a valid source image.");
       return;
     }
     imageData = runtime.imageData;

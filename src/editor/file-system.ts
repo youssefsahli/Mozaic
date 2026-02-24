@@ -143,7 +143,7 @@ export function createNewProject(
   const imgNode = createImageFile("main.mzk", imgDataUrl, w, h);
   root.children.push(imgNode);
 
-  // Starter script
+  // Starter script — addr 64 is past the entity-pool header (first safe user address)
   const scriptContent =
     `Source: "main.mzk"\n\nSchema:\n  - $Score: { addr: 64, type: Int16 }\n`;
   const scriptNode = createScriptFile("main.msc", scriptContent);
