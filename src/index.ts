@@ -418,6 +418,7 @@ function getEditorRefs(ui: UiRefs): PixelEditorRefs {
     debugPathToggle: requiredElement<HTMLInputElement>("debug-path-toggle"),
     debugPointsToggle: requiredElement<HTMLInputElement>("debug-points-toggle"),
     debugIdsToggle: requiredElement<HTMLInputElement>("debug-ids-toggle"),
+    layerEcsToggle: requiredElement<HTMLInputElement>("layer-ecs-toggle"),
     gridSize: requiredElement<HTMLInputElement>("grid-size"),
     gridMajor: requiredElement<HTMLInputElement>("grid-major"),
     mscStatus: ui.mscStatus,

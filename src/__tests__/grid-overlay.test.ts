@@ -1,6 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { inspectPixelAt, polygonCentroid, pointToSegmentDistance, distanceToPolyline } from "../editor/grid-overlay.js";
+import { describe, it, expect, vi } from "vitest";
+import { inspectPixelAt, polygonCentroid, pointToSegmentDistance, distanceToPolyline, renderOverlay, type OverlayOptions } from "../editor/grid-overlay.js";
 import type { MscSchema } from "../parser/msc.js";
+import type { CameraState } from "../editor/types.js";
 
 function makeBuffer(pixels: Array<[number, number, number, number]>): Uint8ClampedArray {
   const buf = new Uint8ClampedArray(pixels.length * 4);
@@ -77,5 +78,109 @@ describe("distanceToPolyline", () => {
 
   it("returns distance for single-point polyline", () => {
     expect(distanceToPolyline({ x: 3, y: 4 }, [{ x: 0, y: 0 }], false)).toBe(5);
+  });
+});
+
+// ── ECS overlay tests ──────────────────────────────────────
+function mockCtx(): CanvasRenderingContext2D {
+  const ctx: any = {
+    canvas: { width: 256, height: 256 },
+    clearRect: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    setTransform: vi.fn(),
+    getTransform: vi.fn(() => ({ a: 1 })),
+    strokeStyle: "",
+    lineWidth: 0,
+    fillStyle: "",
+    font: "",
+    strokeRect: vi.fn(),
+    fillText: vi.fn(),
+    beginPath: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    stroke: vi.fn(),
+    closePath: vi.fn(),
+  };
+  return ctx as CanvasRenderingContext2D;
+}
+
+function defaultOptions(overrides: Partial<OverlayOptions> = {}): OverlayOptions {
+  return {
+    inlineGrid: false,
+    customGrid: false,
+    gridSize: 8,
+    gridMajor: 4,
+    showCollision: false,
+    showPaths: false,
+    showPoints: false,
+    showIds: false,
+    showEcs: false,
+    selectedCollisionIndex: null,
+    selectedPathIndex: null,
+    ...overrides,
+  };
+}
+
+describe("renderOverlay ECS debug", () => {
+  it("draws bounding boxes for active entities when showEcs is true", () => {
+    const ctx = mockCtx();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+    // Create a buffer large enough for the entity pool (at least 12288 bytes)
+    const buf = new Uint8ClampedArray(12288);
+    // Place an active entity at ptr=512 (first entity slot)
+    buf[512 + 0] = 1;  // ActiveFlag = 1
+    buf[512 + 1] = 5;  // TypeID = 5
+    buf[512 + 2] = 0;  // PosX high byte (big-endian)
+    buf[512 + 3] = 10; // PosX low byte → PosX = 10
+    buf[512 + 4] = 0;  // PosY high byte (big-endian)
+    buf[512 + 5] = 20; // PosY low byte → PosY = 20
+
+    renderOverlay(ctx, cam, 64, 64, null, defaultOptions({ showEcs: true }), buf);
+
+    expect(ctx.strokeRect).toHaveBeenCalledWith(10, 20, 16, 16);
+    expect(ctx.fillText).toHaveBeenCalledWith("ID: 5", 10, 18);
+  });
+
+  it("skips inactive entities (ActiveFlag === 0)", () => {
+    const ctx = mockCtx();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+    const buf = new Uint8ClampedArray(12288);
+    // All zeros — inactive entity at ptr=512
+    buf[512 + 0] = 0;
+
+    renderOverlay(ctx, cam, 64, 64, null, defaultOptions({ showEcs: true }), buf);
+
+    // strokeRect is called once for the document border, but not for any entity
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(1); // only document border
+    expect(ctx.fillText).not.toHaveBeenCalled();
+  });
+
+  it("does not draw ECS boxes when showEcs is false", () => {
+    const ctx = mockCtx();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+    const buf = new Uint8ClampedArray(12288);
+    buf[512 + 0] = 1; // active
+
+    renderOverlay(ctx, cam, 64, 64, null, defaultOptions({ showEcs: false }), buf);
+
+    // strokeRect is called once for the document border only
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies camera offset and zoom to entity positions", () => {
+    const ctx = mockCtx();
+    const cam: CameraState = { x: 5, y: 5, zoom: 2 };
+    const buf = new Uint8ClampedArray(12288);
+    buf[512 + 0] = 1;  // active
+    buf[512 + 1] = 3;  // TypeID
+    buf[512 + 2] = 0;  buf[512 + 3] = 15; // PosX = 15
+    buf[512 + 4] = 0;  buf[512 + 5] = 25; // PosY = 25
+
+    renderOverlay(ctx, cam, 64, 64, null, defaultOptions({ showEcs: true }), buf);
+
+    // sx = (15 - 5) * 2 = 20, sy = (25 - 5) * 2 = 40
+    expect(ctx.strokeRect).toHaveBeenCalledWith(20, 40, 32, 32);
+    expect(ctx.fillText).toHaveBeenCalledWith("ID: 3", 20, 38);
   });
 });

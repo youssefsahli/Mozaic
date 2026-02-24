@@ -105,6 +105,7 @@ export interface PixelEditorRefs {
   debugPathToggle: HTMLInputElement;
   debugPointsToggle: HTMLInputElement;
   debugIdsToggle: HTMLInputElement;
+  layerEcsToggle: HTMLInputElement;
   gridSize: HTMLInputElement;
   gridMajor: HTMLInputElement;
   mscStatus: HTMLElement;
@@ -452,7 +453,8 @@ export class PixelEditor {
       this.imageData.width,
       this.imageData.height,
       this.baked,
-      options
+      options,
+      this.engineBuffer ?? this.imageData.data as Uint8ClampedArray
     );
   }
 
@@ -524,6 +526,7 @@ export class PixelEditor {
       showPaths: refs.debugPathToggle.checked,
       showPoints: refs.debugPointsToggle.checked,
       showIds: refs.debugIdsToggle.checked,
+      showEcs: refs.layerEcsToggle.checked,
       selectedCollisionIndex: this.selectedCollisionIndex,
       selectedPathIndex: this.selectedPathIndex,
     };
@@ -723,6 +726,7 @@ export class PixelEditor {
       refs.debugPathToggle,
       refs.debugPointsToggle,
       refs.debugIdsToggle,
+      refs.layerEcsToggle,
     ];
     for (const input of overlayInputs) {
       input.addEventListener("change", () => this.renderGridOverlay());
