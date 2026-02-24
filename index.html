@@ -114,7 +114,29 @@
         overflow: hidden;
         background: var(--bg);
         padding: 8px;
+        position: relative;
       }
+
+      /* ── Compiler Console overlay ──────────────── */
+      #compiler-console {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        max-height: 50%;
+        overflow-y: auto;
+        background: rgba(0, 0, 0, 0.92);
+        font: 12px/1.6 var(--font-mono);
+        color: #ccc;
+        padding: 8px 12px;
+        z-index: 10;
+        display: none;
+      }
+      #compiler-console.is-visible { display: block; }
+      #compiler-console .cc-line { white-space: pre-wrap; }
+      #compiler-console .cc-info  { color: #b0b0b0; }
+      #compiler-console .cc-success { color: #6a9955; }
+      #compiler-console .cc-error { color: #d16969; }
       #mozaic-canvas {
         max-width: 100%;
         max-height: 100%;
@@ -1342,6 +1364,7 @@
         <!-- LEFT: Game canvas ────────────────────── -->
         <main id="canvas-area">
           <canvas id="mozaic-canvas"></canvas>
+          <div id="compiler-console"></div>
         </main>
 
         <!-- SPLIT HANDLE ─────────────────────────── -->

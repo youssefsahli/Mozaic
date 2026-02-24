@@ -52,6 +52,11 @@ import {
   findNodeByPath,
 } from "./editor/file-system.js";
 import { FileTreeView } from "./editor/file-tree-view.js";
+import {
+  bootProject,
+  stopProject,
+  type BootContext,
+} from "./editor/bootstrapper.js";
 
 type EditorMode = "script" | "config" | "image";
 const LAST_ROM_STORAGE_KEY = "mozaic:last-rom";
@@ -138,6 +143,7 @@ interface UiRefs {
   statusCursorPos: HTMLSpanElement;
   lineNumbers: HTMLDivElement;
   editorUsedColors: HTMLDivElement;
+  compilerConsole: HTMLDivElement;
 }
 
 interface DocEntry {
@@ -185,6 +191,8 @@ interface RuntimeState {
   fileTreeView: FileTreeView | null;
   /** IDs of files currently open as editor tabs, in order. */
   openFileIds: string[];
+  /** Timer for auto-hiding the compiler console. */
+  bootHideTimer: number | null;
 }
 
 async function main(): Promise<void> {
@@ -214,6 +222,7 @@ async function main(): Promise<void> {
     project,
     fileTreeView: null,
     openFileIds: [],
+    bootHideTimer: null,
   };
 
   // Create the pixel editor orchestrator
@@ -382,6 +391,7 @@ function getUiRefs(): UiRefs {
     statusCursorPos: requiredElement<HTMLSpanElement>("status-cursor-pos"),
     lineNumbers: requiredElement<HTMLDivElement>("line-numbers"),
     editorUsedColors: requiredElement<HTMLDivElement>("editor-used-colors"),
+    compilerConsole: requiredElement<HTMLDivElement>("compiler-console"),
   };
 }
 
@@ -938,7 +948,7 @@ function wireUi(runtime: RuntimeState): void {
     await reloadConfig(runtime);
   });
   ui.restartButton.addEventListener("click", () => {
-    void playProject(runtime);
+    void bootWithContext(runtime);
   });
 
   // Save file button
@@ -967,7 +977,7 @@ function wireUi(runtime: RuntimeState): void {
     // F5 — Play Project (entry point)
     if (e.key === "F5") {
       e.preventDefault();
-      void playProject(runtime);
+      void bootWithContext(runtime);
     }
     // F6 — Play Current (legacy active file)
     if (e.key === "F6") {
@@ -1748,6 +1758,34 @@ function restart(runtime: RuntimeState): void {
   runtime.loop = loop;
   loop.start();
   resizeGameCanvas(ui);
+}
+
+/**
+ * Boot the project via the Bootstrapper.
+ *
+ * Wraps {@link bootProject} by building the {@link BootContext} from
+ * the current RuntimeState and applying the result back.
+ */
+async function bootWithContext(runtime: RuntimeState): Promise<void> {
+  const ctx: BootContext = {
+    consoleEl: runtime.ui.compilerConsole,
+    canvas: runtime.ui.canvas,
+    renderer: runtime.renderer,
+    project: runtime.project,
+    editorImageData: runtime.imageData,
+    hideTimer: runtime.bootHideTimer,
+  };
+
+  const result = await bootProject(ctx, runtime.loop, runtime.inputManager);
+  runtime.bootHideTimer = ctx.hideTimer;
+
+  if (!result) return;
+
+  runtime.loop = result.loop;
+  runtime.inputManager = result.inputManager;
+  runtime.imageData = result.imageData;
+  runtime.baked = result.baked;
+  resizeGameCanvas(runtime.ui);
 }
 
 /**
