@@ -112,22 +112,35 @@ export const MIN_PROJECT_DIMENSION = 64;
  *
  * Generates a blank .mzk image and a starter .msc script that
  * references it, then returns a fully-wired ProjectFiles object.
+ *
+ * An optional dataUrl can be provided (e.g. when called from a
+ * context that already has a canvas); when omitted a minimal
+ * placeholder is generated via <canvas>.
  */
-export function createNewProject(width: number, height: number): ProjectFiles {
+export function createNewProject(
+  width: number,
+  height: number,
+  dataUrl?: string
+): ProjectFiles {
   const w = Math.max(width, MIN_PROJECT_DIMENSION);
   const h = Math.max(height, MIN_PROJECT_DIMENSION);
 
   const root = createFolder("project", true);
 
   // Blank image
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, w, h);
-  const dataUrl = canvas.toDataURL("image/png");
-  const imgNode = createImageFile("main.mzk", dataUrl, w, h);
+  let imgDataUrl = dataUrl;
+  if (!imgDataUrl) {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, w, h);
+    }
+    imgDataUrl = canvas.toDataURL("image/png");
+  }
+  const imgNode = createImageFile("main.mzk", imgDataUrl, w, h);
   root.children.push(imgNode);
 
   // Starter script

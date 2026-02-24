@@ -35,6 +35,8 @@ import {
   type FileNode,
   type ProjectFiles,
   createDefaultProject,
+  createNewProject,
+  MIN_PROJECT_DIMENSION,
   createFolder,
   loadProject,
   saveProject,
@@ -47,6 +49,7 @@ import {
   createImageFile,
   addChild,
   resolveImportPath,
+  findNodeByPath,
 } from "./editor/file-system.js";
 import { FileTreeView } from "./editor/file-tree-view.js";
 
@@ -559,21 +562,36 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
           break;
         }
         case "new-mzk": {
+          const pw = runtime.project.projectWidth;
+          const ph = runtime.project.projectHeight;
+          const nameInput = prompt("SpriteROM filename:", "new_asset.mzk");
+          if (!nameInput) break;
+          let mzkName = nameInput.trim();
+          if (!mzkName.endsWith(".mzk")) mzkName += ".mzk";
+
+          const wInput = prompt(`Width (min ${MIN_PROJECT_DIMENSION}):`, String(pw));
+          if (!wInput) break;
+          const hInput = prompt(`Height (min ${MIN_PROJECT_DIMENSION}):`, String(ph));
+          if (!hInput) break;
+
+          const mzkW = Math.max(parseInt(wInput, 10) || pw, MIN_PROJECT_DIMENSION);
+          const mzkH = Math.max(parseInt(hInput, 10) || ph, MIN_PROJECT_DIMENSION);
+
           const canvas = document.createElement("canvas");
-          canvas.width = 64;
-          canvas.height = 64;
+          canvas.width = mzkW;
+          canvas.height = mzkH;
           const ctx = canvas.getContext("2d")!;
           ctx.fillStyle = "#000000";
-          ctx.fillRect(0, 0, 64, 64);
+          ctx.fillRect(0, 0, mzkW, mzkH);
           const dataUrl = canvas.toDataURL("image/png");
           
-          const node = createImageFile("new_asset.mzk", dataUrl, 64, 64);
+          const node = createImageFile(mzkName, dataUrl, mzkW, mzkH);
           addChild(runtime.project.root, node);
           runtime.project.activeFileId = node.id;
           saveProject(runtime.project);
           
           // Switch to pixel editor for this image
-          runtime.imageData = createBlankImageData(64, 64, "#000000");
+          runtime.imageData = createBlankImageData(mzkW, mzkH, "#000000");
           runtime.baked = bake(runtime.imageData);
           runtime.pixelEditor?.setImageData(runtime.imageData);
           runtime.pixelEditor?.setBaked(runtime.baked);
@@ -581,7 +599,7 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
           switchEditorMode(runtime, "image");
           switchTab(runtime, "pixel");
           runtime.fileTreeView?.render();
-          showStatus(runtime, "New MZK asset created.", "var(--success)");
+          showStatus(runtime, `New ${mzkW}×${mzkH} SpriteROM created.`, "var(--success)");
           break;
         }
         case "new-text": {
@@ -633,6 +651,47 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
           saveProject(runtime.project);
           runtime.fileTreeView?.render();
           showStatus(runtime, "Folder created.", "var(--success)");
+          break;
+        }
+        case "new-project": {
+          if (!confirm("Create a new project? Unsaved changes will be lost.")) break;
+          const wpInput = prompt(`Project width (min ${MIN_PROJECT_DIMENSION}):`, "256");
+          if (!wpInput) break;
+          const hpInput = prompt(`Project height (min ${MIN_PROJECT_DIMENSION}):`, "256");
+          if (!hpInput) break;
+          const npW = Math.max(parseInt(wpInput, 10) || 256, MIN_PROJECT_DIMENSION);
+          const npH = Math.max(parseInt(hpInput, 10) || 256, MIN_PROJECT_DIMENSION);
+          const newProj = createNewProject(npW, npH);
+          runtime.project.root = newProj.root;
+          runtime.project.activeFileId = newProj.activeFileId;
+          runtime.project.entryPointId = newProj.entryPointId;
+          runtime.project.projectWidth = newProj.projectWidth;
+          runtime.project.projectHeight = newProj.projectHeight;
+          saveProject(runtime.project);
+
+          // Load the generated image
+          const mainImg = findNode(runtime.project.root, newProj.activeFileId!);
+          if (mainImg?.content) {
+            dataUrlToImageData(mainImg.content).then((imgData) => {
+              runtime.imageData = imgData;
+              runtime.baked = bake(imgData);
+              initPixelEditor(runtime);
+              restart(runtime);
+            });
+          }
+
+          // Load the entry-point script text
+          const epNode = newProj.entryPointId ? findNode(runtime.project.root, newProj.entryPointId) : null;
+          if (epNode?.content) {
+            runtime.scriptText = epNode.content;
+          }
+
+          runtime.openFileIds = [];
+          runtime.fileTreeView?.setProject(runtime.project);
+          switchEditorMode(runtime, "image");
+          switchTab(runtime, "pixel");
+          renderEditorTabs(runtime);
+          showStatus(runtime, `New ${npW}×${npH} project created.`, "var(--success)");
           break;
         }
         case "import-script":
@@ -877,7 +936,7 @@ function wireUi(runtime: RuntimeState): void {
     await reloadConfig(runtime);
   });
   ui.restartButton.addEventListener("click", () => {
-    restart(runtime);
+    void playProject(runtime);
   });
 
   // Save file button
@@ -902,6 +961,16 @@ function wireUi(runtime: RuntimeState): void {
       saveActiveFileContent(runtime);
       ui.editorModifiedDot.hidden = true;
       showStatus(runtime, "File saved.", "var(--success)");
+    }
+    // F5 — Play Project (entry point)
+    if (e.key === "F5") {
+      e.preventDefault();
+      void playProject(runtime);
+    }
+    // F6 — Play Current (legacy active file)
+    if (e.key === "F6") {
+      e.preventDefault();
+      restart(runtime);
     }
   });
 
@@ -1677,6 +1746,90 @@ function restart(runtime: RuntimeState): void {
   runtime.loop = loop;
   loop.start();
   resizeGameCanvas(ui);
+}
+
+/**
+ * Play Project — boots the engine using the master entry point.
+ *
+ * 1. Looks up the project's entryPointId (.msc file).
+ * 2. Parses it and reads its Source: "..." property to find the image.
+ * 3. Boots the engine loop with that script + image.
+ *
+ * Falls back to the legacy restart() if no entry point is configured.
+ */
+async function playProject(runtime: RuntimeState): Promise<void> {
+  const { project } = runtime;
+
+  // If no entry point, fall back to legacy behaviour
+  if (!project.entryPointId) {
+    restart(runtime);
+    return;
+  }
+
+  const epNode = findNode(project.root, project.entryPointId);
+  if (!epNode || epNode.fileType !== "script") {
+    showStatus(runtime, "Entry point not found — falling back to active file.", "var(--warning)");
+    restart(runtime);
+    return;
+  }
+
+  // Parse the master script
+  const scriptText = epNode.content ?? "";
+  const { document: script, errors } = parseWithImports(scriptText, epNode.id, project);
+  if (errors.length > 0) {
+    runtime.ui.mscStatus.textContent = errors.join("; ");
+    runtime.ui.mscStatus.style.color = "#d16969";
+  }
+
+  // Resolve the Source image
+  let imageData: ImageData | null = null;
+  if (script.source) {
+    const imgNode = resolveImportPath(project.root, epNode.id, script.source)
+      ?? findNodeByPath(project.root, script.source);
+    if (imgNode && imgNode.fileType === "image" && imgNode.content) {
+      try {
+        imageData = await dataUrlToImageData(imgNode.content);
+      } catch {
+        showStatus(runtime, `Failed to load source image: ${script.source}`, "var(--danger)");
+      }
+    } else {
+      showStatus(runtime, `Source image "${script.source}" not found in project.`, "var(--warning)");
+    }
+  }
+
+  // Fall back to current imageData if source could not be resolved
+  if (!imageData) {
+    if (!runtime.imageData) {
+      showPlaceholder(runtime.ui.canvas, "No ROM loaded.", "Open a ROM file first.");
+      return;
+    }
+    imageData = runtime.imageData;
+  }
+
+  // Boot the engine loop
+  runtime.loop?.stop();
+  runtime.inputManager?.dispose();
+
+  const cloned = cloneImageData(imageData);
+  runtime.ui.canvas.width = cloned.width;
+  runtime.ui.canvas.height = cloned.height;
+
+  const bakedAsset = bake(cloned);
+  const inputManager = new InputManager(collectBindings(script));
+  const loop = new EngineLoop(createInitialState(cloned), {
+    baked: bakedAsset,
+    script,
+    logic: buildEvaluatorLogic(createDefaultRegistry()),
+    renderer: runtime.renderer,
+    inputManager,
+  });
+
+  runtime.imageData = imageData;
+  runtime.baked = bakedAsset;
+  runtime.inputManager = inputManager;
+  runtime.loop = loop;
+  loop.start();
+  resizeGameCanvas(runtime.ui);
 }
 
 function createNewRom(

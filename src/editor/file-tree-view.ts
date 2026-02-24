@@ -29,6 +29,8 @@ export interface FileTreeCallbacks {
   onTreeChange: () => void;
   /** A file was deleted — if it was the active file, caller should pick a new one. */
   onFileDelete: (deletedId: string) => void;
+  /** User chose "Set as Main Entry Point" on a .msc file. */
+  onSetEntryPoint?: (node: FileNode) => void;
 }
 
 // ── FileTreeView class ──────────────────────────────────────
@@ -200,6 +202,15 @@ export class FileTreeView {
     label.textContent = node.name;
     row.appendChild(label);
 
+    // Entry-point star indicator
+    if (node.kind === "file" && node.id === this.project.entryPointId) {
+      const star = document.createElement("span");
+      star.className = "ftv-entry-star";
+      star.textContent = "★";
+      star.title = "Main Entry Point";
+      row.appendChild(star);
+    }
+
     // Actions (visible on hover)
     const actions = document.createElement("span");
     actions.className = "ftv-actions";
@@ -228,6 +239,22 @@ export class FileTreeView {
         this.addFolder(node);
       });
       actions.appendChild(addFolderBtn);
+    }
+
+    // Set as Main Entry Point (for .msc files that are not already the entry point)
+    if (
+      node.kind === "file" &&
+      node.fileType === "script" &&
+      node.name.endsWith(".msc") &&
+      node.id !== this.project.entryPointId
+    ) {
+      const epBtn = this.makeActionBtn("★", "Set as Main Entry Point", () => {
+        this.project.entryPointId = node.id;
+        saveProject(this.project);
+        this.callbacks.onSetEntryPoint?.(node);
+        this.render();
+      });
+      actions.appendChild(epBtn);
     }
 
     // Rename (not on root)

@@ -3,6 +3,7 @@ import { FileTreeView } from "../editor/file-tree-view.js";
 import {
   createFolder,
   createImageFile,
+  createScriptFile,
   addChild,
   type ProjectFiles,
 } from "../editor/file-system.js";
@@ -43,6 +44,76 @@ describe("FileTreeView", () => {
 
     expect(selectedId).toBe(imageB.id);
     expect(project.activeFileId).toBe(imageA.id);
+
+    container.remove();
+  });
+
+  it("renders a star icon next to the entry-point file", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const root = createFolder("project", true);
+    const script = createScriptFile("main.msc", "# main");
+    addChild(root, script);
+
+    const project: ProjectFiles = {
+      root,
+      activeFileId: script.id,
+      entryPointId: script.id,
+      projectWidth: 256,
+      projectHeight: 256,
+    };
+
+    new FileTreeView(container, project, {
+      onFileSelect: () => {},
+      onTreeChange: () => {},
+      onFileDelete: () => {},
+    });
+
+    const star = container.querySelector(".ftv-entry-star");
+    expect(star).not.toBeNull();
+    expect(star!.textContent).toBe("★");
+
+    container.remove();
+  });
+
+  it("shows Set as Main Entry Point action for non-entry .msc files", () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+
+    const root = createFolder("project", true);
+    const mainScript = createScriptFile("main.msc", "# main");
+    const otherScript = createScriptFile("other.msc", "# other");
+    addChild(root, mainScript);
+    addChild(root, otherScript);
+
+    const project: ProjectFiles = {
+      root,
+      activeFileId: mainScript.id,
+      entryPointId: mainScript.id,
+      projectWidth: 256,
+      projectHeight: 256,
+    };
+
+    let entryPointSet: string | null = null;
+
+    new FileTreeView(container, project, {
+      onFileSelect: () => {},
+      onTreeChange: () => {},
+      onFileDelete: () => {},
+      onSetEntryPoint: (node) => { entryPointSet = node.id; },
+    });
+
+    // other.msc should have a ★ action button (Set as Entry Point)
+    const otherRow = container.querySelector<HTMLElement>(`li[data-node-id="${otherScript.id}"]`);
+    expect(otherRow).not.toBeNull();
+    const epBtns = otherRow!.querySelectorAll<HTMLButtonElement>(".ftv-action-btn");
+    const epBtn = Array.from(epBtns).find((b) => b.title === "Set as Main Entry Point");
+    expect(epBtn).toBeDefined();
+
+    epBtn!.click();
+    expect(entryPointSet).toBe(otherScript.id);
+    expect(project.entryPointId).toBe(otherScript.id);
 
     container.remove();
   });
