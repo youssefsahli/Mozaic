@@ -70,4 +70,46 @@ describe("parseMsc", () => {
     const doc = parseMsc('Import: ""\nImport: "valid.msc"\n');
     expect(doc.imports).toEqual(["valid.msc"]);
   });
+
+  it("parses Instances block (multi-line form)", () => {
+    const msc = `
+Entity.TinyHero:
+  Visual: "hero_idle"
+
+Entity.FallingCrate:
+  Visual: "crate"
+
+Instances:
+  - entity: "TinyHero"
+    x: 32
+    y: 32
+  - entity: "FallingCrate"
+    x: 100
+    y: -10
+`;
+    const doc = parseMsc(msc);
+    expect(doc.instances).toBeDefined();
+    expect(doc.instances).toHaveLength(2);
+    expect(doc.instances![0]).toEqual({ entity: "TinyHero", x: 32, y: 32 });
+    expect(doc.instances![1]).toEqual({ entity: "FallingCrate", x: 100, y: -10 });
+  });
+
+  it("parses Instances block (inline form)", () => {
+    const msc = `
+Entity.TinyHero:
+  Visual: "hero_idle"
+
+Instances:
+  - { entity: "TinyHero", x: 20, y: 20 }
+`;
+    const doc = parseMsc(msc);
+    expect(doc.instances).toBeDefined();
+    expect(doc.instances).toHaveLength(1);
+    expect(doc.instances![0]).toEqual({ entity: "TinyHero", x: 20, y: 20 });
+  });
+
+  it("returns no instances field when Instances block is absent", () => {
+    const doc = parseMsc(SAMPLE_MSC);
+    expect(doc.instances).toBeUndefined();
+  });
 });

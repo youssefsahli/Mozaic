@@ -14,6 +14,7 @@ import {
   type MscEntityPhysics,
   type MscEvent,
   type MscInput,
+  type MscInstance,
   type MscSchema,
 } from "./ast.js";
 
@@ -23,6 +24,7 @@ export type {
   MscEntityPhysics,
   MscEvent,
   MscInput,
+  MscInstance,
   MscSchema,
 };
 
