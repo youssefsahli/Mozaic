@@ -218,6 +218,8 @@ export async function bootProject(
           logToConsole(consoleEl, "Entity pool full — skipping remaining instances.", "error");
           break;
         }
+      } else {
+        logToConsole(consoleEl, `Unknown entity "${inst.entity}" in Instances — skipping.`, "error");
       }
     }
     if (spawned > 0) {

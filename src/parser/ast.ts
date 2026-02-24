@@ -420,8 +420,13 @@ function parseInstances(
           if (propToken.kind === "mapping") {
             const pk = propToken.key ?? "";
             const pv = propToken.value ?? "";
-            if (pk === "x") entry.x = parseInt(pv, 10);
-            else if (pk === "y") entry.y = parseInt(pv, 10);
+            if (pk === "x") {
+              const n = parseInt(pv, 10);
+              if (!Number.isNaN(n)) entry.x = n;
+            } else if (pk === "y") {
+              const n = parseInt(pv, 10);
+              if (!Number.isNaN(n)) entry.y = n;
+            }
           }
           i++;
         }
