@@ -367,3 +367,24 @@ describe("parseWithImports", () => {
     expect(document.entities["Hero"].visual).toBe("main_hero.png");
   });
 });
+
+// ── File Type Routing Tests ────────────────────────────────
+
+describe("file type routing", () => {
+  it("createImageFile sets fileType to image for .mzk files", () => {
+    const node = createImageFile("asset.mzk", "data:image/png;base64,AAAA", 64, 64);
+    expect(node.fileType).toBe("image");
+  });
+
+  it("createImageFile sets fileType to image for .png files", () => {
+    const node = createImageFile("sprite.png", "data:image/png;base64,AAAA", 64, 64);
+    expect(node.fileType).toBe("image");
+  });
+
+  it("createNewProject creates .mzk file with fileType image", () => {
+    const project = createNewProject(128, 128, "data:image/png;base64,AAAA");
+    const mzkFile = collectFiles(project.root, "image").find((f) => f.name === "main.mzk");
+    expect(mzkFile).toBeDefined();
+    expect(mzkFile!.fileType).toBe("image");
+  });
+});
