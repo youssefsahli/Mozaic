@@ -37,6 +37,7 @@ import type {
   SelectionRect,
 } from "./types.js";
 import type { MscEntity } from "../parser/msc.js";
+import { spawnEntity, eraseEntityAt } from "../engine/pool.js";
 
 export interface ToolContext {
   imageData: ImageData;
@@ -53,6 +54,10 @@ export interface ToolContext {
   /** Entity brush: available entity definitions and spawn callback. */
   entityDefs: Record<string, MscEntity>;
   activeEntityType: string | null;
+  /** Numeric entity type ID (1–255) resolved from activeEntityType. */
+  activeEntityTypeId: number;
+  /** Live engine state buffer for entity memory injection. */
+  stateBuffer: Uint8ClampedArray | null;
   onEntityPlace: (entityType: string, docX: number, docY: number) => void;
 }
 
@@ -441,20 +446,43 @@ export const entityBrushTool: Tool = {
   cursor: "crosshair",
 
   onDown(info: PointerInfo, ctx: ToolContext): void {
-    if (!ctx.activeEntityType) return;
+    if (!ctx.activeEntityType || !ctx.stateBuffer) return;
     const docX = Math.floor(info.docX);
     const docY = Math.floor(info.docY);
-    ctx.onEntityPlace(ctx.activeEntityType, docX, docY);
+
+    // Right-click or Shift+click → erase entity under cursor
+    if (info.button === 2) {
+      const erased = eraseEntityAt(ctx.stateBuffer, docX, docY);
+      if (erased) {
+        // Visual feedback: red marker
+        const { draftCtx, camera } = ctx;
+        const sx = (docX - camera.x) * camera.zoom;
+        const sy = (docY - camera.y) * camera.zoom;
+        const size = Math.max(4, camera.zoom);
+        draftCtx.fillStyle = "rgba(255,50,50,0.5)";
+        draftCtx.fillRect(sx - size / 2, sy - size / 2, size, size);
+      }
+      return;
+    }
+
+    // Left-click → spawn entity
+    const typeId = ctx.activeEntityTypeId;
+    if (typeId < 1 || typeId > 255) return;
+
+    const spawned = spawnEntity(ctx.stateBuffer, typeId, docX, docY);
+    if (spawned) {
+      ctx.onEntityPlace(ctx.activeEntityType, docX, docY);
+    }
 
     // Visual feedback: draw a small marker on the draft canvas
     const { draftCtx, camera } = ctx;
     const sx = (docX - camera.x) * camera.zoom;
     const sy = (docY - camera.y) * camera.zoom;
     const size = Math.max(4, camera.zoom);
-    draftCtx.strokeStyle = "rgba(64,200,255,0.9)";
+    draftCtx.strokeStyle = spawned ? "rgba(64,200,255,0.9)" : "rgba(255,50,50,0.9)";
     draftCtx.lineWidth = 1;
     draftCtx.strokeRect(sx - size / 2, sy - size / 2, size, size);
-    draftCtx.fillStyle = "rgba(64,200,255,0.3)";
+    draftCtx.fillStyle = spawned ? "rgba(64,200,255,0.3)" : "rgba(255,50,50,0.3)";
     draftCtx.fillRect(sx - size / 2, sy - size / 2, size, size);
   },
 
