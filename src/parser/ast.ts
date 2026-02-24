@@ -301,9 +301,7 @@ function parseSpriteValue(value: string): MscSpriteDef | null {
   if (arrayMatch) {
     const col = parseInt(arrayMatch[1], 10);
     const row = parseInt(arrayMatch[2], 10);
-    const frames = arrayMatch[3] !== undefined
-      ? parseInt(arrayMatch[3], 10)
-      : 1;
+    const frames = arrayMatch[3] !== undefined ? parseInt(arrayMatch[3], 10) : 1;
     return { kind: "grid", col, row, frames };
   }
 
