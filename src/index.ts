@@ -57,6 +57,7 @@ import {
   stopProject,
   type BootContext,
 } from "./editor/bootstrapper.js";
+import { parseSpriteROM } from "./editor/importer.js";
 
 type EditorMode = "script" | "config" | "image";
 const LAST_ROM_STORAGE_KEY = "mozaic:last-rom";
@@ -1008,6 +1009,69 @@ function wireUi(runtime: RuntimeState): void {
     persistScript(text);
     runtime.fileTreeView?.render();
     void openFileNode(runtime, newNode);
+  });
+
+  // ── Drag-and-drop cartridge import ───────────────────────────
+  const dropTarget = ui.appRoot;
+  for (const evt of ["dragover", "dragenter", "drop"] as const) {
+    dropTarget.addEventListener(evt, (e) => e.preventDefault());
+  }
+  dropTarget.addEventListener("drop", (e) => {
+    const file = (e as DragEvent).dataTransfer?.files[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!["mzk", "png", "jpg", "jpeg", "webp"].includes(ext)) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const img = new Image();
+      img.onload = () => {
+        const parsed = parseSpriteROM(img);
+        const name = file.name.replace(/\.[^.]+$/, ".mzk");
+        const node = createImageFile(
+          name,
+          parsed.visualDataUrl,
+          parsed.width,
+          parsed.height,
+        );
+        addChild(runtime.project.root, node);
+        runtime.project.activeFileId = node.id;
+
+        if (parsed.stateBuffer) {
+          // Mozaic cartridge — restore visual + state buffer
+          dataUrlToImageData(parsed.visualDataUrl).then((imgData) => {
+            runtime.imageData = imgData;
+            runtime.baked = bake(imgData);
+            initPixelEditor(runtime);
+            runtime.pixelEditor?.setEngineBuffer(parsed.stateBuffer);
+            if (runtime.loop) {
+              const state = runtime.loop.getState();
+              if (parsed.stateBuffer!.length <= state.buffer.length) {
+                state.buffer.set(parsed.stateBuffer!);
+              }
+            }
+            saveProject(runtime.project);
+            runtime.fileTreeView?.render();
+            switchTab(runtime, "pixel");
+            showStatus(runtime, `Loaded cartridge: ${file.name}`, "var(--success)");
+          });
+        } else {
+          // Standard image — import as new SpriteROM
+          dataUrlToImageData(parsed.visualDataUrl).then((imgData) => {
+            runtime.imageData = imgData;
+            runtime.baked = bake(imgData);
+            initPixelEditor(runtime);
+            saveProject(runtime.project);
+            runtime.fileTreeView?.render();
+            switchTab(runtime, "pixel");
+            showStatus(runtime, `Imported image: ${file.name}`, "var(--success)");
+          });
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
   });
 
   // Tab key inserts 2 spaces instead of changing focus
