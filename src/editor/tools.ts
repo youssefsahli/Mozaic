@@ -447,11 +447,15 @@ const ENTITY_SPACING = 16;
 let _entityLastDocX = -1;
 let _entityLastDocY = -1;
 let _entityErasing = false;
+let _entityLastSpawnX = -1;
+let _entityLastSpawnY = -1;
 
 function resetEntityLastPos(): void {
   _entityLastDocX = -1;
   _entityLastDocY = -1;
   _entityErasing = false;
+  _entityLastSpawnX = -1;
+  _entityLastSpawnY = -1;
 }
 
 /** Spawn an entity at (docX, docY) and draw visual feedback. */
@@ -513,6 +517,8 @@ export const entityBrushTool: Tool = {
     stampEntity(docX, docY, ctx);
     _entityLastDocX = docX;
     _entityLastDocY = docY;
+    _entityLastSpawnX = docX;
+    _entityLastSpawnY = docY;
   },
 
   onMove(info: PointerInfo, ctx: ToolContext): void {
@@ -528,12 +534,12 @@ export const entityBrushTool: Tool = {
     } else {
       // Spawn entities along the path with minimum spacing
       bresenhamLine(_entityLastDocX, _entityLastDocY, docX, docY, (x, y) => {
-        const dx = x - _entityLastDocX;
-        const dy = y - _entityLastDocY;
+        const dx = x - _entityLastSpawnX;
+        const dy = y - _entityLastSpawnY;
         if (dx * dx + dy * dy >= ENTITY_SPACING * ENTITY_SPACING) {
           stampEntity(x, y, ctx);
-          _entityLastDocX = x;
-          _entityLastDocY = y;
+          _entityLastSpawnX = x;
+          _entityLastSpawnY = y;
         }
       });
     }
