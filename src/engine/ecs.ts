@@ -71,7 +71,7 @@ export function applyGravity(
  *
  * For each active entity:
  *  1. Map its Entity Type ID (byte 1) to the script entity definition.
- *  2. Initialise its Sprite ID (byte 11) from the default visual if needed.
+ *  2. Initialize its Sprite ID (byte 11) from the default visual if needed.
  *  3. Execute any attached components (Gravity, Kinematic).
  */
 export function ecsTick(state: EngineState, script: MscDocument): void {
@@ -107,7 +107,7 @@ export function ecsTick(state: EngineState, script: MscDocument): void {
     const entityDef = entities[entityNames[typeId - 1]];
     if (!entityDef) continue;
 
-    // ── Sprite Initialisation ─────────────────────────────────
+    // ── Sprite Initialization ──────────────────────────────────
     const currentSpriteId = readInt8(buffer, ptr + ENTITY_DATA_START);
     if (currentSpriteId === 0 && entityDef.visual) {
       const sid = spriteNameToId.get(entityDef.visual);
