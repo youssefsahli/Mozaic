@@ -58,7 +58,7 @@ describe("logToConsole", () => {
     expect(lines[2].textContent).toBe("third");
   });
 
-  it("defaults to info type when called with info", () => {
+  it("applies info type when explicitly passed", () => {
     const el = makeConsoleEl();
     logToConsole(el, "default", "info");
     const line = el.querySelector(".cc-info") as HTMLElement;

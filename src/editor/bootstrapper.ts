@@ -30,6 +30,9 @@ import {
 
 export type ConsoleMessageType = "info" | "success" | "error";
 
+/** Delay (ms) before the compiler console auto-hides after boot. */
+const CONSOLE_AUTO_HIDE_DELAY_MS = 2000;
+
 /**
  * Append a styled message to the compiler console element.
  */
@@ -222,11 +225,11 @@ export async function bootProject(
   loop.start();
   logToConsole(consoleEl, "Engine running.", "success");
 
-  // Auto-hide the console after 2 seconds
+  // Auto-hide the console after a short delay
   ctx.hideTimer = window.setTimeout(() => {
     hideConsole(consoleEl);
     ctx.hideTimer = null;
-  }, 2000);
+  }, CONSOLE_AUTO_HIDE_DELAY_MS);
 
   return { loop, inputManager, imageData: clonedData, baked };
 }
