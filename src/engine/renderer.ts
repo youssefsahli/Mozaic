@@ -361,15 +361,16 @@ export class Renderer {
 
     if (spriteAtlas.length <= 1) return; // no sprites loaded
 
+    // Entity pool: bytes 512–12287, 16 bytes per slot (736 max entities)
     const poolStart = MEMORY_BLOCKS.entityPool.startByte;
-    const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
+    const poolLimit = MEMORY_BLOCKS.entityPool.endByte - ENTITY_SLOT_SIZE + 1;
 
     let quadCount = 0;
     let vOff = 0;
 
     for (
       let ptr = poolStart;
-      ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd && quadCount < MAX_ENTITIES;
+      ptr <= poolLimit && quadCount < MAX_ENTITIES;
       ptr += ENTITY_SLOT_SIZE
     ) {
       const active = readInt8(state, ptr + ENTITY_ACTIVE);
