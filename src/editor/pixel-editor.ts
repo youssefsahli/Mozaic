@@ -383,16 +383,25 @@ export class PixelEditor {
     const isSelect = this.activeTool.type === (3 as ToolType);
     const isEntityBrush = this.activeTool.type === (5 as ToolType);
 
+    let changed = false;
+
     if (!isPipette && !isSelect && !isEntityBrush) {
-      const changed = mergeDraftToDocument(this.layers, this.imageData);
-      if (changed) {
-        // Hot reload: write changed pixels directly to the engine state buffer
-        if (this.engineBuffer && this.engineBuffer.length >= this.imageData.data.length) {
-          this.engineBuffer.set(this.imageData.data);
-        }
-        this.baked = this.callbacks.onBake(this.imageData);
-        this.callbacks.onPersist();
+      changed = mergeDraftToDocument(this.layers, this.imageData);
+    } else if (isEntityBrush) {
+      // The entity brush mutates the stateBuffer directly during onDown/onUp.
+      // We must flag it as changed so it persists to the file system.
+      changed = true;
+      // We also need to force the layers to re-put the image data
+      // so the newly altered memory pixels show up on the document canvas.
+      this.layers.docCtx.putImageData(this.imageData, 0, 0);
+    }
+
+    if (changed) {
+      if (this.engineBuffer && this.engineBuffer.length >= this.imageData.data.length) {
+        this.engineBuffer.set(this.imageData.data);
       }
+      this.baked = this.callbacks.onBake(this.imageData);
+      this.callbacks.onPersist();
     }
 
     this.updateHistoryButtons();
@@ -498,7 +507,7 @@ export class PixelEditor {
       entityDefs: this.entityDefs,
       activeEntityType: this.activeEntityType,
       activeEntityTypeId: this.resolveEntityTypeId(),
-      stateBuffer: this.engineBuffer,
+      stateBuffer: this.engineBuffer ?? (this.imageData?.data as unknown as Uint8ClampedArray) ?? null,
       onEntityPlace: (entityType, docX, docY) => {
         this.callbacks.onEntityPlace?.(entityType, docX, docY);
       },
