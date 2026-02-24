@@ -131,10 +131,10 @@ describe("renderOverlay ECS debug", () => {
     // Place an active entity at ptr=512 (first entity slot)
     buf[512 + 0] = 1;  // ActiveFlag = 1
     buf[512 + 1] = 5;  // TypeID = 5
-    buf[512 + 2] = 0;  // PosX high byte
-    buf[512 + 3] = 10; // PosX low byte → 10
-    buf[512 + 4] = 0;  // PosY high byte
-    buf[512 + 5] = 20; // PosY low byte → 20
+    buf[512 + 2] = 0;  // PosX high byte (big-endian)
+    buf[512 + 3] = 10; // PosX low byte → PosX = 10
+    buf[512 + 4] = 0;  // PosY high byte (big-endian)
+    buf[512 + 5] = 20; // PosY low byte → PosY = 20
 
     renderOverlay(ctx, cam, 64, 64, null, defaultOptions({ showEcs: true }), buf);
 
