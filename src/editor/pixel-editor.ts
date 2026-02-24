@@ -507,7 +507,7 @@ export class PixelEditor {
       entityDefs: this.entityDefs,
       activeEntityType: this.activeEntityType,
       activeEntityTypeId: this.resolveEntityTypeId(),
-      stateBuffer: this.engineBuffer ?? (this.imageData?.data as unknown as Uint8ClampedArray) ?? null,
+      stateBuffer: this.engineBuffer ?? this.imageData?.data ?? null,
       onEntityPlace: (entityType, docX, docY) => {
         this.callbacks.onEntityPlace?.(entityType, docX, docY);
       },
