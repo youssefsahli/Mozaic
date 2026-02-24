@@ -495,10 +495,22 @@ export class PixelEditor {
       onSelectionChange: (rect) => { this.selection = rect; },
       entityDefs: this.entityDefs,
       activeEntityType: this.activeEntityType,
+      activeEntityTypeId: this.resolveEntityTypeId(),
+      stateBuffer: this.engineBuffer,
       onEntityPlace: (entityType, docX, docY) => {
         this.callbacks.onEntityPlace?.(entityType, docX, docY);
       },
     };
+  }
+
+  /**
+   * Resolve the active entity type name to a 1-based numeric type ID.
+   * Entity type IDs correspond to `Object.keys(entityDefs)` order (1-based).
+   */
+  private resolveEntityTypeId(): number {
+    if (!this.activeEntityType) return 0;
+    const idx = Object.keys(this.entityDefs).indexOf(this.activeEntityType);
+    return idx === -1 ? 0 : idx + 1;
   }
 
   private buildOverlayOptions(): OverlayOptions {
