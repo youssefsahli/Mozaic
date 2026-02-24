@@ -8,6 +8,7 @@
 import type { Point, BakedAsset } from "../engine/baker.js";
 import type { MscSchema } from "../parser/msc.js";
 import type { CameraState } from "./types.js";
+import { readInt8, readInt16 } from "../engine/memory.js";
 
 export interface OverlayOptions {
   inlineGrid: boolean;
@@ -18,6 +19,7 @@ export interface OverlayOptions {
   showPaths: boolean;
   showPoints: boolean;
   showIds: boolean;
+  showEcs: boolean;
   selectedCollisionIndex: number | null;
   selectedPathIndex: number | null;
 }
@@ -29,7 +31,8 @@ export function renderOverlay(
   docW: number,
   docH: number,
   baked: BakedAsset | null,
-  options: OverlayOptions
+  options: OverlayOptions,
+  stateBuffer: Uint8ClampedArray | null = null
 ): void {
   const w = ctx.canvas.width;
   const h = ctx.canvas.height;
@@ -56,6 +59,10 @@ export function renderOverlay(
 
   if (baked) {
     renderBakeDebugOverlay(ctx, baked, options);
+  }
+
+  if (options.showEcs && stateBuffer) {
+    renderEcsDebugOverlay(ctx, cam, stateBuffer);
   }
 
   ctx.restore();
@@ -102,6 +109,36 @@ function renderBakeDebugOverlay(
       }
     });
   }
+}
+
+function renderEcsDebugOverlay(
+  ctx: CanvasRenderingContext2D,
+  cam: CameraState,
+  stateBuffer: Uint8ClampedArray
+): void {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.strokeStyle = "magenta";
+  ctx.lineWidth = 2;
+  ctx.fillStyle = "magenta";
+  ctx.font = "10px monospace";
+
+  for (let ptr = 512; ptr < 12288; ptr += 16) {
+    const activeFlag = readInt8(stateBuffer, ptr + 0);
+    if (activeFlag === 0) continue;
+
+    const typeId = readInt8(stateBuffer, ptr + 1);
+    const posX = readInt16(stateBuffer, ptr + 2);
+    const posY = readInt16(stateBuffer, ptr + 4);
+
+    const sx = (posX - cam.x) * cam.zoom;
+    const sy = (posY - cam.y) * cam.zoom;
+
+    ctx.strokeRect(sx, sy, 16 * cam.zoom, 16 * cam.zoom);
+    ctx.fillText("ID: " + typeId, sx, sy - 2);
+  }
+
+  ctx.restore();
 }
 
 function drawGridLines(
