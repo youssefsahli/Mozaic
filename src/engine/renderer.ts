@@ -1,9 +1,8 @@
 /**
- * Two-Pass Batch Renderer
+ * Entity Batch Renderer
  *
- * Pass 1: Background — full-screen quad with camera-scrolled UVs.
- * Pass 2: Entities   — batched textured quads from the entity pool,
- *                      positioned via camera offset, UVs unmodified.
+ * Clears the screen to a solid dark color, then draws batched textured
+ * quads from the entity pool, positioned via camera offset.
  */
 
 import {
@@ -59,6 +58,9 @@ export interface BakedSprite {
  *
  * Grid sprites with multiple frames are expanded into consecutive entries
  * so the SpriteAnimator can cycle TypeIDs sequentially.
+ *
+ * The `$Grid` key (if present) is a metadata directive and is excluded
+ * from the sprite list so it does not offset the 1-based SpriteID mapping.
  */
 export function compileSpriteAtlas(
   sprites: Map<string, MscSpriteDef>,
@@ -68,7 +70,8 @@ export function compileSpriteAtlas(
 ): (BakedSprite | null)[] {
   const atlas: (BakedSprite | null)[] = [null]; // index 0 unused
 
-  for (const [, def] of sprites) {
+  for (const [name, def] of sprites) {
+    if (name === "$Grid") continue;
     if (def.kind === "grid") {
       for (let f = 0; f < def.frames; f++) {
         const x = (def.col + f) * gridSize;
@@ -102,27 +105,6 @@ export function compileSpriteAtlas(
 }
 
 // ── Shaders ───────────────────────────────────────────────────
-
-// --- Background program: scrolls UVs based on u_camOffset ---
-const BG_VERTEX_SRC = `
-attribute vec2 a_position;
-attribute vec2 a_texCoord;
-uniform vec2 u_camOffset;
-varying vec2 v_texCoord;
-void main() {
-  gl_Position = vec4(a_position, 0.0, 1.0);
-  v_texCoord = a_texCoord + u_camOffset;
-}
-`;
-
-const BG_FRAGMENT_SRC = `
-precision mediump float;
-uniform sampler2D u_texture;
-varying vec2 v_texCoord;
-void main() {
-  gl_FragColor = texture2D(u_texture, v_texCoord);
-}
-`;
 
 // --- Entity program: camera affects screen position, not UVs ---
 const ENT_VERTEX_SRC = `
@@ -195,13 +177,8 @@ const INDICES_PER_QUAD = 6;
 
 export class Renderer {
   private readonly gl: WebGLRenderingContext;
-  private readonly bgProgram: WebGLProgram;
   private readonly entProgram: WebGLProgram;
   private readonly texture: WebGLTexture;
-
-  // Background buffers
-  private readonly bgPosBuffer: WebGLBuffer;
-  private readonly bgTexBuffer: WebGLBuffer;
 
   // Entity buffers
   private readonly entVertexBuffer: WebGLBuffer;
@@ -216,17 +193,8 @@ export class Renderer {
     if (!gl) throw new Error("WebGL not supported");
     this.gl = gl;
 
-    // --- Compile both programs ---
-    this.bgProgram = createProgram(gl, BG_VERTEX_SRC, BG_FRAGMENT_SRC);
+    // --- Compile entity program ---
     this.entProgram = createProgram(gl, ENT_VERTEX_SRC, ENT_FRAGMENT_SRC);
-
-    // --- Background full-screen quad ---
-    this.bgPosBuffer = this.createStaticBuffer(
-      new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1])
-    );
-    this.bgTexBuffer = this.createStaticBuffer(
-      new Float32Array([0, 1, 1, 1, 0, 0, 1, 0])
-    );
 
     // --- Entity batch buffers ---
     this.entVertices = new Float32Array(
@@ -278,17 +246,8 @@ export class Renderer {
     this.spriteAtlas = atlas;
   }
 
-  private createStaticBuffer(data: Float32Array): WebGLBuffer {
-    const { gl } = this;
-    const buf = gl.createBuffer();
-    if (!buf) throw new Error("Failed to create buffer");
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
-    return buf;
-  }
-
   /**
-   * Two-pass render: background quad then entity batch.
+   * Render: clear background then draw entity batch.
    * @param state  RGBA Uint8ClampedArray (width × height × 4)
    * @param width  State buffer width in pixels
    * @param height State buffer height in pixels
@@ -322,32 +281,12 @@ export class Renderer {
         ? (state[GLOBALS_CAMERA_Y_BYTE] << 8) | state[GLOBALS_CAMERA_Y_BYTE + 1]
         : 0;
 
-    // ── Pass 1: Background ────────────────────────────────────
-    this.renderBackground(camX / width, camY / height);
+    // ── Background: solid dark clear ────────────────────────────
+    gl.clearColor(0.1, 0.1, 0.12, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // ── Pass 2: Entities ──────────────────────────────────────
+    // ── Entities ──────────────────────────────────────────────
     this.renderEntities(state, width, height, camX, camY);
-  }
-
-  private renderBackground(offsetU: number, offsetV: number): void {
-    const { gl, bgProgram, bgPosBuffer, bgTexBuffer } = this;
-
-    gl.useProgram(bgProgram);
-
-    const camLoc = gl.getUniformLocation(bgProgram, "u_camOffset");
-    gl.uniform2f(camLoc, offsetU, offsetV);
-
-    const posLoc = gl.getAttribLocation(bgProgram, "a_position");
-    gl.bindBuffer(gl.ARRAY_BUFFER, bgPosBuffer);
-    gl.enableVertexAttribArray(posLoc);
-    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-
-    const texLoc = gl.getAttribLocation(bgProgram, "a_texCoord");
-    gl.bindBuffer(gl.ARRAY_BUFFER, bgTexBuffer);
-    gl.enableVertexAttribArray(texLoc);
-    gl.vertexAttribPointer(texLoc, 2, gl.FLOAT, false, 0, 0);
-
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 
   private renderEntities(
