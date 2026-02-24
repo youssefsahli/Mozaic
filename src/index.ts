@@ -1038,36 +1038,28 @@ function wireUi(runtime: RuntimeState): void {
         addChild(runtime.project.root, node);
         runtime.project.activeFileId = node.id;
 
-        if (parsed.stateBuffer) {
-          // Mozaic cartridge — restore visual + state buffer
-          dataUrlToImageData(parsed.visualDataUrl).then((imgData) => {
-            runtime.imageData = imgData;
-            runtime.baked = bake(imgData);
-            initPixelEditor(runtime);
+        dataUrlToImageData(parsed.visualDataUrl).then((imgData) => {
+          runtime.imageData = imgData;
+          runtime.baked = bake(imgData);
+          initPixelEditor(runtime);
+
+          if (parsed.stateBuffer) {
+            // Mozaic cartridge — restore ECS state buffer
             runtime.pixelEditor?.setEngineBuffer(parsed.stateBuffer);
             if (runtime.loop) {
               const state = runtime.loop.getState();
-              if (parsed.stateBuffer!.length <= state.buffer.length) {
-                state.buffer.set(parsed.stateBuffer!);
+              if (parsed.stateBuffer.length <= state.buffer.length) {
+                state.buffer.set(parsed.stateBuffer);
               }
             }
-            saveProject(runtime.project);
-            runtime.fileTreeView?.render();
-            switchTab(runtime, "pixel");
-            showStatus(runtime, `Loaded cartridge: ${file.name}`, "var(--success)");
-          });
-        } else {
-          // Standard image — import as new SpriteROM
-          dataUrlToImageData(parsed.visualDataUrl).then((imgData) => {
-            runtime.imageData = imgData;
-            runtime.baked = bake(imgData);
-            initPixelEditor(runtime);
-            saveProject(runtime.project);
-            runtime.fileTreeView?.render();
-            switchTab(runtime, "pixel");
-            showStatus(runtime, `Imported image: ${file.name}`, "var(--success)");
-          });
-        }
+          }
+
+          saveProject(runtime.project);
+          runtime.fileTreeView?.render();
+          switchTab(runtime, "pixel");
+          const label = parsed.stateBuffer ? "Loaded cartridge" : "Imported image";
+          showStatus(runtime, `${label}: ${file.name}`, "var(--success)");
+        });
       };
       img.src = dataUrl;
     };
