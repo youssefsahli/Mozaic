@@ -138,6 +138,8 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
         },
       },
       events: [],
+      sprites: new Map(),
+      spriteGrid: 0,
     };
 
     const registry = createDefaultRegistry();
@@ -165,6 +167,8 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
         },
       },
       events: [],
+      sprites: new Map(),
+      spriteGrid: 0,
     };
 
     const registry = createDefaultRegistry();
@@ -197,6 +201,8 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
         Enemy: { components: { Gravity: { force: 3 } } },
       },
       events: [],
+      sprites: new Map(),
+      spriteGrid: 0,
     };
 
     const registry = createDefaultRegistry();
@@ -225,6 +231,8 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
       events: [
         { trigger: "OnFrame", actions: ["State.$Score += 1"] },
       ],
+      sprites: new Map(),
+      spriteGrid: 0,
     };
 
     const registry = createDefaultRegistry();
@@ -245,6 +253,8 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
       schema,
       entities: {},
       events: [{ trigger: "OnFrame", actions: ["State.$X = 42"] }],
+      sprites: new Map(),
+      spriteGrid: 0,
     };
 
     const logic = buildEvaluatorLogic();
@@ -275,6 +285,8 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
         },
       },
       events: [],
+      sprites: new Map(),
+      spriteGrid: 0,
     };
 
     const logic = buildEvaluatorLogic(registry);
