@@ -18,6 +18,7 @@ import { buildEvaluatorLogic } from "../engine/evaluator.js";
 import { createDefaultRegistry } from "../engine/components.js";
 import { parseMsc, type MscDocument } from "../parser/msc.js";
 import { parseWithImports } from "../engine/import-resolver.js";
+import { spawnEntity } from "../engine/pool.js";
 import type { ProjectFiles } from "./file-system.js";
 import {
   findNode,
@@ -203,6 +204,28 @@ export async function bootProject(
     imageData.width,
     imageData.height
   );
+
+  // ── 3b. Spawn script-defined instances ───────────────────
+  if (script.instances && script.instances.length > 0) {
+    const entityKeys = Object.keys(script.entities);
+    let spawned = 0;
+    for (const inst of script.instances) {
+      const typeId = entityKeys.indexOf(inst.entity) + 1;
+      if (typeId > 0) {
+        if (spawnEntity(clonedData.data as Uint8ClampedArray, typeId, inst.x, inst.y)) {
+          spawned++;
+        } else {
+          logToConsole(consoleEl, "Entity pool full — skipping remaining instances.", "error");
+          break;
+        }
+      } else {
+        logToConsole(consoleEl, `Unknown entity "${inst.entity}" in Instances — skipping.`, "error");
+      }
+    }
+    if (spawned > 0) {
+      logToConsole(consoleEl, `Spawned ${spawned} instance(s) from script.`, "info");
+    }
+  }
 
   // ── 4. Initialize the engine ─────────────────────────────
   logToConsole(consoleEl, "Mounting EngineLoop...", "info");

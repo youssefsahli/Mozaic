@@ -45,6 +45,12 @@ export interface MscSpriteAbsolute {
 
 export type MscSpriteDef = MscSpriteGrid | MscSpriteAbsolute;
 
+export interface MscInstance {
+  entity: string;
+  x: number;
+  y: number;
+}
+
 export interface MscDocument {
   source?: string;
   imports: string[];
@@ -54,6 +60,7 @@ export interface MscDocument {
   sprites: Map<string, MscSpriteDef>;
   spriteGrid: number;
   animations?: number[][];
+  instances?: MscInstance[];
 }
 
 export function buildMscAst(tokens: MscLineToken[]): MscDocument {
@@ -117,6 +124,15 @@ export function buildMscAst(tokens: MscLineToken[]): MscDocument {
 
     if (key === "Sprites") {
       i = parseSprites(tokens, i + 1, doc);
+      continue;
+    }
+
+    if (key === "Instances") {
+      const instances: MscInstance[] = [];
+      i = parseInstances(tokens, i + 1, instances);
+      if (instances.length > 0) {
+        doc.instances = instances;
+      }
       continue;
     }
 
@@ -356,6 +372,72 @@ function parseComponentProps(value: string): Record<string, number> | null {
     props[key] = val;
   }
   return props;
+}
+
+function parseInstances(
+  tokens: MscLineToken[],
+  start: number,
+  instances: MscInstance[]
+): number {
+  let i = start;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (token.kind === "empty" || token.kind === "comment") {
+      i++;
+      continue;
+    }
+    if (token.indent === 0) break;
+
+    if (token.kind === "list") {
+      const line = token.listValue ?? "";
+
+      // Inline form: { entity: "TinyHero", x: 32, y: 32 }
+      const inlineMatch = line.match(
+        /^\{\s*entity:\s*"([^"]+)"\s*,\s*x:\s*(-?\d+)\s*,\s*y:\s*(-?\d+)\s*\}$/
+      );
+      if (inlineMatch) {
+        instances.push({
+          entity: inlineMatch[1],
+          x: parseInt(inlineMatch[2], 10),
+          y: parseInt(inlineMatch[3], 10),
+        });
+        i++;
+        continue;
+      }
+
+      // Multi-line form first line: entity: "TinyHero"
+      const entityMatch = line.match(/^entity:\s*"([^"]+)"$/);
+      if (entityMatch) {
+        const entry: MscInstance = { entity: entityMatch[1], x: 0, y: 0 };
+        i++;
+        while (i < tokens.length) {
+          const propToken = tokens[i];
+          if (propToken.kind === "empty" || propToken.kind === "comment") {
+            i++;
+            continue;
+          }
+          if (propToken.indent <= token.indent) break;
+          if (propToken.kind === "mapping") {
+            const pk = propToken.key ?? "";
+            const pv = propToken.value ?? "";
+            if (pk === "x") {
+              const n = parseInt(pv, 10);
+              if (!Number.isNaN(n)) entry.x = n;
+            } else if (pk === "y") {
+              const n = parseInt(pv, 10);
+              if (!Number.isNaN(n)) entry.y = n;
+            }
+          }
+          i++;
+        }
+        instances.push(entry);
+        continue;
+      }
+    }
+
+    i++;
+  }
+  return i;
 }
 
 function stripQuotes(value: string): string {
