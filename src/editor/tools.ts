@@ -441,53 +441,116 @@ function pickColor(info: PointerInfo, ctx: ToolContext): void {
 
 // ── Entity Brush Tool ─────────────────────────────────────────
 
+/** Minimum spacing (in doc pixels) between successive entity spawns during drag. */
+const ENTITY_SPACING = 16;
+
+let _entityLastDocX = -1;
+let _entityLastDocY = -1;
+let _entityErasing = false;
+let _entityLastSpawnX = -1;
+let _entityLastSpawnY = -1;
+
+function resetEntityLastPos(): void {
+  _entityLastDocX = -1;
+  _entityLastDocY = -1;
+  _entityErasing = false;
+  _entityLastSpawnX = -1;
+  _entityLastSpawnY = -1;
+}
+
+/** Spawn an entity at (docX, docY) and draw visual feedback. */
+function stampEntity(docX: number, docY: number, ctx: ToolContext): void {
+  if (!ctx.activeEntityType || !ctx.stateBuffer) return;
+  const typeId = ctx.activeEntityTypeId;
+  if (typeId < 1 || typeId > 255) return;
+
+  const spawned = spawnEntity(ctx.stateBuffer, typeId, docX, docY);
+  if (spawned) {
+    ctx.onEntityPlace(ctx.activeEntityType, docX, docY);
+  }
+
+  const { draftCtx, camera } = ctx;
+  const sx = (docX - camera.x) * camera.zoom;
+  const sy = (docY - camera.y) * camera.zoom;
+  const size = Math.max(4, camera.zoom);
+  draftCtx.strokeStyle = spawned ? "rgba(64,200,255,0.9)" : "rgba(255,50,50,0.9)";
+  draftCtx.lineWidth = 1;
+  draftCtx.strokeRect(sx - size / 2, sy - size / 2, size, size);
+  draftCtx.fillStyle = spawned ? "rgba(64,200,255,0.3)" : "rgba(255,50,50,0.3)";
+  draftCtx.fillRect(sx - size / 2, sy - size / 2, size, size);
+}
+
+/** Erase an entity at (docX, docY) and draw visual feedback. */
+function stampEraseEntity(docX: number, docY: number, ctx: ToolContext): void {
+  if (!ctx.stateBuffer) return;
+  const erased = eraseEntityAt(ctx.stateBuffer, docX, docY);
+  if (erased) {
+    const { draftCtx, camera } = ctx;
+    const sx = (docX - camera.x) * camera.zoom;
+    const sy = (docY - camera.y) * camera.zoom;
+    const size = Math.max(4, camera.zoom);
+    draftCtx.fillStyle = "rgba(255,50,50,0.5)";
+    draftCtx.fillRect(sx - size / 2, sy - size / 2, size, size);
+  }
+}
+
 export const entityBrushTool: Tool = {
   type: 5 as ToolType,
   cursor: "crosshair",
 
   onDown(info: PointerInfo, ctx: ToolContext): void {
     if (!ctx.activeEntityType || !ctx.stateBuffer) return;
+    resetEntityLastPos();
     const docX = Math.floor(info.docX);
     const docY = Math.floor(info.docY);
 
-    // Right-click or Shift+click → erase entity under cursor
+    // Right-click → erase entity under cursor
     if (info.button === 2) {
-      const erased = eraseEntityAt(ctx.stateBuffer, docX, docY);
-      if (erased) {
-        // Visual feedback: red marker
-        const { draftCtx, camera } = ctx;
-        const sx = (docX - camera.x) * camera.zoom;
-        const sy = (docY - camera.y) * camera.zoom;
-        const size = Math.max(4, camera.zoom);
-        draftCtx.fillStyle = "rgba(255,50,50,0.5)";
-        draftCtx.fillRect(sx - size / 2, sy - size / 2, size, size);
-      }
+      _entityErasing = true;
+      stampEraseEntity(docX, docY, ctx);
+      _entityLastDocX = docX;
+      _entityLastDocY = docY;
       return;
     }
 
     // Left-click → spawn entity
-    const typeId = ctx.activeEntityTypeId;
-    if (typeId < 1 || typeId > 255) return;
-
-    const spawned = spawnEntity(ctx.stateBuffer, typeId, docX, docY);
-    if (spawned) {
-      ctx.onEntityPlace(ctx.activeEntityType, docX, docY);
-    }
-
-    // Visual feedback: draw a small marker on the draft canvas
-    const { draftCtx, camera } = ctx;
-    const sx = (docX - camera.x) * camera.zoom;
-    const sy = (docY - camera.y) * camera.zoom;
-    const size = Math.max(4, camera.zoom);
-    draftCtx.strokeStyle = spawned ? "rgba(64,200,255,0.9)" : "rgba(255,50,50,0.9)";
-    draftCtx.lineWidth = 1;
-    draftCtx.strokeRect(sx - size / 2, sy - size / 2, size, size);
-    draftCtx.fillStyle = spawned ? "rgba(64,200,255,0.3)" : "rgba(255,50,50,0.3)";
-    draftCtx.fillRect(sx - size / 2, sy - size / 2, size, size);
+    stampEntity(docX, docY, ctx);
+    _entityLastDocX = docX;
+    _entityLastDocY = docY;
+    _entityLastSpawnX = docX;
+    _entityLastSpawnY = docY;
   },
 
-  onMove(): void {},
-  onUp(): void {},
+  onMove(info: PointerInfo, ctx: ToolContext): void {
+    if (!ctx.activeEntityType || !ctx.stateBuffer) return;
+    if (_entityLastDocX < 0 || _entityLastDocY < 0) return;
+    const docX = Math.floor(info.docX);
+    const docY = Math.floor(info.docY);
+
+    if (_entityErasing) {
+      bresenhamLine(_entityLastDocX, _entityLastDocY, docX, docY, (x, y) => {
+        stampEraseEntity(x, y, ctx);
+      });
+    } else {
+      // Spawn entities along the path with minimum spacing
+      bresenhamLine(_entityLastDocX, _entityLastDocY, docX, docY, (x, y) => {
+        const dx = x - _entityLastSpawnX;
+        const dy = y - _entityLastSpawnY;
+        if (dx * dx + dy * dy >= ENTITY_SPACING * ENTITY_SPACING) {
+          stampEntity(x, y, ctx);
+          _entityLastSpawnX = x;
+          _entityLastSpawnY = y;
+        }
+      });
+    }
+
+    _entityLastDocX = docX;
+    _entityLastDocY = docY;
+  },
+
+  onUp(): void {
+    resetEntityLastPos();
+  },
 };
 
 // ── Clipboard operations for Select tool ──────────────────────
