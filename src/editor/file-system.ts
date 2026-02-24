@@ -332,6 +332,16 @@ export function saveProject(project: ProjectFiles): void {
   }
 }
 
+/** Fix fileType for .mzk/.png files that were incorrectly stored as "script". */
+function fixImageFileTypes(node: FileNode): void {
+  if (node.kind === "file" && node.fileType !== "image" && /\.(mzk|png)$/i.test(node.name)) {
+    node.fileType = "image";
+  }
+  for (const child of node.children) {
+    fixImageFileTypes(child);
+  }
+}
+
 export function loadProject(): ProjectFiles | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -346,6 +356,9 @@ export function loadProject(): ProjectFiles | null {
       const firstMsc = scripts.find((s) => s.name.endsWith(".msc"));
       project.entryPointId = firstMsc?.id ?? null;
     }
+
+    // Backward compat: fix fileType for .mzk/.png files stored as "script"
+    fixImageFileTypes(project.root);
 
     return project;
   } catch {

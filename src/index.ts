@@ -846,19 +846,32 @@ async function openFileNode(
     saveActiveFileContent(runtime);
   }
 
-  // Track this file as open in the editor tabs (script files only)
-  if (node.fileType === "script" && !runtime.openFileIds.includes(node.id)) {
+  // Track this file as open in the editor tabs (script files only, not images)
+  const looksLikeImage = /\.(mzk|png)$/i.test(node.name);
+  if (node.fileType === "script" && !looksLikeImage && !runtime.openFileIds.includes(node.id)) {
     runtime.openFileIds.push(node.id);
   }
 
   runtime.project.activeFileId = node.id;
   saveProject(runtime.project);
 
-  if (node.fileType === "script") {
+  // Determine whether this file should open in the pixel editor.
+  // Extension-based check covers .mzk/.png files that may have
+  // been created with the wrong fileType in older versions.
+  const isImageFile =
+    node.fileType === "image" ||
+    /\.(mzk|png)$/i.test(node.name);
+
+  if (!isImageFile && node.fileType === "script") {
     runtime.scriptText = node.content ?? "";
     switchEditorMode(runtime, "script");
     switchTab(runtime, "script");
-  } else if (node.fileType === "image") {
+  } else if (isImageFile) {
+    // Fix fileType if it was incorrectly set (backward compat)
+    if (node.fileType !== "image") {
+      node.fileType = "image";
+      saveProject(runtime.project);
+    }
     // Load image data from the stored dataURL
     if (node.content) {
       try {
@@ -1283,17 +1296,29 @@ function wireUi(runtime: RuntimeState): void {
     setTimeout(() => hideAutocomplete(), 150);
   });
 
+  let editorSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  let editorValidateTimer: ReturnType<typeof setTimeout> | null = null;
+
   ui.mscEditor.addEventListener("input", () => {
     if (runtime.editorMode === "script") {
       runtime.scriptText = ui.mscEditor.value;
       persistScript(runtime.scriptText);
-      // Persist to active file node
-      saveActiveFileContent(runtime);
+      // Debounce file-tree persistence to avoid heavy serialization on every keystroke
+      if (editorSaveTimer !== null) clearTimeout(editorSaveTimer);
+      editorSaveTimer = setTimeout(() => {
+        saveActiveFileContent(runtime);
+        editorSaveTimer = null;
+      }, 300);
     } else if (runtime.editorMode === "config") {
       runtime.configText = ui.mscEditor.value;
     }
     refreshHighlight(runtime);
-    validateEditor(runtime);
+    // Debounce script parsing/validation to keep typing responsive
+    if (editorValidateTimer !== null) clearTimeout(editorValidateTimer);
+    editorValidateTimer = setTimeout(() => {
+      validateEditor(runtime);
+      editorValidateTimer = null;
+    }, 300);
     updateLineNumbers(runtime);
     ui.editorModifiedDot.hidden = false;
   });
@@ -3024,7 +3049,21 @@ function openOrCreateFileByName(runtime: RuntimeState, filename: string): void {
        runtime.project.root)
     : runtime.project.root;
 
-  const newNode = createScriptFile(filename, "# New script\n");
+  const isImage = /\.(mzk|png)$/i.test(filename);
+  let newNode: FileNode;
+  if (isImage) {
+    const canvas = document.createElement("canvas");
+    canvas.width = runtime.project.projectWidth;
+    canvas.height = runtime.project.projectHeight;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    newNode = createImageFile(filename, canvas.toDataURL("image/png"), canvas.width, canvas.height);
+  } else {
+    newNode = createScriptFile(filename, "# New script\n");
+  }
   addChild(parent, newNode);
   saveProject(runtime.project);
   runtime.fileTreeView?.render();
