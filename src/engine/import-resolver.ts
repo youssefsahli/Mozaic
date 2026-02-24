@@ -105,5 +105,5 @@ function mergeInto(target: MscDocument, source: MscDocument): void {
 }
 
 function emptyDoc(): MscDocument {
-  return { imports: [], schema: {}, entities: {}, events: [] };
+  return { imports: [], schema: {}, entities: {}, events: [], sprites: new Map(), spriteGrid: 0 };
 }

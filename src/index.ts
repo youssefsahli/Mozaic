@@ -2438,7 +2438,7 @@ function collectBindings(
 }
 
 function emptyScript(): MscDocument {
-  return { imports: [], schema: {}, entities: {}, events: [] };
+  return { imports: [], schema: {}, entities: {}, events: [], sprites: new Map(), spriteGrid: 0 };
 }
 
 function switchTab(runtime: RuntimeState, tabId: string): void {

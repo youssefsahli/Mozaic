@@ -26,12 +26,33 @@ export interface MscEvent {
   actions: string[];
 }
 
+export interface MscSpriteGrid {
+  kind: "grid";
+  col: number;
+  row: number;
+  frames: number;
+}
+
+export interface MscSpriteAbsolute {
+  kind: "absolute";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  ox: number;
+  oy: number;
+}
+
+export type MscSpriteDef = MscSpriteGrid | MscSpriteAbsolute;
+
 export interface MscDocument {
   source?: string;
   imports: string[];
   schema: MscSchema;
   entities: Record<string, MscEntity>;
   events: MscEvent[];
+  sprites: Map<string, MscSpriteDef>;
+  spriteGrid: number;
 }
 
 export function buildMscAst(tokens: MscLineToken[]): MscDocument {
@@ -40,6 +61,8 @@ export function buildMscAst(tokens: MscLineToken[]): MscDocument {
     schema: {},
     entities: {},
     events: [],
+    sprites: new Map(),
+    spriteGrid: 0,
   };
 
   let i = 0;
@@ -88,6 +111,11 @@ export function buildMscAst(tokens: MscLineToken[]): MscDocument {
 
     if (key === "Events") {
       i = parseEvents(tokens, i + 1, doc.events);
+      continue;
+    }
+
+    if (key === "Sprites") {
+      i = parseSprites(tokens, i + 1, doc);
       continue;
     }
 
@@ -223,6 +251,93 @@ function parseEvents(
   }
 
   return i;
+}
+
+function parseSprites(
+  tokens: MscLineToken[],
+  start: number,
+  doc: MscDocument
+): number {
+  let i = start;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (token.kind === "empty" || token.kind === "comment") {
+      i++;
+      continue;
+    }
+    if (token.indent === 0) break;
+
+    if (token.kind === "mapping") {
+      const key = token.key ?? "";
+      const value = token.value ?? "";
+
+      if (key === "$Grid") {
+        const grid = parseInt(value, 10);
+        if (!Number.isNaN(grid) && grid > 0) {
+          doc.spriteGrid = grid;
+        }
+        i++;
+        continue;
+      }
+
+      const def = parseSpriteValue(value);
+      if (def !== null) {
+        doc.sprites.set(key, def);
+      }
+    }
+
+    i++;
+  }
+  return i;
+}
+
+function parseSpriteValue(value: string): MscSpriteDef | null {
+  const trimmed = value.trim();
+
+  // Array form: [col, row] or [col, row, frames]
+  const arrayMatch = trimmed.match(
+    /^\[\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*(\d+)\s*)?\]$/
+  );
+  if (arrayMatch) {
+    const col = parseInt(arrayMatch[1], 10);
+    const row = parseInt(arrayMatch[2], 10);
+    const frames = arrayMatch[3] !== undefined
+      ? parseInt(arrayMatch[3], 10)
+      : 1;
+    return { kind: "grid", col, row, frames };
+  }
+
+  // Object form: { x, y, w, h, ox, oy }
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    const inner = trimmed.slice(1, -1).trim();
+    const props: Record<string, number> = {};
+    for (const part of inner.split(",")) {
+      const colonIdx = part.indexOf(":");
+      if (colonIdx === -1) return null;
+      const k = part.slice(0, colonIdx).trim();
+      const v = Number(part.slice(colonIdx + 1).trim());
+      if (!k || Number.isNaN(v)) return null;
+      props[k] = v;
+    }
+    if (
+      props.x === undefined ||
+      props.y === undefined ||
+      props.w === undefined ||
+      props.h === undefined
+    )
+      return null;
+    return {
+      kind: "absolute",
+      x: props.x,
+      y: props.y,
+      w: props.w,
+      h: props.h,
+      ox: props.ox ?? 0,
+      oy: props.oy ?? 0,
+    };
+  }
+
+  return null;
 }
 
 function parseComponentProps(value: string): Record<string, number> | null {
