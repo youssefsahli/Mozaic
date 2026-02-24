@@ -959,11 +959,49 @@ function wireUi(runtime: RuntimeState): void {
   const acDropdown = document.getElementById("msc-autocomplete")!;
   let acItems: string[] = [];
   let acIndex = -1;
+  let acStart = 0;
 
-  function showAutocomplete(items: string[], rect: DOMRect, wordStart: number): void {
+  function getCaretCoordinates(element: HTMLTextAreaElement, position: number) {
+    const div = document.createElement("div");
+    const style = window.getComputedStyle(element);
+    const properties = [
+      "direction", "boxSizing", "width", "height", "overflowX", "overflowY",
+      "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "borderStyle",
+      "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
+      "fontStyle", "fontVariant", "fontWeight", "fontStretch", "fontSize",
+      "fontSizeAdjust", "lineHeight", "fontFamily", "textAlign", "textTransform",
+      "textIndent", "textDecoration", "letterSpacing", "wordSpacing",
+      "tabSize", "MozTabSize"
+    ];
+    properties.forEach(prop => {
+      div.style[prop as any] = style[prop as any];
+    });
+    div.style.position = "absolute";
+    div.style.visibility = "hidden";
+    div.style.whiteSpace = "pre";
+    div.style.left = "-9999px";
+    div.style.top = "-9999px";
+    div.textContent = element.value.substring(0, position);
+    const span = document.createElement("span");
+    span.textContent = ".";
+    div.appendChild(span);
+    document.body.appendChild(div);
+    const spanLeft = span.offsetLeft;
+    const spanTop = span.offsetTop;
+    const lineHeight = parseFloat(style.lineHeight) || parseInt(style.fontSize);
+    document.body.removeChild(div);
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left + element.clientLeft + spanLeft - element.scrollLeft,
+      bottom: rect.top + element.clientTop + spanTop - element.scrollTop + lineHeight
+    };
+  }
+
+  function showAutocomplete(items: string[], rect: { left: number; bottom: number }, wordStart: number): void {
     acDropdown.innerHTML = "";
     acItems = items;
     acIndex = -1;
+    acStart = wordStart;
     for (let i = 0; i < items.length; i++) {
       const div = document.createElement("div");
       div.className = "autocomplete-item";
@@ -1022,8 +1060,7 @@ function wireUi(runtime: RuntimeState): void {
       }
       if (e.key === "Enter" && acIndex >= 0) {
         e.preventDefault();
-        const wordInfo = getCurrentWord(ui.mscEditor);
-        applyAutocomplete(acItems[acIndex], wordInfo.start);
+        applyAutocomplete(acItems[acIndex], acStart);
         return;
       }
       if (e.key === "Escape") {
@@ -1055,9 +1092,9 @@ function wireUi(runtime: RuntimeState): void {
         return lf.startsWith(partial) && lf !== partial;
       });
       if (matches.length > 0) {
-        const wrapRect = document.getElementById("msc-editor-wrap")!.getBoundingClientRect();
         const wordStart = pos - importMatch[1].length;
-        showAutocomplete(matches, wrapRect, wordStart);
+        const coords = getCaretCoordinates(ui.mscEditor, wordStart);
+        showAutocomplete(matches, coords, wordStart);
       } else {
         hideAutocomplete();
       }
@@ -1072,8 +1109,8 @@ function wireUi(runtime: RuntimeState): void {
         k.toLowerCase().startsWith(lower) && k.toLowerCase() !== lower
       );
       if (matches.length > 0) {
-        const wrapRect = document.getElementById("msc-editor-wrap")!.getBoundingClientRect();
-        showAutocomplete(matches, wrapRect, wordInfo.start);
+        const coords = getCaretCoordinates(ui.mscEditor, wordInfo.start);
+        showAutocomplete(matches, coords, wordInfo.start);
       } else {
         hideAutocomplete();
       }
