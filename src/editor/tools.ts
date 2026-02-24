@@ -451,9 +451,6 @@ export const entityBrushTool: Tool = {
     const docY = Math.floor(info.docY);
 
     // Right-click or Shift+click → erase entity under cursor
-    if (info.button === 2 || (info.button === 0 && ctx.brush.color === "")) {
-      // handled below
-    }
     if (info.button === 2) {
       const erased = eraseEntityAt(ctx.stateBuffer, docX, docY);
       if (erased) {
