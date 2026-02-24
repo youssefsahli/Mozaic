@@ -37,6 +37,12 @@ export interface ProjectFiles {
   root: FileNode;
   /** ID of the currently active file. */
   activeFileId: string | null;
+  /** ID of the master entry-point script (.msc). */
+  entryPointId: string | null;
+  /** Global project canvas width (pixels). */
+  projectWidth: number;
+  /** Global project canvas height (pixels). */
+  projectHeight: number;
 }
 
 // ── Constants ────────────────────────────────────────────────
@@ -89,7 +95,67 @@ export function createDefaultProject(): ProjectFiles {
   const root = createFolder("project", true);
   const mainScript = createScriptFile("main.msc", "# Main script\n");
   root.children.push(mainScript);
-  return { root, activeFileId: mainScript.id };
+  return {
+    root,
+    activeFileId: mainScript.id,
+    entryPointId: mainScript.id,
+    projectWidth: 256,
+    projectHeight: 256,
+  };
+}
+
+/** Minimum canvas dimension enforced by the engine (ECS needs ≥ 16 KB = 64×64). */
+export const MIN_PROJECT_DIMENSION = 64;
+
+/**
+ * Create a brand-new project with the given canvas dimensions.
+ *
+ * Generates a blank .mzk image and a starter .msc script that
+ * references it, then returns a fully-wired ProjectFiles object.
+ *
+ * An optional dataUrl can be provided (e.g. when called from a
+ * context that already has a canvas); when omitted a minimal
+ * placeholder is generated via <canvas>.
+ */
+export function createNewProject(
+  width: number,
+  height: number,
+  dataUrl?: string
+): ProjectFiles {
+  const w = Math.max(width, MIN_PROJECT_DIMENSION);
+  const h = Math.max(height, MIN_PROJECT_DIMENSION);
+
+  const root = createFolder("project", true);
+
+  // Blank image
+  let imgDataUrl = dataUrl;
+  if (!imgDataUrl) {
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = "#000000";
+      ctx.fillRect(0, 0, w, h);
+    }
+    imgDataUrl = canvas.toDataURL("image/png");
+  }
+  const imgNode = createImageFile("main.mzk", imgDataUrl, w, h);
+  root.children.push(imgNode);
+
+  // Starter script — addr 64 is past the entity-pool header (first safe user address)
+  const scriptContent =
+    `Source: "main.mzk"\n\nSchema:\n  - $Score: { addr: 64, type: Int16 }\n`;
+  const scriptNode = createScriptFile("main.msc", scriptContent);
+  root.children.push(scriptNode);
+
+  return {
+    root,
+    activeFileId: imgNode.id,
+    entryPointId: scriptNode.id,
+    projectWidth: w,
+    projectHeight: h,
+  };
 }
 
 // ── Tree traversal ───────────────────────────────────────────
@@ -270,7 +336,18 @@ export function loadProject(): ProjectFiles | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as ProjectFiles;
+    const project = JSON.parse(raw) as ProjectFiles;
+
+    // Backward compat: fill missing fields for old projects
+    if (project.projectWidth == null) project.projectWidth = 256;
+    if (project.projectHeight == null) project.projectHeight = 256;
+    if (project.entryPointId == null) {
+      const scripts = collectFiles(project.root, "script");
+      const firstMsc = scripts.find((s) => s.name.endsWith(".msc"));
+      project.entryPointId = firstMsc?.id ?? null;
+    }
+
+    return project;
   } catch {
     return null;
   }

@@ -4,6 +4,8 @@ import {
   createScriptFile,
   createImageFile,
   createDefaultProject,
+  createNewProject,
+  MIN_PROJECT_DIMENSION,
   findNode,
   findParent,
   getNodePath,
@@ -13,8 +15,14 @@ import {
   addChild,
   removeNode,
   renameNode,
+  type ProjectFiles,
 } from "../editor/file-system.js";
 import { parseWithImports } from "../engine/import-resolver.js";
+
+/** Helper to build a minimal ProjectFiles for tests. */
+function makeProject(root: ReturnType<typeof createFolder>, activeFileId: string): ProjectFiles {
+  return { root, activeFileId, entryPointId: null, projectWidth: 256, projectHeight: 256 };
+}
 
 // ── File System Tests ──────────────────────────────────────
 
@@ -26,6 +34,9 @@ describe("file-system", () => {
     expect(project.root.children[0].name).toBe("main.msc");
     expect(project.root.children[0].fileType).toBe("script");
     expect(project.activeFileId).toBe(project.root.children[0].id);
+    expect(project.entryPointId).toBe(project.root.children[0].id);
+    expect(project.projectWidth).toBe(256);
+    expect(project.projectHeight).toBe(256);
   });
 
   it("findNode traverses the tree", () => {
@@ -127,6 +138,57 @@ describe("file-system", () => {
   });
 });
 
+// ── createNewProject Tests ─────────────────────────────────
+
+describe("createNewProject", () => {
+  const DUMMY_DATA_URL = "data:image/png;base64,AAAA";
+
+  it("creates a project with specified dimensions", () => {
+    const project = createNewProject(128, 128, DUMMY_DATA_URL);
+    expect(project.projectWidth).toBe(128);
+    expect(project.projectHeight).toBe(128);
+    expect(project.entryPointId).not.toBeNull();
+    expect(project.activeFileId).not.toBeNull();
+  });
+
+  it("enforces minimum dimension of 64", () => {
+    const project = createNewProject(32, 32, DUMMY_DATA_URL);
+    expect(project.projectWidth).toBe(MIN_PROJECT_DIMENSION);
+    expect(project.projectHeight).toBe(MIN_PROJECT_DIMENSION);
+  });
+
+  it("generates main.mzk and main.msc files", () => {
+    const project = createNewProject(256, 256, DUMMY_DATA_URL);
+    const files = collectFiles(project.root);
+    const names = files.map((f) => f.name);
+    expect(names).toContain("main.mzk");
+    expect(names).toContain("main.msc");
+  });
+
+  it("sets entryPointId to the main.msc file", () => {
+    const project = createNewProject(256, 256, DUMMY_DATA_URL);
+    const scripts = collectFiles(project.root, "script");
+    const mainMsc = scripts.find((s) => s.name === "main.msc");
+    expect(mainMsc).toBeDefined();
+    expect(project.entryPointId).toBe(mainMsc!.id);
+  });
+
+  it("sets activeFileId to the main.mzk file", () => {
+    const project = createNewProject(256, 256, DUMMY_DATA_URL);
+    const images = collectFiles(project.root, "image");
+    const mainMzk = images.find((i) => i.name === "main.mzk");
+    expect(mainMzk).toBeDefined();
+    expect(project.activeFileId).toBe(mainMzk!.id);
+  });
+
+  it("main.msc references main.mzk in its Source field", () => {
+    const project = createNewProject(256, 256, DUMMY_DATA_URL);
+    const scripts = collectFiles(project.root, "script");
+    const mainMsc = scripts.find((s) => s.name === "main.msc");
+    expect(mainMsc!.content).toContain('Source: "main.mzk"');
+  });
+});
+
 // ── Import Resolution Tests ────────────────────────────────
 
 describe("resolveImportPath", () => {
@@ -219,7 +281,7 @@ describe("parseWithImports", () => {
     addChild(root, main);
     addChild(root, enemies);
 
-    const project = { root, activeFileId: main.id };
+    const project = makeProject(root, main.id);
     const { document, errors } = parseWithImports(
       main.content!,
       main.id,
@@ -239,7 +301,7 @@ describe("parseWithImports", () => {
     );
     addChild(root, main);
 
-    const project = { root, activeFileId: main.id };
+    const project = makeProject(root, main.id);
     const { errors } = parseWithImports(main.content!, main.id, project);
 
     expect(errors.length).toBeGreaterThan(0);
@@ -253,7 +315,7 @@ describe("parseWithImports", () => {
     addChild(root, a);
     addChild(root, b);
 
-    const project = { root, activeFileId: a.id };
+    const project = makeProject(root, a.id);
     const { errors } = parseWithImports(a.content!, a.id, project);
 
     // No infinite loop — circular import skipped silently
@@ -273,7 +335,7 @@ describe("parseWithImports", () => {
     addChild(root, main);
     addChild(root, vars);
 
-    const project = { root, activeFileId: main.id };
+    const project = makeProject(root, main.id);
     const { document, errors } = parseWithImports(
       main.content!,
       main.id,
@@ -298,7 +360,7 @@ describe("parseWithImports", () => {
     addChild(root, main);
     addChild(root, other);
 
-    const project = { root, activeFileId: main.id };
+    const project = makeProject(root, main.id);
     const { document } = parseWithImports(main.content!, main.id, project);
 
     // Main file's Entity.Hero should win

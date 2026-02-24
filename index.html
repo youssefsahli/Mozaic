@@ -1009,6 +1009,12 @@
       .ftv-row.ftv-active .ftv-label {
         color: var(--accent);
       }
+      .ftv-entry-star {
+        color: #e8a317;
+        font-size: 11px;
+        margin-left: 4px;
+        flex-shrink: 0;
+      }
       .ftv-actions {
         display: none;
         gap: 2px;
@@ -1385,6 +1391,11 @@
                     <button type="button" class="ftv-dropdown-item" data-action="new-folder">
                       <span class="ftv-dropdown-icon"><svg viewBox="0 0 16 16"><path d="M1.5 4h5l1.5-1.5H14v10H1.5z"/></svg></span>
                       <span class="ftv-dropdown-label">New Folder</span>
+                    </button>
+                    <div class="ftv-dropdown-sep"></div>
+                    <button type="button" class="ftv-dropdown-item" data-action="new-project">
+                      <span class="ftv-dropdown-icon"><svg viewBox="0 0 16 16"><path d="M1.5 4h5l1.5-1.5H14v10H1.5z"/><path d="M8 7v4M6 9h4" stroke="currentColor" stroke-width="1.2"/></svg></span>
+                      <span class="ftv-dropdown-label">New Project</span>
                     </button>
                     <div class="ftv-dropdown-sep"></div>
                     <button type="button" class="ftv-dropdown-item" data-action="import-script">
