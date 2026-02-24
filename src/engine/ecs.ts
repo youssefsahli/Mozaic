@@ -3,12 +3,18 @@
  *
  * Pure functions that operate on the Uint8ClampedArray entity memory.
  *
- *   applyKinematic  — adds velocity to position
- *   applyGravity    — accelerates Y velocity, clamped to terminal velocity
- *   ecsTick         — per-frame loop over the entity pool
+ *   applyKinematic           — adds velocity to position
+ *   applyGravity             — accelerates Y velocity, clamped to terminal velocity
+ *   applyTopDownController   — sets velocity from 4-directional input
+ *   applyPlatformerController — sets horizontal velocity and jump from input
+ *   applyAnimator            — cycles Sprite ID over time using a sequence array
+ *   applyCollider            — clamps entity position to screen boundaries
+ *   ecsTick                  — per-frame loop over the entity pool
  */
 
 import type { EngineState } from "./loop.js";
+import type { InputState } from "./input.js";
+import type { BakedAsset } from "./baker.js";
 import type { MscDocument } from "../parser/msc.js";
 import {
   readInt8,
@@ -64,6 +70,116 @@ export function applyGravity(
   writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, vy);
 }
 
+// ── Input Controllers ─────────────────────────────────────────
+
+/**
+ * Top-down 4-directional controller.
+ *
+ * Reads directional input and overwrites VelX (ptr+6) and VelY (ptr+8).
+ * If opposing keys (or no keys) are pressed on an axis, that axis is set to 0.
+ */
+export function applyTopDownController(
+  buffer: Uint8ClampedArray,
+  ptr: number,
+  input: InputState,
+  speed: number
+): void {
+  let vx = 0;
+  let vy = 0;
+  const left = input.active.has("Action.MoveLeft");
+  const right = input.active.has("Action.MoveRight");
+  const up = input.active.has("Action.MoveUp");
+  const down = input.active.has("Action.MoveDown");
+  if (left && !right) vx = -speed;
+  else if (right && !left) vx = speed;
+  if (up && !down) vy = -speed;
+  else if (down && !up) vy = speed;
+  writeSignedInt16(buffer, ptr + ENTITY_VEL_X, vx);
+  writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, vy);
+}
+
+/**
+ * Side-scrolling platformer controller.
+ *
+ * Sets horizontal velocity from left/right input and applies
+ * jump force when Action.Jump is active.
+ */
+export function applyPlatformerController(
+  buffer: Uint8ClampedArray,
+  ptr: number,
+  input: InputState,
+  speed: number,
+  jumpForce: number
+): void {
+  let vx = 0;
+  const left = input.active.has("Action.MoveLeft");
+  const right = input.active.has("Action.MoveRight");
+  if (left && !right) vx = -speed;
+  else if (right && !left) vx = speed;
+  writeSignedInt16(buffer, ptr + ENTITY_VEL_X, vx);
+  if (input.active.has("Action.Jump")) {
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, -jumpForce);
+  }
+}
+
+// ── Animator ──────────────────────────────────────────────────
+
+/**
+ * Cycle the Sprite ID (ptr+11) over time through a sequence array.
+ *
+ * Uses ptr+12 (Int8) as the Timer and ptr+13 (Int8) as the Sequence Index.
+ */
+export function applyAnimator(
+  buffer: Uint8ClampedArray,
+  ptr: number,
+  sequenceArray: number[],
+  speed: number
+): void {
+  let timer = readInt8(buffer, ptr + 12);
+  if (timer > 0) {
+    timer--;
+    writeInt8(buffer, ptr + 12, timer);
+  } else {
+    writeInt8(buffer, ptr + 12, speed);
+    let idx = readInt8(buffer, ptr + 13);
+    idx = (idx + 1) % sequenceArray.length;
+    writeInt8(buffer, ptr + 13, idx);
+    writeInt8(buffer, ptr + ENTITY_DATA_START, sequenceArray[idx]);
+  }
+}
+
+// ── Collider (Screen Bounds) ──────────────────────────────────
+
+/**
+ * Clamp entity position to screen boundaries.
+ *
+ * Prevents entities from moving off-screen and zeroes velocity on contact.
+ */
+export function applyCollider(
+  state: EngineState,
+  buffer: Uint8ClampedArray,
+  ptr: number
+): void {
+  let px = readSignedInt16(buffer, ptr + ENTITY_POS_X);
+  let py = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
+
+  if (px < 0) {
+    writeSignedInt16(buffer, ptr + ENTITY_POS_X, 0);
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_X, 0);
+  } else if (px > state.width - 16) {
+    writeSignedInt16(buffer, ptr + ENTITY_POS_X, state.width - 16);
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_X, 0);
+  }
+
+  if (py < 0) {
+    writeSignedInt16(buffer, ptr + ENTITY_POS_Y, 0);
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, 0);
+  } else if (py > state.height - 16) {
+    writeSignedInt16(buffer, ptr + ENTITY_POS_Y, state.height - 16);
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, 0);
+  }
+}
+
 // ── Main ECS Tick ─────────────────────────────────────────────
 
 /**
@@ -72,9 +188,10 @@ export function applyGravity(
  * For each active entity:
  *  1. Map its Entity Type ID (byte 1) to the script entity definition.
  *  2. Initialize its Sprite ID (byte 11) from the default visual if needed.
- *  3. Execute any attached components (Gravity, Kinematic).
+ *  3. Execute any attached components (Gravity, TopDownController,
+ *     PlatformerController, Kinematic, Collider, Animator).
  */
-export function ecsTick(state: EngineState, script: MscDocument): void {
+export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset, script: MscDocument): void {
   const { buffer } = state;
   const { entities, sprites } = script;
 
@@ -129,8 +246,40 @@ export function ecsTick(state: EngineState, script: MscDocument): void {
       );
     }
 
+    if (components.TopDownController) {
+      applyTopDownController(
+        buffer,
+        ptr,
+        input,
+        components.TopDownController.speed ?? 1
+      );
+    }
+
+    if (components.PlatformerController) {
+      applyPlatformerController(
+        buffer,
+        ptr,
+        input,
+        components.PlatformerController.speed ?? 1,
+        components.PlatformerController.jumpForce ?? 5
+      );
+    }
+
     if (components.Kinematic) {
       applyKinematic(buffer, ptr);
+    }
+
+    if (components.Collider) {
+      applyCollider(state, buffer, ptr);
+    }
+
+    if (components.Animator) {
+      const seqIdx = components.Animator.sequence ?? 0;
+      const animSpeed = components.Animator.speed ?? 10;
+      const seqArray = script.animations?.[seqIdx];
+      if (seqArray && seqArray.length > 0) {
+        applyAnimator(buffer, ptr, seqArray, animSpeed);
+      }
     }
   }
 }
