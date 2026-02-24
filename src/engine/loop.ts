@@ -15,6 +15,7 @@ import type { InputState } from "./input.js";
 import type { MscDocument } from "../parser/msc.js";
 import type { Renderer } from "./renderer.js";
 import { InputManager } from "./input.js";
+import { ecsTick } from "./ecs.js";
 
 export interface EngineState {
   /** Raw pixel memory — the "state PNG" flattened to RGBA bytes. */
@@ -71,6 +72,9 @@ export class EngineLoop {
 
     // 2 & 3. Process + Write
     this.state = logic(this.state, input, baked, script);
+
+    // 3b. ECS tick — apply component systems to entity memory
+    ecsTick(this.state, script);
 
     // 4. Render
     renderer.render(this.state.buffer, this.state.width, this.state.height);
