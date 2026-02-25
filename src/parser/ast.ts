@@ -196,6 +196,9 @@ function parseEntity(
       const value = token.value ?? "";
       if (key === "Visual") {
         entity.visual = stripQuotes(value);
+      } else if (key === "Components") {
+        i = parseNestedComponents(tokens, i + 1, token.indent, entity);
+        continue;
       } else if (value) {
         const props = parseComponentProps(value);
         if (props !== null) {
@@ -442,4 +445,70 @@ function parseInstances(
 
 function stripQuotes(value: string): string {
   return value.replace(/^["']|["']$/g, "");
+}
+
+function parseNestedComponents(
+  tokens: MscLineToken[],
+  start: number,
+  parentIndent: number,
+  entity: MscEntity
+): number {
+  let i = start;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (token.kind === "empty" || token.kind === "comment") {
+      i++;
+      continue;
+    }
+    if (token.indent <= parentIndent) break;
+
+    if (token.kind === "mapping") {
+      const compName = token.key ?? "";
+      const compVal = token.value ?? "";
+
+      let props: Record<string, number> = {};
+
+      if (compVal) {
+        const parsed = parseComponentProps(compVal);
+        if (parsed) props = parsed;
+      }
+
+      // Check for nested properties (higher indent)
+      // e.g. ComponentName:
+      //        prop: 1
+      const componentIndent = token.indent;
+      let j = i + 1;
+      while (j < tokens.length) {
+        const sub = tokens[j];
+        if (sub.kind === "empty" || sub.kind === "comment") {
+          j++;
+          continue;
+        }
+        if (sub.indent <= componentIndent) break;
+
+        if (sub.kind === "mapping") {
+          const pk = sub.key ?? "";
+          const pv = sub.value ?? "";
+          const n = parseFloat(pv);
+          if (!Number.isNaN(n)) {
+            props[pk] = n;
+          }
+        }
+        j++;
+      }
+
+      if (!entity.components) entity.components = {};
+      entity.components[compName] = {
+        ...(entity.components[compName] || {}),
+        ...props,
+      };
+
+      // Advance main loop to where we left off
+      i = j;
+      continue;
+    }
+
+    i++;
+  }
+  return i;
 }
