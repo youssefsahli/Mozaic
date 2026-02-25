@@ -243,8 +243,8 @@ export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset
       applyGravity(
         buffer,
         ptr,
-        components.Gravity.force ?? 1,
-        components.Gravity.terminalVelocity ?? 255
+        Number(components.Gravity.force ?? 1),
+        Number(components.Gravity.terminalVelocity ?? 255)
       );
     }
 
@@ -253,7 +253,7 @@ export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset
         buffer,
         ptr,
         input,
-        components.TopDownController.speed ?? 1
+        Number(components.TopDownController.speed ?? 1)
       );
     }
 
@@ -262,8 +262,8 @@ export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset
         buffer,
         ptr,
         input,
-        components.PlatformerController.speed ?? 1,
-        components.PlatformerController.jumpForce ?? 5
+        Number(components.PlatformerController.speed ?? 1),
+        Number(components.PlatformerController.jumpForce ?? 5)
       );
     }
 
@@ -276,7 +276,7 @@ export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset
     }
 
     if (components.Animator) {
-      const animSpeed = components.Animator.speed ?? 10;
+      const animSpeed = Number(components.Animator.speed ?? 10);
       const seqName = entityDef.visual;
       if (seqName) {
         const baseSpriteId = spriteNameToId.get(seqName);
