@@ -180,13 +180,17 @@ const STATE_COND_RE =
 function resolveCondAtom(
   token: string,
   schema: MscSchema,
-  buffer: Uint8ClampedArray
+  buffer: Uint8ClampedArray,
+  context?: Record<string, number>
 ): number {
   const t = token.trim();
   if (t.startsWith("State.$")) {
+    const varName = t.slice("State.".length);
+    if (context && varName in context) return context[varName];
     return evalAtom(t, schema, buffer);
   }
   if (t.startsWith("$")) {
+    if (context && t in context) return context[t];
     return evalAtom(`State.${t}`, schema, buffer);
   }
   const n = Number(t);
@@ -196,14 +200,15 @@ function resolveCondAtom(
 function evalStateCondition(
   condition: string,
   schema: MscSchema,
-  buffer: Uint8ClampedArray
+  buffer: Uint8ClampedArray,
+  context?: Record<string, number>
 ): boolean {
   const m = condition.match(STATE_COND_RE);
   if (!m) return false;
 
-  const lhs = resolveCondAtom(m[1], schema, buffer);
+  const lhs = resolveCondAtom(m[1], schema, buffer, context);
   const op = m[2];
-  const rhs = resolveCondAtom(m[3], schema, buffer);
+  const rhs = resolveCondAtom(m[3], schema, buffer, context);
 
   switch (op) {
     case "==":
@@ -268,13 +273,14 @@ function isTriggerFired(
 function resolveEntityState(
   entityDef: MscEntity,
   schema: MscSchema,
-  buffer: Uint8ClampedArray
+  buffer: Uint8ClampedArray,
+  context?: Record<string, number>
 ): { visual?: string; components?: Record<string, Record<string, number | string>> } | null {
   if (!entityDef.states) return null;
 
   for (const stateDef of Object.values(entityDef.states)) {
     if (!stateDef.condition) continue;
-    if (evalStateCondition(stateDef.condition, schema, buffer)) {
+    if (evalStateCondition(stateDef.condition, schema, buffer, context)) {
       return stateDef;
     }
   }
@@ -339,7 +345,17 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
         if (!entityDef) continue;
 
         // ── Entity State Resolution ─────────────────────────────
-        const activeState = resolveEntityState(entityDef, schema, buffer);
+        // Gather context from all active components' getContext methods
+        const contextVariables: Record<string, number> = {};
+        if (entityDef.components) {
+          for (const [componentId, props] of Object.entries(entityDef.components)) {
+            const comp = registry.get(componentId);
+            if (comp?.getContext) {
+              Object.assign(contextVariables, comp.getContext(buffer, ptr, props));
+            }
+          }
+        }
+        const activeState = resolveEntityState(entityDef, schema, buffer, contextVariables);
         const effectiveVisual = activeState?.visual ?? entityDef.visual;
 
         // Merge component props: state overrides take precedence
@@ -370,10 +386,10 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
             // Animator is handled specially below (needs sprite data)
             if (componentId === "Animator") continue;
 
-            const fn = registry.get(componentId);
-            if (!fn) continue;
+            const comp = registry.get(componentId);
+            if (!comp?.tick) continue;
             try {
-              fn(buffer, ptr, props, input, baked, state);
+              comp.tick(buffer, ptr, props, input, baked, state);
             } catch (err) {
               console.warn(
                 `[Mozaic ECS] Component "${componentId}" threw on entity at offset ${ptr}:`,
