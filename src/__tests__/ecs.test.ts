@@ -35,6 +35,7 @@ function makeState(buffer?: Uint8ClampedArray): EngineState {
     width: 64,
     height: 64,
     frameCount: 0,
+    tickCount: 0,
   };
 }
 
@@ -276,8 +277,6 @@ describe("ecsTick", () => {
     writeInt8(buf, ptr + ENTITY_ACTIVE, 1);
     writeInt8(buf, ptr + ENTITY_TYPE_ID, 1);
     writeInt8(buf, ptr + ENTITY_DATA_START, 1); // initial sprite
-    writeInt8(buf, ptr + 12, 0); // timer = 0, so frame advances immediately
-    writeInt8(buf, ptr + 13, 0); // sequence index = 0
 
     const script: MscDocument = {
       imports: [],
@@ -296,12 +295,26 @@ describe("ecsTick", () => {
     };
 
     // hero_walk is sprite ID 1 with 3 frames → sequence [1, 2, 3]
-    ecsTick(makeState(buf), makeInput(), makeBaked(), script);
+    // tickCount=0, speed=5 → frameIndex = floor(0/5) % 3 = 0 → sprite 1
+    const state = makeState(buf);
+    state.tickCount = 0;
+    ecsTick(state, makeInput(), makeBaked(), script);
+    expect(readInt8(buf, ptr + ENTITY_DATA_START)).toBe(1);
 
-    // Timer=0 → advances to next frame (index 1), sets sprite to 2
+    // tickCount=5 → frameIndex = floor(5/5) % 3 = 1 → sprite 2
+    state.tickCount = 5;
+    ecsTick(state, makeInput(), makeBaked(), script);
     expect(readInt8(buf, ptr + ENTITY_DATA_START)).toBe(2);
-    expect(readInt8(buf, ptr + 12)).toBe(5); // timer reset to speed
-    expect(readInt8(buf, ptr + 13)).toBe(1); // sequence index advanced
+
+    // tickCount=10 → frameIndex = floor(10/5) % 3 = 2 → sprite 3
+    state.tickCount = 10;
+    ecsTick(state, makeInput(), makeBaked(), script);
+    expect(readInt8(buf, ptr + ENTITY_DATA_START)).toBe(3);
+
+    // tickCount=15 → frameIndex = floor(15/5) % 3 = 0 → wraps to sprite 1
+    state.tickCount = 15;
+    ecsTick(state, makeInput(), makeBaked(), script);
+    expect(readInt8(buf, ptr + ENTITY_DATA_START)).toBe(1);
   });
 });
 

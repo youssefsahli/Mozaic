@@ -23,6 +23,7 @@ export interface EngineState {
   width: number;
   height: number;
   frameCount: number;
+  tickCount: number;
 }
 
 export type LogicFn = (
@@ -65,6 +66,7 @@ export class EngineLoop {
   }
 
   private tick(): void {
+    this.state.tickCount++;
     const { baked, script, logic, renderer, inputManager } = this.options;
 
     // 1. Sample
@@ -98,6 +100,7 @@ export function createInitialState(imageData: ImageData): EngineState {
     width: imageData.width,
     height: imageData.height,
     frameCount: 0,
+    tickCount: 0,
   };
 }
 

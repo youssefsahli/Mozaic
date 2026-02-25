@@ -284,7 +284,9 @@ export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset
           const spriteDef = sprites.get(seqName);
           const frames = spriteDef && spriteDef.kind === "grid" ? spriteDef.frames : 1;
           const sequenceArray = Array.from({length: frames}, (_, i) => baseSpriteId + i);
-          applyAnimator(buffer, ptr, sequenceArray, animSpeed);
+          const frameIndex = Math.floor(state.tickCount / animSpeed) % sequenceArray.length;
+          const currentSpriteId = sequenceArray[frameIndex];
+          writeInt8(buffer, ptr + ENTITY_DATA_START, currentSpriteId);
         }
       }
     }
