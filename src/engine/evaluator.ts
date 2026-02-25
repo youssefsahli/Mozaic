@@ -23,7 +23,7 @@
 import type { EngineState, LogicFn } from "./loop.js";
 import type { InputState } from "./input.js";
 import type { BakedAsset } from "./baker.js";
-import type { MscDocument, MscSchema } from "../parser/msc.js";
+import type { MscDocument, MscEntity, MscSchema } from "../parser/msc.js";
 import { detectColorCollision } from "./physics.js";
 import type { ComponentRegistry } from "./components.js";
 import {
@@ -259,6 +259,29 @@ function isTriggerFired(
   return false;
 }
 
+// ── Entity State Resolution ───────────────────────────────────
+
+/**
+ * Resolve the active entity state by evaluating each state's condition.
+ * Returns the first matching state, or null if none match.
+ */
+function resolveEntityState(
+  entityDef: MscEntity,
+  schema: MscSchema,
+  buffer: Uint8ClampedArray
+): { visual?: string; components?: Record<string, Record<string, number | string>> } | null {
+  if (!entityDef.states) return null;
+
+  for (const stateDef of Object.values(entityDef.states)) {
+    if (!stateDef.condition) continue;
+    if (evalStateCondition(stateDef.condition, schema, buffer)) {
+      return stateDef;
+    }
+  }
+
+  return null;
+}
+
 // ── Public API ────────────────────────────────────────────────
 
 /**
@@ -315,19 +338,34 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
         const entityDef = entities[entityNames[typeId - 1]];
         if (!entityDef) continue;
 
+        // ── Entity State Resolution ─────────────────────────────
+        const activeState = resolveEntityState(entityDef, schema, buffer);
+        const effectiveVisual = activeState?.visual ?? entityDef.visual;
+
+        // Merge component props: state overrides take precedence
+        let effectiveComponents = entityDef.components;
+        if (activeState?.components && entityDef.components) {
+          effectiveComponents = { ...entityDef.components };
+          for (const [key, val] of Object.entries(activeState.components)) {
+            effectiveComponents[key] = { ...(effectiveComponents[key] || {}), ...val };
+          }
+        } else if (activeState?.components) {
+          effectiveComponents = activeState.components;
+        }
+
         // ── Sprite Initialization ───────────────────────────────
         const currentSpriteId = readInt8(buffer, ptr + ENTITY_DATA_START);
-        if (currentSpriteId === 0 && entityDef.visual) {
-          const sid = spriteNameToId.get(entityDef.visual);
+        if (currentSpriteId === 0 && effectiveVisual) {
+          const sid = spriteNameToId.get(effectiveVisual);
           if (sid !== undefined) {
             writeInt8(buffer, ptr + ENTITY_DATA_START, sid);
           }
         }
 
         // ── Component Execution ─────────────────────────────────
-        if (entityDef.components) {
+        if (effectiveComponents) {
           for (const [componentId, props] of Object.entries(
-            entityDef.components
+            effectiveComponents
           )) {
             // Animator is handled specially below (needs sprite data)
             if (componentId === "Animator") continue;
@@ -345,9 +383,10 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
           }
 
           // ── Animator ────────────────────────────────────────────
-          if (entityDef.components.Animator) {
-            const animSpeed = (entityDef.components.Animator.speed as number) ?? 10;
-            const seqName = (entityDef.components.Animator.sequence as string) ?? entityDef.visual;
+          const animatorProps = effectiveComponents.Animator;
+          if (animatorProps) {
+            const animSpeed = (animatorProps.speed as number) ?? 10;
+            const seqName = (animatorProps.sequence as string) ?? effectiveVisual;
             if (seqName) {
               const baseSpriteId = spriteNameToId.get(seqName);
               if (baseSpriteId !== undefined) {
