@@ -366,7 +366,7 @@ export const cameraEngineComponent: EngineComponent = {
     const zoom = (props.zoom as number) ?? 1;
     const shake = (props.shake as number) ?? 0;
     const tint = parseHexTint((props.tint as string) ?? "#FFFFFF");
-    const followSpeed = Math.min(1, Math.max(0, (props.followSpeed as number) ?? 1));
+    const followSpeed = Math.min(1, Math.max(0, (props.followSpeed as number) ?? 1)); // clamp to [0, 1]
 
     const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
     const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);

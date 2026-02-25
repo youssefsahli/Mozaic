@@ -120,7 +120,7 @@ varying vec2 v_texCoord;
 void main() {
   vec2 pos = (a_position - u_camPos) * u_zoom;
   if (u_shake > 0.0) {
-    pos.x += sin(u_time * 50.0) * u_shake;
+    pos.x += sin(u_time * 50.0) * u_shake;  // 50.0 = shake frequency in Hz
     pos.y += cos(u_time * 50.0 + 1.0) * u_shake;
   }
   vec2 clip = (pos / u_resolution) * 2.0 - 1.0;
