@@ -200,9 +200,11 @@ export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset
   const entityNames = Object.keys(entities);
 
   // Build a mapping from sprite name → sprite atlas index (1-based).
+  // Filter out the $Grid metadata key so it does not offset SpriteID math.
   const spriteNameToId = new Map<string, number>();
   let spriteIdx = 1;
   for (const [name, def] of sprites) {
+    if (name === "$Grid") continue;
     spriteNameToId.set(name, spriteIdx);
     spriteIdx += def.kind === "grid" ? def.frames : 1;
   }

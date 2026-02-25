@@ -120,4 +120,16 @@ describe("compileSpriteAtlas", () => {
     const atlas = compileSpriteAtlas(sprites, 16, 256, 256);
     expect(atlas.length).toBe(2); // [null, sprite]
   });
+
+  it("skips $Grid metadata key and does not offset SpriteIDs", () => {
+    const sprites = new Map<string, MscSpriteDef>([
+      ["$Grid", { kind: "grid", col: 0, row: 0, frames: 1 }],
+      ["hero", { kind: "grid", col: 1, row: 0, frames: 1 }],
+    ]);
+    const atlas = compileSpriteAtlas(sprites, 16, 256, 256);
+    // $Grid should be skipped; only "hero" should produce an entry
+    expect(atlas.length).toBe(2); // [null, hero]
+    const hero = atlas[1] as BakedSprite;
+    expect(hero.u0).toBeCloseTo(16 / 256); // col=1 → x=16
+  });
 });
