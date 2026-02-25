@@ -29,10 +29,13 @@ export interface InputState {
 
 /**
  * Normalize a KeyboardEvent.code so that browser codes like "KeyW"
- * match the MSC-format "Key_W".
+ * match the MSC-format "Key_W", and "Space" matches "Key_Space".
  */
 function normalizeCode(code: string): string {
-  return code.replace(/^Key([A-Z])/, "Key_$1");
+  const letterFixed = code.replace(/^Key([A-Z])$/, "Key_$1");
+  if (letterFixed !== code) return letterFixed;
+  if (code === "Space") return "Key_Space";
+  return code;
 }
 
 export class InputManager {

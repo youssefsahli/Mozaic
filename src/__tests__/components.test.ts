@@ -399,28 +399,41 @@ describe("screenShakeComponent", () => {
 });
 
 describe("spriteAnimatorComponent", () => {
-  it("cycles type ID when frame delay is reached", () => {
+  it("cycles sprite ID when frame delay is reached", () => {
     const buf = createStateBuffer();
-    writeInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID, 0);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 0);
 
     // Run enough frames to trigger a cycle (frameDelay = 2, count = 3)
     for (let i = 0; i < 2; i++) {
       spriteAnimatorComponent(buf, ENTITY_PTR, { frames: 2, count: 3 }, makeInput(), makeBaked(), makeState(buf));
     }
 
-    expect(readInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID)).toBe(1);
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(1);
   });
 
-  it("wraps type ID back to zero", () => {
+  it("wraps sprite ID back to zero", () => {
     const buf = createStateBuffer();
-    writeInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID, 2);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 2);
 
     // Trigger a cycle with count=3 (2 → 0)
     for (let i = 0; i < 2; i++) {
       spriteAnimatorComponent(buf, ENTITY_PTR, { frames: 2, count: 3 }, makeInput(), makeBaked(), makeState(buf));
     }
 
-    expect(readInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID)).toBe(0);
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(0);
+  });
+
+  it("does not modify entity type ID during animation", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID, 5);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 0);
+
+    for (let i = 0; i < 4; i++) {
+      spriteAnimatorComponent(buf, ENTITY_PTR, { frames: 2, count: 3 }, makeInput(), makeBaked(), makeState(buf));
+    }
+
+    // Type ID must remain unchanged
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID)).toBe(5);
   });
 });
 
