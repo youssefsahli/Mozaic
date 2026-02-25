@@ -203,6 +203,22 @@ function evalStateCondition(
   buffer: Uint8ClampedArray,
   context?: Record<string, number>
 ): boolean {
+  // Support OR (||)
+  if (condition.includes("||")) {
+    const parts = condition.split("||");
+    return parts.some((part) =>
+      evalStateCondition(part.trim(), schema, buffer, context)
+    );
+  }
+
+  // Support AND (&&)
+  if (condition.includes("&&")) {
+    const parts = condition.split("&&");
+    return parts.every((part) =>
+      evalStateCondition(part.trim(), schema, buffer, context)
+    );
+  }
+
   const m = condition.match(STATE_COND_RE);
   if (!m) return false;
 

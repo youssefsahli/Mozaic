@@ -34,7 +34,7 @@ Conditions are string expressions that return a boolean.
 
 **Operators:**
 *   Comparison: `==`, `!=`, `>`, `<`, `>=`, `<=`
-*   Logic: currently simple comparisons (e.g. `$val > 10`).
+*   Logic: `||` (OR), `&&` (AND). Example: `$vx != 0 || $vy != 0`
 
 **Variables:**
 You can reference two types of variables in conditions:

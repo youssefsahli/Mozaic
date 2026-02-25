@@ -99,6 +99,6 @@
     "id": "entity-state-reference",
     "title": "Entity State Reference",
     "category": "Reference",
-    "content": "# Entity State Reference\nState management in Mozaic allows entities to change their appearance and behavior dynamically based on conditions.\n\n## Defining States\nStates are defined under the `States:` key in an entity definition.\n\n## How States Work\n- Evaluation Order: Top to bottom\n- First Match Wins\n- Fallback: Uses base definition if no condition is met\n\n## Writing Conditions\n- Operators: ==, !=, >, <, >=, <=\n- Variables: Local ($vx, $vy) or Global (State.$var)\n\n## Overriding Properties\n- Visual: Changes sprite\n- Components: Updates properties (Gravity, Speed)\n\n## Full Reference\nSee docs/ENTITY_STATES.md for complete details and examples."
+    "content": "# Entity State Reference\nState management in Mozaic allows entities to change their appearance and behavior dynamically based on conditions.\n\n## Defining States\nStates are defined under the `States:` key in an entity definition.\n\n## How States Work\n- Evaluation Order: Top to bottom\n- First Match Wins\n- Fallback: Uses base definition if no condition is met\n\n## Writing Conditions\n- Operators: ==, !=, >, <, >=, <=, ||, &&\n- Variables: Local ($vx, $vy) or Global (State.$var)\n\n## Overriding Properties\n- Visual: Changes sprite\n- Components: Updates properties (Gravity, Speed)\n\n## Full Reference\nSee docs/ENTITY_STATES.md for complete details and examples."
   }
 ]
