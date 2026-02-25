@@ -33,10 +33,15 @@ import {
   writeInt16,
   readInt32,
   writeInt32,
+  readSignedInt16,
   MEMORY_BLOCKS,
   ENTITY_SLOT_SIZE,
   ENTITY_ACTIVE,
   ENTITY_TYPE_ID,
+  ENTITY_POS_X,
+  ENTITY_POS_Y,
+  ENTITY_VEL_X,
+  ENTITY_VEL_Y,
   ENTITY_DATA_START,
 } from "./memory.js";
 
@@ -180,13 +185,17 @@ const STATE_COND_RE =
 function resolveCondAtom(
   token: string,
   schema: MscSchema,
-  buffer: Uint8ClampedArray
+  buffer: Uint8ClampedArray,
+  context?: Record<string, number>
 ): number {
   const t = token.trim();
   if (t.startsWith("State.$")) {
+    const varName = t.slice("State.".length);
+    if (context && varName in context) return context[varName];
     return evalAtom(t, schema, buffer);
   }
   if (t.startsWith("$")) {
+    if (context && t in context) return context[t];
     return evalAtom(`State.${t}`, schema, buffer);
   }
   const n = Number(t);
@@ -196,14 +205,15 @@ function resolveCondAtom(
 function evalStateCondition(
   condition: string,
   schema: MscSchema,
-  buffer: Uint8ClampedArray
+  buffer: Uint8ClampedArray,
+  context?: Record<string, number>
 ): boolean {
   const m = condition.match(STATE_COND_RE);
   if (!m) return false;
 
-  const lhs = resolveCondAtom(m[1], schema, buffer);
+  const lhs = resolveCondAtom(m[1], schema, buffer, context);
   const op = m[2];
-  const rhs = resolveCondAtom(m[3], schema, buffer);
+  const rhs = resolveCondAtom(m[3], schema, buffer, context);
 
   switch (op) {
     case "==":
@@ -268,13 +278,14 @@ function isTriggerFired(
 function resolveEntityState(
   entityDef: MscEntity,
   schema: MscSchema,
-  buffer: Uint8ClampedArray
+  buffer: Uint8ClampedArray,
+  context?: Record<string, number>
 ): { visual?: string; components?: Record<string, Record<string, number | string>> } | null {
   if (!entityDef.states) return null;
 
   for (const stateDef of Object.values(entityDef.states)) {
     if (!stateDef.condition) continue;
-    if (evalStateCondition(stateDef.condition, schema, buffer)) {
+    if (evalStateCondition(stateDef.condition, schema, buffer, context)) {
       return stateDef;
     }
   }
@@ -339,7 +350,13 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
         if (!entityDef) continue;
 
         // ── Entity State Resolution ─────────────────────────────
-        const activeState = resolveEntityState(entityDef, schema, buffer);
+        const contextVariables: Record<string, number> = {
+          $vx: readSignedInt16(buffer, ptr + ENTITY_VEL_X),
+          $vy: readSignedInt16(buffer, ptr + ENTITY_VEL_Y),
+          $px: readSignedInt16(buffer, ptr + ENTITY_POS_X),
+          $py: readSignedInt16(buffer, ptr + ENTITY_POS_Y),
+        };
+        const activeState = resolveEntityState(entityDef, schema, buffer, contextVariables);
         const effectiveVisual = activeState?.visual ?? entityDef.visual;
 
         // Merge component props: state overrides take precedence

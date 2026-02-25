@@ -16,6 +16,9 @@ import {
   MEMORY_BLOCKS,
   ENTITY_ACTIVE,
   ENTITY_TYPE_ID,
+  ENTITY_POS_X,
+  ENTITY_POS_Y,
+  ENTITY_VEL_X,
   ENTITY_VEL_Y,
   ENTITY_DATA_START,
 } from "../engine/memory.js";
@@ -480,5 +483,233 @@ describe("buildEvaluatorLogic — state-aware components", () => {
     state.tickCount = 5;
     logic(state, makeInput(), makeBaked(), script);
     expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(3);
+  });
+});
+
+// ── Evaluator: Built-in Context Variables ($vx, $vy, $px, $py) ──
+
+describe("buildEvaluatorLogic — built-in context variables", () => {
+  it("resolves $vx and $vy from entity memory buffer for state conditions", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {};
+
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 1);
+
+    // Set velocity: vx=3, vy=0
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 3);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 0);
+
+    const script: MscDocument = {
+      imports: [],
+      schema,
+      entities: {
+        Hero: {
+          visual: "hero_idle",
+          components: { Animator: { speed: 5 } },
+          states: {
+            moving: {
+              condition: "$vx != 0",
+              visual: "hero_walk",
+            },
+          },
+        },
+      },
+      events: [],
+      sprites: new Map([
+        ["hero_idle", { kind: "grid" as const, col: 0, row: 0, frames: 1 }],
+        ["hero_walk", { kind: "grid" as const, col: 0, row: 1, frames: 1 }],
+      ]),
+      spriteGrid: 16,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+    const state = makeState(buf);
+
+    state.tickCount = 0;
+    logic(state, makeInput(), makeBaked(), script);
+    // hero_idle = ID 1, hero_walk = ID 2; $vx=3 != 0 → moving → hero_walk → sprite 2
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(2);
+  });
+
+  it("handles negative velocity values correctly", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {};
+
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 1);
+
+    // Set velocity: vx=-5
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, -5);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 0);
+
+    const script: MscDocument = {
+      imports: [],
+      schema,
+      entities: {
+        Hero: {
+          visual: "hero_idle",
+          components: { Animator: { speed: 5 } },
+          states: {
+            movingLeft: {
+              condition: "$vx < 0",
+              visual: "hero_walk",
+            },
+          },
+        },
+      },
+      events: [],
+      sprites: new Map([
+        ["hero_idle", { kind: "grid" as const, col: 0, row: 0, frames: 1 }],
+        ["hero_walk", { kind: "grid" as const, col: 0, row: 1, frames: 1 }],
+      ]),
+      spriteGrid: 16,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+    const state = makeState(buf);
+
+    state.tickCount = 0;
+    logic(state, makeInput(), makeBaked(), script);
+    // $vx=-5 < 0 → movingLeft → hero_walk → sprite 2
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(2);
+  });
+
+  it("resolves $px and $py from entity memory buffer", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {};
+
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 1);
+
+    // Set position: px=100, py=50
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 100);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 50);
+
+    const script: MscDocument = {
+      imports: [],
+      schema,
+      entities: {
+        Hero: {
+          visual: "hero_idle",
+          components: { Animator: { speed: 5 } },
+          states: {
+            farRight: {
+              condition: "$px > 50",
+              visual: "hero_walk",
+            },
+          },
+        },
+      },
+      events: [],
+      sprites: new Map([
+        ["hero_idle", { kind: "grid" as const, col: 0, row: 0, frames: 1 }],
+        ["hero_walk", { kind: "grid" as const, col: 0, row: 1, frames: 1 }],
+      ]),
+      spriteGrid: 16,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+    const state = makeState(buf);
+
+    state.tickCount = 0;
+    logic(state, makeInput(), makeBaked(), script);
+    // $px=100 > 50 → farRight → hero_walk → sprite 2
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(2);
+  });
+
+  it("falls back to schema variable when context variable is not defined", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {
+      $health: { addr: 64, type: "Int8" },
+    };
+
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 1);
+    writeSchemaVar(buf, schema, "$health", 0);
+
+    const script: MscDocument = {
+      imports: [],
+      schema,
+      entities: {
+        Hero: {
+          visual: "hero_idle",
+          components: { Animator: { speed: 5 } },
+          states: {
+            dead: {
+              condition: "$health == 0",
+              visual: "hero_dead",
+            },
+          },
+        },
+      },
+      events: [],
+      sprites: new Map([
+        ["hero_idle", { kind: "grid" as const, col: 0, row: 0, frames: 1 }],
+        ["hero_dead", { kind: "grid" as const, col: 0, row: 1, frames: 1 }],
+      ]),
+      spriteGrid: 16,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+    const state = makeState(buf);
+
+    state.tickCount = 0;
+    logic(state, makeInput(), makeBaked(), script);
+    // $health=0 == 0 → dead → hero_dead → sprite 2
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(2);
+  });
+
+  it("does not match when built-in variable condition is not met", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {};
+
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 1);
+
+    // Set velocity: vx=0, vy=0 (not moving)
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 0);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 0);
+
+    const script: MscDocument = {
+      imports: [],
+      schema,
+      entities: {
+        Hero: {
+          visual: "hero_idle",
+          components: { Animator: { speed: 5 } },
+          states: {
+            moving: {
+              condition: "$vx != 0",
+              visual: "hero_walk",
+            },
+          },
+        },
+      },
+      events: [],
+      sprites: new Map([
+        ["hero_idle", { kind: "grid" as const, col: 0, row: 0, frames: 1 }],
+        ["hero_walk", { kind: "grid" as const, col: 0, row: 1, frames: 1 }],
+      ]),
+      spriteGrid: 16,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+    const state = makeState(buf);
+
+    state.tickCount = 0;
+    logic(state, makeInput(), makeBaked(), script);
+    // $vx=0 → no state matches → hero_idle → sprite 1
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(1);
   });
 });
