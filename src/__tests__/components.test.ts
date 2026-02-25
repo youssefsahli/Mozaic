@@ -14,6 +14,8 @@ import {
   screenShakeComponent,
   spriteAnimatorComponent,
   particleEmitterComponent,
+  cameraEngineComponent,
+  parseHexTint,
 } from "../engine/components.js";
 import {
   createStateBuffer,
@@ -47,6 +49,7 @@ function makeState(buffer?: Uint8ClampedArray): EngineState {
     height: 64,
     frameCount: 0,
     tickCount: 0,
+    camera: { x: 0, y: 0, zoom: 1, shake: 0, tint: [1, 1, 1, 1] },
   };
 }
 
@@ -125,7 +128,7 @@ describe("ComponentRegistry", () => {
 });
 
 describe("createDefaultRegistry", () => {
-  it("registers all 11 built-in components", () => {
+  it("registers all 12 built-in components", () => {
     const registry = createDefaultRegistry();
     const ids = [
       "Gravity",
@@ -139,6 +142,7 @@ describe("createDefaultRegistry", () => {
       "ScreenShake",
       "SpriteAnimator",
       "ParticleEmitter",
+      "Camera",
     ];
     for (const id of ids) {
       expect(registry.has(id)).toBe(true);
@@ -497,5 +501,126 @@ describe("particleEmitterComponent", () => {
       if (readInt8(buf, ptr + ENTITY_ACTIVE) === 1) spawned++;
     }
     expect(spawned).toBe(2);
+  });
+});
+
+// ── Library 4: Camera ─────────────────────────────────────────
+
+describe("parseHexTint", () => {
+  it("parses a full 6-digit hex color", () => {
+    expect(parseHexTint("#FF0000")).toEqual([1, 0, 0, 1]);
+  });
+
+  it("parses a 3-digit shorthand hex color", () => {
+    const [r, g, b, a] = parseHexTint("#F00");
+    expect(r).toBeCloseTo(1);
+    expect(g).toBeCloseTo(0);
+    expect(b).toBeCloseTo(0);
+    expect(a).toBe(1);
+  });
+
+  it("returns white for invalid input", () => {
+    expect(parseHexTint("")).toEqual([1, 1, 1, 1]);
+    expect(parseHexTint("xyz")).toEqual([1, 1, 1, 1]);
+  });
+
+  it("handles white (#FFFFFF)", () => {
+    expect(parseHexTint("#FFFFFF")).toEqual([1, 1, 1, 1]);
+  });
+
+  it("handles black (#000000)", () => {
+    expect(parseHexTint("#000000")).toEqual([0, 0, 0, 1]);
+  });
+
+  it("handles hex without hash prefix", () => {
+    expect(parseHexTint("00FF00")).toEqual([0, 1, 0, 1]);
+  });
+});
+
+describe("cameraEngineComponent", () => {
+  it("updates state.camera position to center entity on screen", () => {
+    const buf = createStateBuffer();
+    const state = makeState(buf);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 100);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 80);
+
+    cameraEngineComponent.tick!(buf, ENTITY_PTR, {}, makeInput(), makeBaked(), state);
+
+    // targetX = 100 - 64 / (2*1) = 100 - 32 = 68
+    // targetY = 80 - 64 / (2*1) = 80 - 32 = 48
+    expect(state.camera.x).toBe(68);
+    expect(state.camera.y).toBe(48);
+  });
+
+  it("applies zoom factor", () => {
+    const buf = createStateBuffer();
+    const state = makeState(buf);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 100);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 80);
+
+    cameraEngineComponent.tick!(buf, ENTITY_PTR, { zoom: 2 }, makeInput(), makeBaked(), state);
+
+    // targetX = 100 - 64 / (2*2) = 100 - 16 = 84
+    // targetY = 80 - 64 / (2*2) = 80 - 16 = 64
+    expect(state.camera.x).toBe(84);
+    expect(state.camera.y).toBe(64);
+    expect(state.camera.zoom).toBe(2);
+  });
+
+  it("writes shake to state.camera", () => {
+    const buf = createStateBuffer();
+    const state = makeState(buf);
+
+    cameraEngineComponent.tick!(buf, ENTITY_PTR, { shake: 5 }, makeInput(), makeBaked(), state);
+
+    expect(state.camera.shake).toBe(5);
+  });
+
+  it("parses tint hex color to normalized RGBA", () => {
+    const buf = createStateBuffer();
+    const state = makeState(buf);
+
+    cameraEngineComponent.tick!(buf, ENTITY_PTR, { tint: "#FF0000" }, makeInput(), makeBaked(), state);
+
+    expect(state.camera.tint).toEqual([1, 0, 0, 1]);
+  });
+
+  it("defaults to white tint when not specified", () => {
+    const buf = createStateBuffer();
+    const state = makeState(buf);
+
+    cameraEngineComponent.tick!(buf, ENTITY_PTR, {}, makeInput(), makeBaked(), state);
+
+    expect(state.camera.tint).toEqual([1, 1, 1, 1]);
+  });
+
+  it("lerps position with followSpeed < 1", () => {
+    const buf = createStateBuffer();
+    const state = makeState(buf);
+    state.camera.x = 0;
+    state.camera.y = 0;
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 100);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 80);
+
+    cameraEngineComponent.tick!(buf, ENTITY_PTR, { followSpeed: 0.5 }, makeInput(), makeBaked(), state);
+
+    // targetX = 68, from 0: 0 + (68 - 0) * 0.5 = 34
+    // targetY = 48, from 0: 0 + (48 - 0) * 0.5 = 24
+    expect(state.camera.x).toBe(34);
+    expect(state.camera.y).toBe(24);
+  });
+
+  it("snaps instantly with followSpeed = 1 (default)", () => {
+    const buf = createStateBuffer();
+    const state = makeState(buf);
+    state.camera.x = 999;
+    state.camera.y = 999;
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 100);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 80);
+
+    cameraEngineComponent.tick!(buf, ENTITY_PTR, {}, makeInput(), makeBaked(), state);
+
+    expect(state.camera.x).toBe(68);
+    expect(state.camera.y).toBe(48);
   });
 });

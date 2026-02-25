@@ -331,6 +331,60 @@ export const particleEmitterComponent: ComponentFn = (
   }
 };
 
+// ── Library 4: Camera ─────────────────────────────────────────
+
+/** Parse a hex color string (e.g. "#FF0000") to normalized RGBA [0..1]. */
+export function parseHexTint(hex: string): [number, number, number, number] {
+  if (typeof hex !== "string" || hex.length < 4) return [1, 1, 1, 1];
+  const h = hex.startsWith("#") ? hex.slice(1) : hex;
+  let r = 1, g = 1, b = 1;
+  if (h.length === 3) {
+    r = parseInt(h[0] + h[0], 16) / 255;
+    g = parseInt(h[1] + h[1], 16) / 255;
+    b = parseInt(h[2] + h[2], 16) / 255;
+  } else if (h.length >= 6) {
+    r = parseInt(h.slice(0, 2), 16) / 255;
+    g = parseInt(h.slice(2, 4), 16) / 255;
+    b = parseInt(h.slice(4, 6), 16) / 255;
+  }
+  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return [1, 1, 1, 1];
+  return [r, g, b, 1];
+}
+
+/**
+ * Camera component — reads entity position and updates global camera state.
+ *
+ * Props:
+ *   zoom        — scale factor (default 1.0)
+ *   shake       — screen shake intensity (default 0.0)
+ *   tint        — hex color multiplier (default "#FFFFFF")
+ *   followSpeed — lerp speed for smooth camera follow (default 1.0 = instant)
+ */
+export const cameraEngineComponent: EngineComponent = {
+  name: "Camera",
+  tick: (buffer, entityPtr, props, _input, _baked, state) => {
+    const zoom = (props.zoom as number) ?? 1;
+    const shake = (props.shake as number) ?? 0;
+    const tint = parseHexTint((props.tint as string) ?? "#FFFFFF");
+    const followSpeed = Math.min(1, Math.max(0, (props.followSpeed as number) ?? 1));
+
+    const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+    const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
+
+    // Target camera position: center entity on screen
+    const targetX = px - state.width / (2 * zoom);
+    const targetY = py - state.height / (2 * zoom);
+
+    // Lerp toward target (followSpeed=1 → instant snap)
+    state.camera.x += (targetX - state.camera.x) * followSpeed;
+    state.camera.y += (targetY - state.camera.y) * followSpeed;
+
+    state.camera.zoom = zoom;
+    state.camera.shake = shake;
+    state.camera.tint = tint;
+  },
+};
+
 // ── Default Registry ──────────────────────────────────────────
 
 /** Create a ComponentRegistry pre-loaded with all built-in components. */
@@ -354,6 +408,9 @@ export function createDefaultRegistry(): ComponentRegistry {
   registry.register("ScreenShake", screenShakeComponent);
   registry.register("SpriteAnimator", spriteAnimatorComponent);
   registry.register("ParticleEmitter", particleEmitterComponent);
+
+  // Camera
+  registry.register("Camera", cameraEngineComponent);
 
   return registry;
 }

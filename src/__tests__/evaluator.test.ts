@@ -17,6 +17,7 @@ function makeState(buffer?: Uint8ClampedArray): EngineState {
     height: 64,
     frameCount: 0,
     tickCount: 0,
+    camera: { x: 0, y: 0, zoom: 1, shake: 0, tint: [1, 1, 1, 1] },
   };
 }
 
