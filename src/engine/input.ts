@@ -50,8 +50,14 @@ export class InputManager {
   constructor(bindings: Array<{ key: string; action: string }>) {
     this.actionMap = buildActionMap(bindings);
     this._stateCache = { active: this._activeCache };
-    this.onKeyDown = (e) => this.heldKeys.add(normalizeCode(e.code));
-    this.onKeyUp = (e) => this.heldKeys.delete(normalizeCode(e.code));
+    this.onKeyDown = (e) => {
+      if ((e.target as HTMLElement)?.tagName === "TEXTAREA") return;
+      this.heldKeys.add(normalizeCode(e.code));
+    };
+    this.onKeyUp = (e) => {
+      if ((e.target as HTMLElement)?.tagName === "TEXTAREA") return;
+      this.heldKeys.delete(normalizeCode(e.code));
+    };
     this.attachKeyboardListeners();
   }
 

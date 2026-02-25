@@ -45,6 +45,7 @@ function makeState(buffer?: Uint8ClampedArray): EngineState {
     width: 64,
     height: 64,
     frameCount: 0,
+    tickCount: 0,
   };
 }
 
