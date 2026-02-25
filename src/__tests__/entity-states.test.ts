@@ -488,8 +488,8 @@ describe("buildEvaluatorLogic — state-aware components", () => {
 
 // ── Evaluator: Built-in Context Variables ($vx, $vy, $px, $py) ──
 
-describe("buildEvaluatorLogic — built-in context variables", () => {
-  it("resolves $vx and $vy from entity memory buffer for state conditions", () => {
+describe("buildEvaluatorLogic — component getContext variables", () => {
+  it("resolves $vx and $vy from Kinematic getContext for state conditions", () => {
     const buf = createStateBuffer();
     const schema: MscSchema = {};
 
@@ -507,7 +507,7 @@ describe("buildEvaluatorLogic — built-in context variables", () => {
       entities: {
         Hero: {
           visual: "hero_idle",
-          components: { Animator: { speed: 5 } },
+          components: { Kinematic: {}, Animator: { speed: 5 } },
           states: {
             moving: {
               condition: "$vx != 0",
@@ -552,7 +552,7 @@ describe("buildEvaluatorLogic — built-in context variables", () => {
       entities: {
         Hero: {
           visual: "hero_idle",
-          components: { Animator: { speed: 5 } },
+          components: { Kinematic: {}, Animator: { speed: 5 } },
           states: {
             movingLeft: {
               condition: "$vx < 0",
@@ -579,7 +579,7 @@ describe("buildEvaluatorLogic — built-in context variables", () => {
     expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(2);
   });
 
-  it("resolves $px and $py from entity memory buffer", () => {
+  it("resolves $px and $py from Kinematic getContext", () => {
     const buf = createStateBuffer();
     const schema: MscSchema = {};
 
@@ -597,7 +597,7 @@ describe("buildEvaluatorLogic — built-in context variables", () => {
       entities: {
         Hero: {
           visual: "hero_idle",
-          components: { Animator: { speed: 5 } },
+          components: { Kinematic: {}, Animator: { speed: 5 } },
           states: {
             farRight: {
               condition: "$px > 50",
@@ -624,7 +624,7 @@ describe("buildEvaluatorLogic — built-in context variables", () => {
     expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(2);
   });
 
-  it("falls back to schema variable when context variable is not defined", () => {
+  it("falls back to schema variable when no component provides the variable", () => {
     const buf = createStateBuffer();
     const schema: MscSchema = {
       $health: { addr: 64, type: "Int8" },
@@ -668,7 +668,7 @@ describe("buildEvaluatorLogic — built-in context variables", () => {
     expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(2);
   });
 
-  it("does not match when built-in variable condition is not met", () => {
+  it("does not match when component context variable condition is not met", () => {
     const buf = createStateBuffer();
     const schema: MscSchema = {};
 
@@ -679,6 +679,50 @@ describe("buildEvaluatorLogic — built-in context variables", () => {
     // Set velocity: vx=0, vy=0 (not moving)
     writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 0);
     writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 0);
+
+    const script: MscDocument = {
+      imports: [],
+      schema,
+      entities: {
+        Hero: {
+          visual: "hero_idle",
+          components: { Kinematic: {}, Animator: { speed: 5 } },
+          states: {
+            moving: {
+              condition: "$vx != 0",
+              visual: "hero_walk",
+            },
+          },
+        },
+      },
+      events: [],
+      sprites: new Map([
+        ["hero_idle", { kind: "grid" as const, col: 0, row: 0, frames: 1 }],
+        ["hero_walk", { kind: "grid" as const, col: 0, row: 1, frames: 1 }],
+      ]),
+      spriteGrid: 16,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+    const state = makeState(buf);
+
+    state.tickCount = 0;
+    logic(state, makeInput(), makeBaked(), script);
+    // $vx=0 → no state matches → hero_idle → sprite 1
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(1);
+  });
+
+  it("does not provide context variables when entity lacks component with getContext", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {};
+
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 1);
+
+    // Set velocity in buffer, but entity has no Kinematic component
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 5);
 
     const script: MscDocument = {
       imports: [],
@@ -709,7 +753,7 @@ describe("buildEvaluatorLogic — built-in context variables", () => {
 
     state.tickCount = 0;
     logic(state, makeInput(), makeBaked(), script);
-    // $vx=0 → no state matches → hero_idle → sprite 1
+    // No Kinematic component → $vx not in context → falls back to schema → 0 → no match
     expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(1);
   });
 });

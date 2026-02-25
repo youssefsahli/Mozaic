@@ -4,6 +4,7 @@ import {
   createDefaultRegistry,
   gravityComponent,
   kinematicComponent,
+  kinematicEngineComponent,
   colliderComponent,
   frictionComponent,
   playerControllerComponent,
@@ -74,7 +75,9 @@ describe("ComponentRegistry", () => {
     const registry = new ComponentRegistry();
     const dummy = () => {};
     registry.register("Test", dummy);
-    expect(registry.get("Test")).toBe(dummy);
+    const comp = registry.get("Test");
+    expect(comp).toBeDefined();
+    expect(comp!.tick).toBe(dummy);
     expect(registry.has("Test")).toBe(true);
   });
 
@@ -110,6 +113,15 @@ describe("ComponentRegistry", () => {
     const registry = new ComponentRegistry();
     expect(registry.list()).toEqual([]);
   });
+
+  it("registers an EngineComponent with getContext", () => {
+    const registry = new ComponentRegistry();
+    registry.register("Kinematic", kinematicEngineComponent);
+    const comp = registry.get("Kinematic");
+    expect(comp).toBeDefined();
+    expect(comp!.tick).toBe(kinematicComponent);
+    expect(comp!.getContext).toBeDefined();
+  });
 });
 
 describe("createDefaultRegistry", () => {
@@ -131,6 +143,13 @@ describe("createDefaultRegistry", () => {
     for (const id of ids) {
       expect(registry.has(id)).toBe(true);
     }
+  });
+
+  it("Kinematic component exposes getContext", () => {
+    const registry = createDefaultRegistry();
+    const comp = registry.get("Kinematic");
+    expect(comp).toBeDefined();
+    expect(comp!.getContext).toBeDefined();
   });
 });
 
@@ -200,6 +219,19 @@ describe("kinematicComponent", () => {
 
     expect(readInt16(buf, ENTITY_PTR + ENTITY_POS_X)).toBe(13);
     expect(readInt16(buf, ENTITY_PTR + ENTITY_POS_Y)).toBe(18);
+  });
+});
+
+describe("kinematicEngineComponent.getContext", () => {
+  it("exposes $vx, $vy, $px, $py from entity memory", () => {
+    const buf = createStateBuffer();
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 100);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 200);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, -3);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 5);
+
+    const ctx = kinematicEngineComponent.getContext!(buf, ENTITY_PTR, {});
+    expect(ctx).toEqual({ $vx: -3, $vy: 5, $px: 100, $py: 200 });
   });
 });
 

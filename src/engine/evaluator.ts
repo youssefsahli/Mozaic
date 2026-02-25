@@ -33,15 +33,10 @@ import {
   writeInt16,
   readInt32,
   writeInt32,
-  readSignedInt16,
   MEMORY_BLOCKS,
   ENTITY_SLOT_SIZE,
   ENTITY_ACTIVE,
   ENTITY_TYPE_ID,
-  ENTITY_POS_X,
-  ENTITY_POS_Y,
-  ENTITY_VEL_X,
-  ENTITY_VEL_Y,
   ENTITY_DATA_START,
 } from "./memory.js";
 
@@ -350,12 +345,16 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
         if (!entityDef) continue;
 
         // ── Entity State Resolution ─────────────────────────────
-        const contextVariables: Record<string, number> = {
-          $vx: readSignedInt16(buffer, ptr + ENTITY_VEL_X),
-          $vy: readSignedInt16(buffer, ptr + ENTITY_VEL_Y),
-          $px: readSignedInt16(buffer, ptr + ENTITY_POS_X),
-          $py: readSignedInt16(buffer, ptr + ENTITY_POS_Y),
-        };
+        // Gather context from all active components' getContext methods
+        const contextVariables: Record<string, number> = {};
+        if (entityDef.components) {
+          for (const [componentId, props] of Object.entries(entityDef.components)) {
+            const comp = registry.get(componentId);
+            if (comp?.getContext) {
+              Object.assign(contextVariables, comp.getContext(buffer, ptr, props));
+            }
+          }
+        }
         const activeState = resolveEntityState(entityDef, schema, buffer, contextVariables);
         const effectiveVisual = activeState?.visual ?? entityDef.visual;
 
@@ -387,10 +386,10 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
             // Animator is handled specially below (needs sprite data)
             if (componentId === "Animator") continue;
 
-            const fn = registry.get(componentId);
-            if (!fn) continue;
+            const comp = registry.get(componentId);
+            if (!comp?.tick) continue;
             try {
-              fn(buffer, ptr, props, input, baked, state);
+              comp.tick(buffer, ptr, props, input, baked, state);
             } catch (err) {
               console.warn(
                 `[Mozaic ECS] Component "${componentId}" threw on entity at offset ${ptr}:`,

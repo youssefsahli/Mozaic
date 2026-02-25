@@ -40,7 +40,7 @@ import {
 // ── Component Function Interface ──────────────────────────────
 
 /**
- * Signature every component must follow.
+ * Signature every component tick must follow.
  *
  * @param buffer    — the raw state buffer
  * @param entityPtr — byte offset of this entity's slot in the buffer
@@ -58,20 +58,38 @@ export type ComponentFn = (
   state: EngineState
 ) => void;
 
+/**
+ * Structured component definition.  Components may optionally expose
+ * variables to the state-machine evaluation context via `getContext`.
+ */
+export interface EngineComponent {
+  name: string;
+  tick?: ComponentFn;
+  getContext?: (
+    buffer: Uint8ClampedArray,
+    ptr: number,
+    props: Record<string, number | string>
+  ) => Record<string, number>;
+}
+
 // ── Component Registry ────────────────────────────────────────
 
 export class ComponentRegistry {
-  private readonly components = new Map<string, ComponentFn>();
+  private readonly components = new Map<string, EngineComponent>();
 
-  register(id: string, fn: ComponentFn): void {
-    this.components.set(id, fn);
+  register(id: string, component: ComponentFn | EngineComponent): void {
+    if (typeof component === "function") {
+      this.components.set(id, { name: id, tick: component });
+    } else {
+      this.components.set(id, component);
+    }
   }
 
   unregister(id: string): boolean {
     return this.components.delete(id);
   }
 
-  get(id: string): ComponentFn | undefined {
+  get(id: string): EngineComponent | undefined {
     return this.components.get(id);
   }
 
@@ -102,6 +120,18 @@ export const kinematicComponent: ComponentFn = (buffer, entityPtr) => {
   const vy = readSignedInt16(buffer, entityPtr + ENTITY_VEL_Y);
   writeSignedInt16(buffer, entityPtr + ENTITY_POS_X, px + vx);
   writeSignedInt16(buffer, entityPtr + ENTITY_POS_Y, py + vy);
+};
+
+/** Kinematic as an EngineComponent — exposes $vx, $vy, $px, $py via getContext. */
+export const kinematicEngineComponent: EngineComponent = {
+  name: "Kinematic",
+  tick: kinematicComponent,
+  getContext: (buffer, ptr) => ({
+    $vx: readSignedInt16(buffer, ptr + ENTITY_VEL_X),
+    $vy: readSignedInt16(buffer, ptr + ENTITY_VEL_Y),
+    $px: readSignedInt16(buffer, ptr + ENTITY_POS_X),
+    $py: readSignedInt16(buffer, ptr + ENTITY_POS_Y),
+  }),
 };
 
 /** Halts velocity when the entity collides with baked polygons. */
@@ -309,7 +339,7 @@ export function createDefaultRegistry(): ComponentRegistry {
 
   // Physics & Kinematics
   registry.register("Gravity", gravityComponent);
-  registry.register("Kinematic", kinematicComponent);
+  registry.register("Kinematic", kinematicEngineComponent);
   registry.register("Collider", colliderComponent);
   registry.register("Friction", frictionComponent);
 
