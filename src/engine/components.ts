@@ -96,12 +96,12 @@ export const gravityComponent: ComponentFn = (buffer, entityPtr, props) => {
 
 /** Adds X/Y-Velocity to X/Y-Position every frame. */
 export const kinematicComponent: ComponentFn = (buffer, entityPtr) => {
-  const px = readInt16(buffer, entityPtr + ENTITY_POS_X);
-  const py = readInt16(buffer, entityPtr + ENTITY_POS_Y);
+  const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+  const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
   const vx = readSignedInt16(buffer, entityPtr + ENTITY_VEL_X);
   const vy = readSignedInt16(buffer, entityPtr + ENTITY_VEL_Y);
-  writeInt16(buffer, entityPtr + ENTITY_POS_X, px + vx);
-  writeInt16(buffer, entityPtr + ENTITY_POS_Y, py + vy);
+  writeSignedInt16(buffer, entityPtr + ENTITY_POS_X, px + vx);
+  writeSignedInt16(buffer, entityPtr + ENTITY_POS_Y, py + vy);
 };
 
 /** Halts velocity when the entity collides with baked polygons. */
@@ -148,6 +148,28 @@ export const playerControllerComponent: ComponentFn = (
   if (input.active.has("Action.Right")) vx += speed;
   if (input.active.has("Action.Up")) vy -= speed;
   if (input.active.has("Action.Down")) vy += speed;
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, vx);
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, vy);
+};
+
+/** Top-down 4-directional controller using Action.Move* input actions. */
+export const topDownControllerComponent: ComponentFn = (
+  buffer,
+  entityPtr,
+  props,
+  input
+) => {
+  const speed = props.speed ?? 1;
+  let vx = 0;
+  let vy = 0;
+  const left = input.active.has("Action.MoveLeft");
+  const right = input.active.has("Action.MoveRight");
+  const up = input.active.has("Action.MoveUp");
+  const down = input.active.has("Action.MoveDown");
+  if (left && !right) vx = -speed;
+  else if (right && !left) vx = speed;
+  if (up && !down) vy = -speed;
+  else if (down && !up) vy = speed;
   writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, vx);
   writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, vy);
 };
@@ -293,6 +315,7 @@ export function createDefaultRegistry(): ComponentRegistry {
 
   // Gameplay & AI
   registry.register("PlayerController", playerControllerComponent);
+  registry.register("TopDownController", topDownControllerComponent);
   registry.register("Navigator", navigatorComponent);
   registry.register("Health", healthComponent);
   registry.register("Lifetime", lifetimeComponent);

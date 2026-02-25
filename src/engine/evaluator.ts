@@ -37,6 +37,7 @@ import {
   ENTITY_SLOT_SIZE,
   ENTITY_ACTIVE,
   ENTITY_TYPE_ID,
+  ENTITY_DATA_START,
 } from "./memory.js";
 
 // ── Memory helpers ────────────────────────────────────────────
@@ -214,7 +215,7 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
     script: MscDocument
   ): EngineState => {
     const { buffer } = state;
-    const { schema, events, entities } = script;
+    const { schema, events, entities, sprites } = script;
 
     for (const event of events) {
       if (!isTriggerFired(event.trigger, state, input, baked)) continue;
@@ -229,6 +230,15 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
       const poolStart = MEMORY_BLOCKS.entityPool.startByte;
       const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
 
+      // Build sprite name → 1-based ID mapping (filter $Grid metadata key)
+      const spriteNameToId = new Map<string, number>();
+      let spriteIdx = 1;
+      for (const [name, def] of sprites) {
+        if (name === "$Grid") continue;
+        spriteNameToId.set(name, spriteIdx);
+        spriteIdx += def.kind === "grid" ? def.frames : 1;
+      }
+
       for (
         let ptr = poolStart;
         ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
@@ -237,23 +247,55 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
         if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
 
         const typeId = readInt8(buffer, ptr + ENTITY_TYPE_ID);
-        if (typeId >= entityNames.length) continue;
+        // Type IDs are 1-based; map to entityNames index (0-based)
+        if (typeId === 0 || typeId > entityNames.length) continue;
 
-        const entityDef = entities[entityNames[typeId]];
-        if (!entityDef?.components) continue;
+        const entityDef = entities[entityNames[typeId - 1]];
+        if (!entityDef) continue;
 
-        for (const [componentId, props] of Object.entries(
-          entityDef.components
-        )) {
-          const fn = registry.get(componentId);
-          if (!fn) continue;
-          try {
-            fn(buffer, ptr, props, input, baked, state);
-          } catch (err) {
-            console.warn(
-              `[Mozaic ECS] Component "${componentId}" threw on entity at offset ${ptr}:`,
-              err
-            );
+        // ── Sprite Initialization ───────────────────────────────
+        const currentSpriteId = readInt8(buffer, ptr + ENTITY_DATA_START);
+        if (currentSpriteId === 0 && entityDef.visual) {
+          const sid = spriteNameToId.get(entityDef.visual);
+          if (sid !== undefined) {
+            writeInt8(buffer, ptr + ENTITY_DATA_START, sid);
+          }
+        }
+
+        // ── Component Execution ─────────────────────────────────
+        if (entityDef.components) {
+          for (const [componentId, props] of Object.entries(
+            entityDef.components
+          )) {
+            // Animator is handled specially below (needs sprite data)
+            if (componentId === "Animator") continue;
+
+            const fn = registry.get(componentId);
+            if (!fn) continue;
+            try {
+              fn(buffer, ptr, props, input, baked, state);
+            } catch (err) {
+              console.warn(
+                `[Mozaic ECS] Component "${componentId}" threw on entity at offset ${ptr}:`,
+                err
+              );
+            }
+          }
+
+          // ── Animator ────────────────────────────────────────────
+          if (entityDef.components.Animator) {
+            const animSpeed = entityDef.components.Animator.speed ?? 10;
+            const seqName = entityDef.visual;
+            if (seqName) {
+              const baseSpriteId = spriteNameToId.get(seqName);
+              if (baseSpriteId !== undefined) {
+                const spriteDef = sprites.get(seqName);
+                const frames = spriteDef && spriteDef.kind === "grid" ? spriteDef.frames : 1;
+                const sequenceArray = Array.from({length: frames}, (_, i) => baseSpriteId + i);
+                const frameIndex = Math.floor(state.tickCount / animSpeed) % sequenceArray.length;
+                writeInt8(buffer, ptr + ENTITY_DATA_START, sequenceArray[frameIndex]);
+              }
+            }
           }
         }
       }
