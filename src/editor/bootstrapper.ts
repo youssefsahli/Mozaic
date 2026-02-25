@@ -11,7 +11,7 @@
  */
 
 import { bake, type BakedAsset } from "../engine/baker.js";
-import { Renderer } from "../engine/renderer.js";
+import { Renderer, compileSpriteAtlas } from "../engine/renderer.js";
 import { InputManager } from "../engine/input.js";
 import { EngineLoop, createInitialState } from "../engine/loop.js";
 import { buildEvaluatorLogic } from "../engine/evaluator.js";
@@ -234,6 +234,17 @@ export async function bootProject(
   canvas.height = clonedData.height;
 
   const baked = bake(clonedData);
+
+  // Compile sprite atlas and wire it into the renderer
+  const gridSize = script.spriteGrid || 16;
+  const spriteAtlas = compileSpriteAtlas(
+    script.sprites,
+    gridSize,
+    clonedData.width,
+    clonedData.height
+  );
+  renderer.setSpriteAtlas(spriteAtlas);
+
   const bindings = collectBindings(script);
   const inputManager = new InputManager(bindings);
   const loop = new EngineLoop(createInitialState(clonedData), {
