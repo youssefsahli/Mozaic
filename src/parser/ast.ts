@@ -14,11 +14,18 @@ export interface MscEntityPhysics {
   solid: boolean;
 }
 
+export interface MscEntityState {
+  condition?: string;
+  visual?: string;
+  components?: Record<string, Record<string, number | string>>;
+}
+
 export interface MscEntity {
   visual?: string;
   physics?: MscEntityPhysics[];
   inputs?: MscInput[];
   components?: Record<string, Record<string, number | string>>;
+  states?: Record<string, MscEntityState>;
 }
 
 export interface MscEvent {
@@ -198,6 +205,9 @@ function parseEntity(
         entity.visual = stripQuotes(value);
       } else if (key === "Components") {
         i = parseNestedComponents(tokens, i + 1, token.indent, entity);
+        continue;
+      } else if (key === "States") {
+        i = parseStates(tokens, i + 1, token.indent, entity);
         continue;
       } else if (value) {
         const props = parseComponentProps(value);
@@ -451,6 +461,63 @@ function parseInstances(
 
 function stripQuotes(value: string): string {
   return value.replace(/^["']|["']$/g, "");
+}
+
+function parseStates(
+  tokens: MscLineToken[],
+  start: number,
+  parentIndent: number,
+  entity: MscEntity
+): number {
+  let i = start;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (token.kind === "empty" || token.kind === "comment") {
+      i++;
+      continue;
+    }
+    if (token.indent <= parentIndent) break;
+
+    if (token.kind === "mapping") {
+      const stateName = token.key ?? "";
+      const stateIndent = token.indent;
+      const stateDef: MscEntityState = {};
+      i++;
+
+      while (i < tokens.length) {
+        const sub = tokens[i];
+        if (sub.kind === "empty" || sub.kind === "comment") {
+          i++;
+          continue;
+        }
+        if (sub.indent <= stateIndent) break;
+
+        if (sub.kind === "mapping") {
+          const sk = sub.key ?? "";
+          const sv = sub.value ?? "";
+          if (sk === "condition") {
+            stateDef.condition = stripQuotes(sv);
+          } else if (sk === "Visual") {
+            stateDef.visual = stripQuotes(sv);
+          } else if (sv) {
+            const props = parseComponentProps(sv);
+            if (props !== null) {
+              if (!stateDef.components) stateDef.components = {};
+              stateDef.components[sk] = props;
+            }
+          }
+        }
+        i++;
+      }
+
+      if (!entity.states) entity.states = {};
+      entity.states[stateName] = stateDef;
+      continue;
+    }
+
+    i++;
+  }
+  return i;
 }
 
 function parseNestedComponents(
