@@ -81,6 +81,7 @@ You can later reload it with **ROM** and continue editing.
 
 ## 7) Continue learning
 
+- Learn about Entity States in [docs/ENTITY_STATES.md](docs/ENTITY_STATES.md)
 - See architecture details in [docs/MOZAIC_ARCHITECTURE.md](docs/MOZAIC_ARCHITECTURE.md)
 - Browse in-app docs in the **Docs** tab (search for "Components" and "Architecture")
 - Use [public/docs/search-index.json](public/docs/search-index.json) to add your own internal chapters
