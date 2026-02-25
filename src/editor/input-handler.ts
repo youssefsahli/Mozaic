@@ -359,6 +359,10 @@ export function attachInputHandler(
   // ── Keyboard (space for pan mode) ──────────────────────────
 
   function onKeyDown(e: KeyboardEvent): void {
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable)) {
+      return;
+    }
     if (e.code === "Space") {
       spaceHeld = true;
       e.preventDefault();

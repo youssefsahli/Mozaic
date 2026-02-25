@@ -268,6 +268,41 @@ describe("ecsTick", () => {
 
     expect(readInt8(buf, ptr + ENTITY_DATA_START)).toBe(5);
   });
+
+  it("resolves Animator sequence from entity visual sprite definition", () => {
+    const buf = createStateBuffer();
+    const ptr = MEMORY_BLOCKS.entityPool.startByte;
+
+    writeInt8(buf, ptr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ptr + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, ptr + ENTITY_DATA_START, 1); // initial sprite
+    writeInt8(buf, ptr + 12, 0); // timer = 0, so frame advances immediately
+    writeInt8(buf, ptr + 13, 0); // sequence index = 0
+
+    const script: MscDocument = {
+      imports: [],
+      schema: {},
+      entities: {
+        Player: {
+          visual: "hero_walk",
+          components: { Animator: { speed: 5 } },
+        },
+      },
+      events: [],
+      sprites: new Map([
+        ["hero_walk", { kind: "grid", col: 0, row: 0, frames: 3 }],
+      ]),
+      spriteGrid: 16,
+    };
+
+    // hero_walk is sprite ID 1 with 3 frames → sequence [1, 2, 3]
+    ecsTick(makeState(buf), makeInput(), makeBaked(), script);
+
+    // Timer=0 → advances to next frame (index 1), sets sprite to 2
+    expect(readInt8(buf, ptr + ENTITY_DATA_START)).toBe(2);
+    expect(readInt8(buf, ptr + 12)).toBe(5); // timer reset to speed
+    expect(readInt8(buf, ptr + 13)).toBe(1); // sequence index advanced
+  });
 });
 
 // ── applyAnimator ─────────────────────────────────────────────

@@ -28,4 +28,40 @@ describe("InputManager.sample", () => {
     const state = mgr.sample();
     expect(state.active.has("Action.Jump")).toBe(false);
   });
+
+  it("normalizes browser KeyW to MSC Key_W and activates action", () => {
+    const mgr = new InputManager([
+      { key: "Key_W", action: "Action.MoveUp" },
+    ]);
+
+    // Simulate keydown with browser code "KeyW" (no underscore)
+    const event = new KeyboardEvent("keydown", { code: "KeyW" });
+    window.dispatchEvent(event);
+
+    const state = mgr.sample();
+    expect(state.active.has("Action.MoveUp")).toBe(true);
+
+    // Simulate keyup
+    const upEvent = new KeyboardEvent("keyup", { code: "KeyW" });
+    window.dispatchEvent(upEvent);
+
+    const state2 = mgr.sample();
+    expect(state2.active.has("Action.MoveUp")).toBe(false);
+
+    mgr.dispose();
+  });
+
+  it("does not break non-letter codes like ArrowLeft", () => {
+    const mgr = new InputManager([
+      { key: "ArrowLeft", action: "Action.MoveLeft" },
+    ]);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "ArrowLeft" }));
+    expect(mgr.sample().active.has("Action.MoveLeft")).toBe(true);
+
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "ArrowLeft" }));
+    expect(mgr.sample().active.has("Action.MoveLeft")).toBe(false);
+
+    mgr.dispose();
+  });
 });

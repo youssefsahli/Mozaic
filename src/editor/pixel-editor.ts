@@ -845,7 +845,7 @@ export class PixelEditor {
     // Keyboard shortcuts
     window.addEventListener("keydown", (e) => {
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) return;
+      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT" || target.isContentEditable)) return;
 
       // Ctrl+Z / Ctrl+Y — undo/redo
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
