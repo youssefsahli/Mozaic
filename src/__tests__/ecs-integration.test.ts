@@ -23,6 +23,7 @@ import {
   ENTITY_VEL_X,
   ENTITY_VEL_Y,
   ENTITY_HEALTH,
+  ENTITY_DATA_START,
 } from "../engine/memory.js";
 import type { EngineState } from "../engine/loop.js";
 import type { InputState } from "../engine/input.js";
@@ -123,12 +124,12 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     const buf = createStateBuffer();
     const poolStart = MEMORY_BLOCKS.entityPool.startByte;
 
-    // Set up an active entity at slot 0, type ID 0
+    // Set up an active entity at slot 0, type ID 1 (1-based)
     writeInt8(buf, poolStart + ENTITY_ACTIVE, 1);
-    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 0);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 1);
     writeSignedInt16(buf, poolStart + ENTITY_VEL_Y, 0);
 
-    // Script: Entity type 0 = "Hero" with Gravity
+    // Script: Entity type 1 = "Hero" with Gravity
     const script: MscDocument = {
       imports: [],
       schema: {},
@@ -156,7 +157,7 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
 
     // Dead entity
     writeInt8(buf, poolStart + ENTITY_ACTIVE, 0);
-    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 0);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 1);
     writeSignedInt16(buf, poolStart + ENTITY_VEL_Y, 0);
 
     const script: MscDocument = {
@@ -186,13 +187,13 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     const slot0 = poolStart;
     const slot1 = poolStart + ENTITY_SLOT_SIZE;
 
-    // Entity 0: type 0 (Hero) with Gravity
+    // Entity 0: type 1 (Hero) with Gravity
     writeInt8(buf, slot0 + ENTITY_ACTIVE, 1);
-    writeInt8(buf, slot0 + ENTITY_TYPE_ID, 0);
+    writeInt8(buf, slot0 + ENTITY_TYPE_ID, 1);
 
-    // Entity 1: type 1 (Enemy) with Gravity force=3
+    // Entity 1: type 2 (Enemy) with Gravity force=3
     writeInt8(buf, slot1 + ENTITY_ACTIVE, 1);
-    writeInt8(buf, slot1 + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, slot1 + ENTITY_TYPE_ID, 2);
 
     const script: MscDocument = {
       imports: [],
@@ -218,9 +219,9 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     const buf = createStateBuffer();
     const poolStart = MEMORY_BLOCKS.entityPool.startByte;
 
-    // Entity with Gravity
+    // Entity with Gravity (1-based type ID)
     writeInt8(buf, poolStart + ENTITY_ACTIVE, 1);
-    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 0);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 1);
 
     const schema: MscSchema = { $Score: { addr: 64, type: "Int8" } };
     const script: MscDocument = {
@@ -269,7 +270,7 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     const poolStart = MEMORY_BLOCKS.entityPool.startByte;
 
     writeInt8(buf, poolStart + ENTITY_ACTIVE, 1);
-    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 0);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 1);
     writeSignedInt16(buf, poolStart + ENTITY_VEL_Y, 0);
 
     const registry = createDefaultRegistry();
@@ -298,5 +299,116 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
 
     // Gravity component after Boom should still have run
     expect(readSignedInt16(buf, poolStart + ENTITY_VEL_Y)).toBe(7);
+  });
+
+  it("applies TopDownController from input actions", () => {
+    const buf = createStateBuffer();
+    const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+
+    writeInt8(buf, poolStart + ENTITY_ACTIVE, 1);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 1);
+    writeSignedInt16(buf, poolStart + ENTITY_POS_X, 32);
+    writeSignedInt16(buf, poolStart + ENTITY_POS_Y, 32);
+
+    const script: MscDocument = {
+      imports: [],
+      schema: {},
+      entities: {
+        Hero: {
+          components: {
+            TopDownController: { speed: 2 },
+            Kinematic: {},
+          },
+        },
+      },
+      events: [],
+      sprites: new Map(),
+      spriteGrid: 0,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+
+    // Press MoveRight — entity should move right
+    logic(makeState(buf), makeInput(["Action.MoveRight"]), makeBaked(), script);
+
+    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_X)).toBe(2);
+    expect(readSignedInt16(buf, poolStart + ENTITY_POS_X)).toBe(34);
+  });
+
+  it("applies Animator cycling through sprite frames", () => {
+    const buf = createStateBuffer();
+    const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+
+    writeInt8(buf, poolStart + ENTITY_ACTIVE, 1);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, poolStart + ENTITY_DATA_START, 1); // initial sprite
+
+    const script: MscDocument = {
+      imports: [],
+      schema: {},
+      entities: {
+        Hero: {
+          visual: "hero_walk",
+          components: { Animator: { speed: 5 } },
+        },
+      },
+      events: [],
+      sprites: new Map([
+        ["hero_walk", { kind: "grid" as const, col: 0, row: 0, frames: 3 }],
+      ]),
+      spriteGrid: 16,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+
+    // tickCount=0, speed=5 → frameIndex = floor(0/5) % 3 = 0 → sprite 1
+    const state = makeState(buf);
+    state.tickCount = 0;
+    logic(state, makeInput(), makeBaked(), script);
+    expect(readInt8(buf, poolStart + ENTITY_DATA_START)).toBe(1);
+
+    // tickCount=5 → frameIndex = floor(5/5) % 3 = 1 → sprite 2
+    state.tickCount = 5;
+    logic(state, makeInput(), makeBaked(), script);
+    expect(readInt8(buf, poolStart + ENTITY_DATA_START)).toBe(2);
+
+    // tickCount=10 → frameIndex = floor(10/5) % 3 = 2 → sprite 3
+    state.tickCount = 10;
+    logic(state, makeInput(), makeBaked(), script);
+    expect(readInt8(buf, poolStart + ENTITY_DATA_START)).toBe(3);
+
+    // tickCount=15 → wraps to sprite 1
+    state.tickCount = 15;
+    logic(state, makeInput(), makeBaked(), script);
+    expect(readInt8(buf, poolStart + ENTITY_DATA_START)).toBe(1);
+  });
+
+  it("initialises sprite ID from entity visual", () => {
+    const buf = createStateBuffer();
+    const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+
+    writeInt8(buf, poolStart + ENTITY_ACTIVE, 1);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, poolStart + ENTITY_DATA_START, 0); // no sprite yet
+
+    const script: MscDocument = {
+      imports: [],
+      schema: {},
+      entities: { Hero: { visual: "hero_idle" } },
+      events: [],
+      sprites: new Map([
+        ["hero_idle", { kind: "grid" as const, col: 0, row: 0, frames: 1 }],
+      ]),
+      spriteGrid: 16,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+
+    // hero_idle is the first sprite → Sprite ID 1
+    expect(readInt8(buf, poolStart + ENTITY_DATA_START)).toBe(1);
   });
 });
