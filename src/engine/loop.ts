@@ -38,6 +38,7 @@ export interface LoopOptions {
   logic: LogicFn;
   renderer: Renderer;
   inputManager: InputManager;
+  onPostTick?: (state: EngineState) => void;
 }
 
 export class EngineLoop {
@@ -76,6 +77,8 @@ export class EngineLoop {
 
     // 4. Render
     renderer.render(this.state.buffer, this.state.width, this.state.height);
+
+    this.options.onPostTick?.(this.state);
 
     this.state.frameCount++;
     this.rafId = requestAnimationFrame(() => this.tick());

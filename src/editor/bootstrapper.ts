@@ -69,6 +69,8 @@ export function hideConsole(consoleEl: HTMLElement): void {
 export interface BootContext {
   /** The compiler console DOM element. */
   consoleEl: HTMLElement;
+  /** The input debug overlay element. */
+  inputDebugEl: HTMLElement;
   /** The game canvas element. */
   canvas: HTMLCanvasElement;
   /** The WebGL renderer (shared, not recreated). */
@@ -253,6 +255,7 @@ export async function bootProject(
     logic: buildEvaluatorLogic(createDefaultRegistry()),
     renderer,
     inputManager,
+    onPostTick: () => updateInputDebug(ctx.inputDebugEl, inputManager),
   });
 
   // ── 5. Start ─────────────────────────────────────────────
@@ -297,4 +300,14 @@ function collectBindings(
 ): Array<{ key: string; action: string }> {
   if (!script) return [];
   return Object.values(script.entities).flatMap((e) => e.inputs ?? []);
+}
+
+function updateInputDebug(el: HTMLElement, input: InputManager): void {
+  const { held, active } = input.getDebugInfo();
+  if (held.length === 0 && active.length === 0) {
+    el.classList.remove("is-visible");
+    return;
+  }
+  el.classList.add("is-visible");
+  el.textContent = `KEYS: ${held.join(", ")}\nACTS: ${active.join(", ")}`;
 }

@@ -97,6 +97,22 @@ export class InputManager {
     return this._stateCache;
   }
 
+  getDebugInfo(): { held: string[]; active: string[] } {
+    const active: string[] = [];
+    for (const [action, keys] of this.actionMap) {
+      for (const key of keys) {
+        if (this.heldKeys.has(key) || this.heldButtons.has(key)) {
+          active.push(action);
+          break;
+        }
+      }
+    }
+    return {
+      held: Array.from(this.heldKeys).concat(Array.from(this.heldButtons)),
+      active,
+    };
+  }
+
   dispose(): void {
     if (typeof window === "undefined") return;
     window.removeEventListener("keydown", this.onKeyDown);

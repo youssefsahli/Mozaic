@@ -137,6 +137,24 @@
       #compiler-console .cc-info  { color: #b0b0b0; }
       #compiler-console .cc-success { color: #6a9955; }
       #compiler-console .cc-error { color: #d16969; }
+
+      /* ── Input Debug overlay ──────────────────── */
+      #input-debug {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        color: var(--accent);
+        background: rgba(0, 0, 0, 0.7);
+        padding: 4px 8px;
+        border-radius: 4px;
+        pointer-events: none;
+        white-space: pre-wrap;
+        z-index: 100;
+        display: none;
+      }
+      #input-debug.is-visible { display: block; }
       #mozaic-canvas {
         max-width: 100%;
         max-height: 100%;
@@ -1365,6 +1383,7 @@
         <main id="canvas-area">
           <canvas id="mozaic-canvas"></canvas>
           <div id="compiler-console"></div>
+          <div id="input-debug"></div>
         </main>
 
         <!-- SPLIT HANDLE ─────────────────────────── -->

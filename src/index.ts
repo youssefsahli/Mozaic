@@ -146,6 +146,7 @@ interface UiRefs {
   lineNumbers: HTMLDivElement;
   editorUsedColors: HTMLDivElement;
   compilerConsole: HTMLDivElement;
+  inputDebug: HTMLDivElement;
 }
 
 interface DocEntry {
@@ -394,6 +395,7 @@ function getUiRefs(): UiRefs {
     lineNumbers: requiredElement<HTMLDivElement>("line-numbers"),
     editorUsedColors: requiredElement<HTMLDivElement>("editor-used-colors"),
     compilerConsole: requiredElement<HTMLDivElement>("compiler-console"),
+    inputDebug: requiredElement<HTMLDivElement>("input-debug"),
   };
 }
 
@@ -1876,6 +1878,7 @@ function restart(runtime: RuntimeState): void {
  */
 async function bootWithContext(runtime: RuntimeState): Promise<void> {
   const ctx: BootContext = {
+    inputDebugEl: runtime.ui.inputDebug,
     consoleEl: runtime.ui.compilerConsole,
     canvas: runtime.ui.canvas,
     renderer: runtime.renderer,
