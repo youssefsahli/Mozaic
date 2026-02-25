@@ -346,8 +346,8 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
 
           // ── Animator ────────────────────────────────────────────
           if (entityDef.components.Animator) {
-            const animSpeed = entityDef.components.Animator.speed ?? 10;
-            const seqName = entityDef.visual;
+            const animSpeed = (entityDef.components.Animator.speed as number) ?? 10;
+            const seqName = (entityDef.components.Animator.sequence as string) ?? entityDef.visual;
             if (seqName) {
               const baseSpriteId = spriteNameToId.get(seqName);
               if (baseSpriteId !== undefined) {

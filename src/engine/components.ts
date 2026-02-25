@@ -52,7 +52,7 @@ import {
 export type ComponentFn = (
   buffer: Uint8ClampedArray,
   entityPtr: number,
-  props: Record<string, number>,
+  props: Record<string, number | string>,
   input: InputState,
   baked: BakedAsset,
   state: EngineState
@@ -89,7 +89,7 @@ export class ComponentRegistry {
 
 /** Applies a constant downward force to the entity's Y-Velocity. */
 export const gravityComponent: ComponentFn = (buffer, entityPtr, props) => {
-  const force = props.force ?? 1;
+  const force = (props.force as number) ?? 1;
   const vy = readSignedInt16(buffer, entityPtr + ENTITY_VEL_Y);
   writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, vy + force);
 };
@@ -125,7 +125,7 @@ export const colliderComponent: ComponentFn = (
 
 /** Gradually reduces X/Y-Velocity toward zero. */
 export const frictionComponent: ComponentFn = (buffer, entityPtr, props) => {
-  const factor = props.factor ?? 0.9;
+  const factor = (props.factor as number) ?? 0.9;
   const vx = readSignedInt16(buffer, entityPtr + ENTITY_VEL_X);
   const vy = readSignedInt16(buffer, entityPtr + ENTITY_VEL_Y);
   writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, Math.trunc(vx * factor));
@@ -141,7 +141,7 @@ export const playerControllerComponent: ComponentFn = (
   props,
   input
 ) => {
-  const speed = props.speed ?? 1;
+  const speed = (props.speed as number) ?? 1;
   let vx = 0;
   let vy = 0;
   if (input.active.has("Action.Left")) vx -= speed;
@@ -159,7 +159,7 @@ export const topDownControllerComponent: ComponentFn = (
   props,
   input
 ) => {
-  const speed = props.speed ?? 1;
+  const speed = (props.speed as number) ?? 1;
   let vx = 0;
   let vy = 0;
   const left = input.active.has("Action.MoveLeft");
@@ -182,8 +182,8 @@ export const navigatorComponent: ComponentFn = (
   _input,
   baked
 ) => {
-  const speed = props.speed ?? 1;
-  const pathIndex = props.pathIndex ?? 0;
+  const speed = (props.speed as number) ?? 1;
+  const pathIndex = (props.pathIndex as number) ?? 0;
   if (pathIndex >= baked.bezierPaths.length) return;
   const path = baked.bezierPaths[pathIndex];
   if (path.length === 0) return;
@@ -212,7 +212,7 @@ export const lifetimeComponent: ComponentFn = (buffer, entityPtr, props) => {
   let timer = readInt8(buffer, timerByte);
 
   if (timer === 0) {
-    timer = Math.min(props.frames ?? 60, 255);
+    timer = Math.min((props.frames as number) ?? 60, 255);
     writeInt8(buffer, timerByte, timer);
     return;
   }
@@ -234,7 +234,7 @@ export const screenShakeComponent: ComponentFn = (
   _entityPtr,
   props
 ) => {
-  const intensity = props.intensity ?? 2;
+  const intensity = (props.intensity as number) ?? 2;
   const shakeX = Math.round((Math.random() - 0.5) * 2 * intensity);
   const shakeY = Math.round((Math.random() - 0.5) * 2 * intensity);
   writeSignedInt16(buffer, CAMERA_SHAKE_X, shakeX);
@@ -247,8 +247,8 @@ export const spriteAnimatorComponent: ComponentFn = (
   entityPtr,
   props
 ) => {
-  const frameDelay = props.frames ?? 10;
-  const count = props.count ?? 2;
+  const frameDelay = (props.frames as number) ?? 10;
+  const count = (props.count as number) ?? 2;
   const timerByte = entityPtr + ENTITY_DATA_START + 1;
   let timer = readInt8(buffer, timerByte);
 
@@ -267,9 +267,9 @@ export const particleEmitterComponent: ComponentFn = (
   entityPtr,
   props
 ) => {
-  const rate = props.rate ?? 1;
-  const lifetime = props.lifetime ?? 30;
-  const typeId = props.typeId ?? 0;
+  const rate = (props.rate as number) ?? 1;
+  const lifetime = (props.lifetime as number) ?? 30;
+  const typeId = (props.typeId as number) ?? 0;
   const px = readInt16(buffer, entityPtr + ENTITY_POS_X);
   const py = readInt16(buffer, entityPtr + ENTITY_POS_Y);
 
@@ -295,7 +295,7 @@ export const particleEmitterComponent: ComponentFn = (
     writeSignedInt16(buffer, ptr + ENTITY_VEL_X, vx);
     writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, vy);
 
-    writeInt8(buffer, ptr + ENTITY_DATA_START, Math.min(lifetime, 255));
+    writeInt8(buffer, ptr + ENTITY_DATA_START, Math.min(lifetime as number, 255));
 
     spawned++;
   }

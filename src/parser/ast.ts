@@ -18,7 +18,7 @@ export interface MscEntity {
   visual?: string;
   physics?: MscEntityPhysics[];
   inputs?: MscInput[];
-  components?: Record<string, Record<string, number>>;
+  components?: Record<string, Record<string, number | string>>;
 }
 
 export interface MscEvent {
@@ -358,21 +358,27 @@ function parseSpriteValue(value: string): MscSpriteDef | null {
   return null;
 }
 
-function parseComponentProps(value: string): Record<string, number> | null {
+function parseComponentProps(value: string): Record<string, number | string> | null {
   const trimmed = value.trim();
   if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
   const inner = trimmed.slice(1, -1).trim();
   if (!inner) return {};
 
-  const props: Record<string, number> = {};
+  const props: Record<string, number | string> = {};
   const parts = inner.split(",");
   for (const part of parts) {
     const colonIdx = part.indexOf(":");
     if (colonIdx === -1) return null;
     const key = part.slice(0, colonIdx).trim();
-    const val = Number(part.slice(colonIdx + 1).trim());
-    if (!key || Number.isNaN(val)) return null;
-    props[key] = val;
+    const rawVal = part.slice(colonIdx + 1).trim();
+    if (!key) return null;
+
+    if (rawVal.startsWith('"') || rawVal.startsWith("'")) {
+      props[key] = stripQuotes(rawVal);
+    } else {
+      const n = Number(rawVal);
+      props[key] = Number.isNaN(n) ? rawVal : n;
+    }
   }
   return props;
 }
@@ -466,7 +472,7 @@ function parseNestedComponents(
       const compName = token.key ?? "";
       const compVal = token.value ?? "";
 
-      let props: Record<string, number> = {};
+      let props: Record<string, number | string> = {};
 
       if (compVal) {
         const parsed = parseComponentProps(compVal);
@@ -489,9 +495,11 @@ function parseNestedComponents(
         if (sub.kind === "mapping") {
           const pk = sub.key ?? "";
           const pv = sub.value ?? "";
-          const n = parseFloat(pv);
-          if (!Number.isNaN(n)) {
-            props[pk] = n;
+          if (pv.startsWith('"') || pv.startsWith("'")) {
+             props[pk] = stripQuotes(pv);
+          } else {
+            const n = parseFloat(pv);
+            props[pk] = Number.isNaN(n) ? pv : n;
           }
         }
         j++;
