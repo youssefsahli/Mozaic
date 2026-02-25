@@ -27,6 +27,14 @@ export interface InputState {
   active: Set<string>;
 }
 
+/**
+ * Normalize a KeyboardEvent.code so that browser codes like "KeyW"
+ * match the MSC-format "Key_W".
+ */
+function normalizeCode(code: string): string {
+  return code.replace(/^Key([A-Z])/, "Key_$1");
+}
+
 export class InputManager {
   private readonly actionMap: ActionMap;
   private readonly heldKeys: Set<string> = new Set();
@@ -42,8 +50,8 @@ export class InputManager {
   constructor(bindings: Array<{ key: string; action: string }>) {
     this.actionMap = buildActionMap(bindings);
     this._stateCache = { active: this._activeCache };
-    this.onKeyDown = (e) => this.heldKeys.add(e.code);
-    this.onKeyUp = (e) => this.heldKeys.delete(e.code);
+    this.onKeyDown = (e) => this.heldKeys.add(normalizeCode(e.code));
+    this.onKeyUp = (e) => this.heldKeys.delete(normalizeCode(e.code));
     this.attachKeyboardListeners();
   }
 

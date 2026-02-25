@@ -827,6 +827,10 @@ function saveActiveFileContent(runtime: RuntimeState): void {
   if (!node || node.kind !== "file") return;
 
   if (node.fileType === "script") {
+    // Sync from the textarea to capture the very latest edits
+    if (runtime.editorMode === "script") {
+      runtime.scriptText = runtime.ui.mscEditor.value;
+    }
     node.content = runtime.scriptText;
   } else if (node.fileType === "image" && runtime.imageData) {
     node.content = imageDataToDataUrl(runtime.imageData);

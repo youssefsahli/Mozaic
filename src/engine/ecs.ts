@@ -276,11 +276,16 @@ export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset
     }
 
     if (components.Animator) {
-      const seqIdx = components.Animator.sequence ?? 0;
       const animSpeed = components.Animator.speed ?? 10;
-      const seqArray = script.animations?.[seqIdx];
-      if (seqArray && seqArray.length > 0) {
-        applyAnimator(buffer, ptr, seqArray, animSpeed);
+      const seqName = entityDef.visual;
+      if (seqName) {
+        const baseSpriteId = spriteNameToId.get(seqName);
+        if (baseSpriteId !== undefined) {
+          const spriteDef = sprites.get(seqName);
+          const frames = spriteDef && spriteDef.kind === "grid" ? spriteDef.frames : 1;
+          const sequenceArray = Array.from({length: frames}, (_, i) => baseSpriteId + i);
+          applyAnimator(buffer, ptr, sequenceArray, animSpeed);
+        }
       }
     }
   }
