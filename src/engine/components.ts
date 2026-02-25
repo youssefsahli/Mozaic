@@ -241,7 +241,7 @@ export const screenShakeComponent: ComponentFn = (
   writeSignedInt16(buffer, CAMERA_SHAKE_Y, shakeY);
 };
 
-/** Cycles the entity's Type ID to animate between visual states. Uses data byte 12. */
+/** Cycles the entity's Sprite ID to animate between visual states. Uses data byte 12. */
 export const spriteAnimatorComponent: ComponentFn = (
   buffer,
   entityPtr,
@@ -255,8 +255,8 @@ export const spriteAnimatorComponent: ComponentFn = (
   timer++;
   if (timer >= frameDelay) {
     timer = 0;
-    const typeId = readInt8(buffer, entityPtr + ENTITY_TYPE_ID);
-    writeInt8(buffer, entityPtr + ENTITY_TYPE_ID, (typeId + 1) % count);
+    const spriteId = readInt8(buffer, entityPtr + ENTITY_DATA_START);
+    writeInt8(buffer, entityPtr + ENTITY_DATA_START, (spriteId + 1) % count);
   }
   writeInt8(buffer, timerByte, timer);
 };

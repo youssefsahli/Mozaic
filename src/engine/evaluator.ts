@@ -168,11 +168,67 @@ function extractColor(operand: string): string | null {
   return m ? `#${m[1]}` : null;
 }
 
+/**
+ * Evaluate a state condition like "$health <= 0" or "$score >= 100".
+ *
+ * Supported comparators: ==, !=, >, <, >=, <=
+ * Operands: State.$VAR references or numeric literals.
+ */
+const STATE_COND_RE =
+  /^(State\.\$\w+|\$\w+|\d+(?:\.\d+)?)\s*(==|!=|>=|<=|>|<)\s*(State\.\$\w+|\$\w+|\d+(?:\.\d+)?)$/;
+
+function resolveCondAtom(
+  token: string,
+  schema: MscSchema,
+  buffer: Uint8ClampedArray
+): number {
+  const t = token.trim();
+  if (t.startsWith("State.$")) {
+    return evalAtom(t, schema, buffer);
+  }
+  if (t.startsWith("$")) {
+    return evalAtom(`State.${t}`, schema, buffer);
+  }
+  const n = Number(t);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+function evalStateCondition(
+  condition: string,
+  schema: MscSchema,
+  buffer: Uint8ClampedArray
+): boolean {
+  const m = condition.match(STATE_COND_RE);
+  if (!m) return false;
+
+  const lhs = resolveCondAtom(m[1], schema, buffer);
+  const op = m[2];
+  const rhs = resolveCondAtom(m[3], schema, buffer);
+
+  switch (op) {
+    case "==":
+      return lhs === rhs;
+    case "!=":
+      return lhs !== rhs;
+    case ">":
+      return lhs > rhs;
+    case "<":
+      return lhs < rhs;
+    case ">=":
+      return lhs >= rhs;
+    case "<=":
+      return lhs <= rhs;
+    default:
+      return false;
+  }
+}
+
 function isTriggerFired(
   trigger: string,
   state: EngineState,
   input: InputState,
-  _baked: BakedAsset
+  _baked: BakedAsset,
+  schema: MscSchema
 ): boolean {
   const t = trigger.trim();
 
@@ -192,6 +248,12 @@ function isTriggerFired(
     if (colorA && colorB) {
       return detectColorCollision(state.buffer, state.width, colorA, colorB);
     }
+  }
+
+  // State(EXPR COMPARATOR EXPR) — e.g. State($health <= 0)
+  const stateMatch = t.match(/^State\((.+)\)$/);
+  if (stateMatch) {
+    return evalStateCondition(stateMatch[1].trim(), schema, state.buffer);
   }
 
   return false;
@@ -218,7 +280,7 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
     const { schema, events, entities, sprites } = script;
 
     for (const event of events) {
-      if (!isTriggerFired(event.trigger, state, input, baked)) continue;
+      if (!isTriggerFired(event.trigger, state, input, baked, schema)) continue;
       for (const action of event.actions) {
         execAction(action, schema, buffer);
       }

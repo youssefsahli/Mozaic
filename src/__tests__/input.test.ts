@@ -64,4 +64,18 @@ describe("InputManager.sample", () => {
 
     mgr.dispose();
   });
+
+  it("normalizes browser Space to MSC Key_Space and activates action", () => {
+    const mgr = new InputManager([
+      { key: "Key_Space", action: "Action.Jump" },
+    ]);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "Space" }));
+    expect(mgr.sample().active.has("Action.Jump")).toBe(true);
+
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "Space" }));
+    expect(mgr.sample().active.has("Action.Jump")).toBe(false);
+
+    mgr.dispose();
+  });
 });

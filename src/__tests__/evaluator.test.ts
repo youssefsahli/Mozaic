@@ -204,3 +204,126 @@ describe("buildEvaluatorLogic — Collision trigger", () => {
     expect(readSchemaVar(buf, schema, "$Hit")).toBe(0);
   });
 });
+
+describe("buildEvaluatorLogic — State trigger", () => {
+  it("fires when state condition is met (greater than)", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {
+      $Score: { addr: 64, type: "Int8" },
+      $Won: { addr: 65, type: "Int8" },
+    };
+    writeSchemaVar(buf, schema, "$Score", 100);
+
+    const script = makeScript(schema, [
+      { trigger: "State($Score >= 100)", actions: ["State.$Won = 1"] },
+    ]);
+
+    const logic = buildEvaluatorLogic();
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Won")).toBe(1);
+  });
+
+  it("does not fire when state condition is not met", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {
+      $Score: { addr: 64, type: "Int8" },
+      $Won: { addr: 65, type: "Int8" },
+    };
+    writeSchemaVar(buf, schema, "$Score", 50);
+
+    const script = makeScript(schema, [
+      { trigger: "State($Score >= 100)", actions: ["State.$Won = 1"] },
+    ]);
+
+    const logic = buildEvaluatorLogic();
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Won")).toBe(0);
+  });
+
+  it("supports equality comparison", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {
+      $HP: { addr: 64, type: "Int8" },
+      $Dead: { addr: 65, type: "Int8" },
+    };
+    writeSchemaVar(buf, schema, "$HP", 0);
+
+    const script = makeScript(schema, [
+      { trigger: "State($HP == 0)", actions: ["State.$Dead = 1"] },
+    ]);
+
+    const logic = buildEvaluatorLogic();
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Dead")).toBe(1);
+  });
+
+  it("supports inequality comparison", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {
+      $HP: { addr: 64, type: "Int8" },
+      $Alive: { addr: 65, type: "Int8" },
+    };
+    writeSchemaVar(buf, schema, "$HP", 5);
+
+    const script = makeScript(schema, [
+      { trigger: "State($HP != 0)", actions: ["State.$Alive = 1"] },
+    ]);
+
+    const logic = buildEvaluatorLogic();
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Alive")).toBe(1);
+  });
+
+  it("supports less-than comparison", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {
+      $HP: { addr: 64, type: "Int8" },
+      $Low: { addr: 65, type: "Int8" },
+    };
+    writeSchemaVar(buf, schema, "$HP", 3);
+
+    const script = makeScript(schema, [
+      { trigger: "State($HP < 5)", actions: ["State.$Low = 1"] },
+    ]);
+
+    const logic = buildEvaluatorLogic();
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Low")).toBe(1);
+  });
+
+  it("compares two state variables against each other", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {
+      $HP: { addr: 64, type: "Int8" },
+      $MaxHP: { addr: 65, type: "Int8" },
+      $Full: { addr: 66, type: "Int8" },
+    };
+    writeSchemaVar(buf, schema, "$HP", 10);
+    writeSchemaVar(buf, schema, "$MaxHP", 10);
+
+    const script = makeScript(schema, [
+      { trigger: "State($HP == $MaxHP)", actions: ["State.$Full = 1"] },
+    ]);
+
+    const logic = buildEvaluatorLogic();
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Full")).toBe(1);
+  });
+
+  it("supports State.$VAR syntax in conditions", () => {
+    const buf = createStateBuffer();
+    const schema: MscSchema = {
+      $HP: { addr: 64, type: "Int8" },
+      $Dead: { addr: 65, type: "Int8" },
+    };
+    writeSchemaVar(buf, schema, "$HP", 0);
+
+    const script = makeScript(schema, [
+      { trigger: "State(State.$HP <= 0)", actions: ["State.$Dead = 1"] },
+    ]);
+
+    const logic = buildEvaluatorLogic();
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Dead")).toBe(1);
+  });
+});
