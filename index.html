@@ -4,33 +4,34 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mozaic</title>
+    <link rel="stylesheet" href="/styles.css" />
     <style>
-      /* ── CSS Variables ────────────────────────── */
+      /* ── CSS Variables — Sci-Fi Mosaic Palette ── */
       :root {
-        --bg:         #0c0c0c;
-        --surface:    #141414;
-        --surface-2:  #1a1a1a;
-        --surface-3:  #212121;
-        --border:     #232323;
-        --border-hi:  #383838;
-        --text:       #ccc;
-        --text-dim:   #5a5a5a;
-        --accent:     #5b9;
-        --accent-bg:  rgba(85,187,153,.12);
-        --accent-hover: #6dc9a0;
-        --danger:     #d16969;
-        --success:    #6a9955;
-        --warning:    #e5c07b;
-        --info:       #56b6c2;
+        --bg:         #050A14;
+        --surface:    #0A1222;
+        --surface-2:  #0D1A30;
+        --surface-3:  #132240;
+        --border:     #16243E;
+        --border-hi:  #1E3358;
+        --text:       #A0B6D4;
+        --text-dim:   #5A7899;
+        --accent:     #00F0FF;
+        --accent-bg:  rgba(0,240,255,.12);
+        --accent-hover: #33F4FF;
+        --danger:     #FF4D6A;
+        --success:    #00E676;
+        --warning:    #FFD740;
+        --info:       #40C4FF;
         --radius:     4px;
         --radius-lg:  6px;
-        --font-mono:  ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
-        --header-h:   34px;
+        --font-mono:  'Fira Code','Consolas',ui-monospace,SFMono-Regular,Menlo,Monaco,monospace;
+        --header-h:   40px;
         --tab-h:      28px;
         --handle-w:   5px;
         --ease:       200ms cubic-bezier(0.4,0,0.2,1);
-        --shadow-sm:  0 1px 2px rgba(0,0,0,.3);
-        --shadow-md:  0 2px 8px rgba(0,0,0,.4);
+        --shadow-sm:  0 1px 2px rgba(0,0,0,.4);
+        --shadow-md:  0 2px 8px rgba(0,0,0,.5);
       }
 
       /* ── Reset ────────────────────────────────── */
@@ -125,7 +126,7 @@
         right: 0;
         max-height: 50%;
         overflow-y: auto;
-        background: rgba(0, 0, 0, 0.92);
+        background: rgba(5, 10, 20, 0.94);
         font: 12px/1.6 var(--font-mono);
         color: #ccc;
         padding: 8px 12px;
@@ -267,8 +268,8 @@
         white-space: nowrap;
         line-height: 1.5;
       }
-      button:not(.tab-btn):hover  { background: #222; border-color: var(--border-hi) }
-      button:not(.tab-btn):active { background: #282828 }
+      button:not(.tab-btn):hover  { background: var(--surface-3); border-color: var(--border-hi) }
+      button:not(.tab-btn):active { background: var(--surface-2) }
       button:not(.tab-btn):disabled { opacity: .35; cursor: default; pointer-events: none }
       .is-active:not(.tab-btn) {
         background: var(--accent-bg) !important;
@@ -308,7 +309,7 @@
         box-shadow: inset 0 0 0 1px var(--accent);
       }
       #msc-editor::selection {
-        background: rgba(85,187,153,.25);
+        background: rgba(0,240,255,.25);
       }
       #msc-highlight::selection,
       #msc-highlight *::selection {
@@ -421,7 +422,7 @@
         transition: border-color 80ms, background 80ms;
         font-size: 10px; color: var(--text);
       }
-      .palette-chip:hover { border-color: var(--border-hi); background: #222 }
+      .palette-chip:hover { border-color: var(--border-hi); background: var(--surface-3) }
       .palette-chip-swatch {
         width: 10px; height: 10px; border-radius: 2px;
         border: 1px solid rgba(255,255,255,.15); flex-shrink: 0;
@@ -1093,8 +1094,8 @@
       /* ── Scrollbar ────────────────────────────── */
       ::-webkit-scrollbar { width: 4px; height: 4px }
       ::-webkit-scrollbar-track { background: transparent }
-      ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px }
-      ::-webkit-scrollbar-thumb:hover { background: #333 }
+      ::-webkit-scrollbar-thumb { background: var(--bg-panel-border, #16243E); border-radius: 3px }
+      ::-webkit-scrollbar-thumb:hover { background: var(--accent-cyan, #00F0FF) }
 
       /* ── Editor Toolbar ────────────────────────── */
       .editor-toolbar {
@@ -1166,15 +1167,15 @@
       .toolbar-btn:hover {
         color: var(--text) !important;
         border-color: var(--border-hi) !important;
-        background: #282828 !important;
+        background: var(--surface-3) !important;
       }
       .toolbar-btn-accent {
         background: var(--accent-bg) !important;
-        border-color: rgba(85,187,153,.3) !important;
+        border-color: rgba(0,240,255,.3) !important;
         color: var(--accent) !important;
       }
       .toolbar-btn-accent:hover {
-        background: rgba(85,187,153,.2) !important;
+        background: rgba(0,240,255,.2) !important;
         border-color: var(--accent) !important;
       }
 
@@ -1184,9 +1185,9 @@
         left: 0; top: 0; bottom: 0;
         width: 36px;
         padding: 6px 6px 6px 2px;
-        background: rgba(18,18,18,.8);
+        background: rgba(5,10,20,.85);
         border-right: 1px solid var(--border);
-        color: #3a3a3a;
+        color: #2A4060;
         font: 12px/1.45 var(--font-mono);
         text-align: right;
         white-space: pre;
@@ -1282,7 +1283,7 @@
       }
       #pixel-editor-wrap {
         border-radius: var(--radius-lg);
-        background: #080808;
+        background: var(--bg-deep);
         box-shadow: inset 0 2px 8px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.2);
       }
       #pixel-bottom-bar {
@@ -1308,7 +1309,7 @@
         box-shadow: 0 2px 6px rgba(0,0,0,.3);
       }
       .palette-swatch.is-active {
-        box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(85,187,153,.2);
+        box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(0,240,255,.2);
         transform: scale(1.2); z-index: 2;
       }
       #msc-editor-wrap { border-radius: var(--radius-lg) }
@@ -1319,7 +1320,7 @@
       }
       #pixel-footer {
         padding: 4px 6px;
-        background: rgba(20,20,20,.5);
+        background: rgba(5,10,20,.5);
         border-radius: var(--radius);
       }
       .tool-btn svg {
@@ -1331,7 +1332,7 @@
     </style>
   </head>
   <body>
-    <div id="mozaic-app">
+    <div id="mozaic-app" class="ide-layout">
 
       <!-- ── Header ───────────────────────────────── -->
       <header id="mozaic-header">
