@@ -16,6 +16,7 @@ import {
   MEMORY_BLOCKS,
 } from "./memory.js";
 import type { MscSpriteDef } from "../parser/ast.js";
+import type { EngineState, CameraState } from "./loop.js";
 
 // ── Camera Globals ────────────────────────────────────────────
 
@@ -111,9 +112,18 @@ const ENT_VERTEX_SRC = `
 attribute vec2 a_position;
 attribute vec2 a_texCoord;
 uniform vec2 u_resolution;
+uniform vec2 u_camPos;
+uniform float u_zoom;
+uniform float u_shake;
+uniform float u_time;
 varying vec2 v_texCoord;
 void main() {
-  vec2 clip = (a_position / u_resolution) * 2.0 - 1.0;
+  vec2 pos = (a_position - u_camPos) * u_zoom;
+  if (u_shake > 0.0) {
+    pos.x += sin(u_time * 50.0) * u_shake;  // 50.0 = shake frequency in Hz
+    pos.y += cos(u_time * 50.0 + 1.0) * u_shake;
+  }
+  vec2 clip = (pos / u_resolution) * 2.0 - 1.0;
   clip.y = -clip.y;
   gl_Position = vec4(clip, 0.0, 1.0);
   v_texCoord = a_texCoord;
@@ -123,11 +133,12 @@ void main() {
 const ENT_FRAGMENT_SRC = `
 precision mediump float;
 uniform sampler2D u_texture;
+uniform vec4 u_tint;
 varying vec2 v_texCoord;
 void main() {
   vec4 color = texture2D(u_texture, v_texCoord);
   if (color.a < 0.01) discard;
-  gl_FragColor = color;
+  gl_FragColor = color * u_tint;
 }
 `;
 
@@ -248,12 +259,11 @@ export class Renderer {
 
   /**
    * Render: clear background then draw entity batch.
-   * @param state  RGBA Uint8ClampedArray (width × height × 4)
-   * @param width  State buffer width in pixels
-   * @param height State buffer height in pixels
+   * @param engineState  Full engine state including buffer, dimensions, and camera
    */
-  render(state: Uint8ClampedArray, width: number, height: number): void {
+  render(engineState: EngineState): void {
     const { gl, texture } = this;
+    const { buffer: state, width, height, camera } = engineState;
 
     // Upload state buffer as texture
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -271,30 +281,19 @@ export class Renderer {
 
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
 
-    // Read camera offset (pixels) from globals block (bytes 64–67)
-    const camX =
-      state.length > GLOBALS_CAMERA_Y_BYTE + 1
-        ? (state[GLOBALS_CAMERA_X_BYTE] << 8) | state[GLOBALS_CAMERA_X_BYTE + 1]
-        : 0;
-    const camY =
-      state.length > GLOBALS_CAMERA_Y_BYTE + 1
-        ? (state[GLOBALS_CAMERA_Y_BYTE] << 8) | state[GLOBALS_CAMERA_Y_BYTE + 1]
-        : 0;
-
     // ── Background: solid dark clear ────────────────────────────
     gl.clearColor(0.1, 0.1, 0.12, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // ── Entities ──────────────────────────────────────────────
-    this.renderEntities(state, width, height, camX, camY);
+    this.renderEntities(state, width, height, camera);
   }
 
   private renderEntities(
     state: Uint8ClampedArray,
     width: number,
     height: number,
-    camX: number,
-    camY: number
+    camera: CameraState
   ): void {
     const { gl, entProgram, entVertexBuffer, entIndexBuffer, entVertices, spriteAtlas } = this;
 
@@ -324,9 +323,9 @@ export class Renderer {
       const posX = readInt16(state, ptr + ENTITY_POS_X);
       const posY = readInt16(state, ptr + ENTITY_POS_Y);
 
-      // Screen-space corners (camera offset applied to position)
-      const x0 = posX - sprite.ox - camX;
-      const y0 = posY - sprite.oy - camY;
+      // Screen-space corners (world position, camera handled in shader)
+      const x0 = posX - sprite.ox;
+      const y0 = posY - sprite.oy;
       const x1 = x0 + sprite.w;
       const y1 = y0 + sprite.h;
 
@@ -364,6 +363,13 @@ export class Renderer {
 
     const resLoc = gl.getUniformLocation(entProgram, "u_resolution");
     gl.uniform2f(resLoc, width, height);
+
+    // Camera uniforms
+    gl.uniform2f(gl.getUniformLocation(entProgram, "u_camPos"), camera.x, camera.y);
+    gl.uniform1f(gl.getUniformLocation(entProgram, "u_zoom"), camera.zoom);
+    gl.uniform1f(gl.getUniformLocation(entProgram, "u_shake"), camera.shake);
+    gl.uniform4fv(gl.getUniformLocation(entProgram, "u_tint"), camera.tint);
+    gl.uniform1f(gl.getUniformLocation(entProgram, "u_time"), performance.now() / 1000.0);
 
     const stride = FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
 

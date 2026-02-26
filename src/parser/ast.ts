@@ -20,6 +20,18 @@ export interface MscEntityState {
   components?: Record<string, Record<string, number | string>>;
 }
 
+export interface MscCameraComponent {
+  zoom?: number;       // Default: 1.0 (1x scale)
+  shake?: number;      // Default: 0.0 (intensity of screen shake)
+  tint?: string;       // Default: "#FFFFFF" (hex color multiplier)
+  followSpeed?: number; // Optional polish: for lerping camera position
+}
+
+export interface MscComponents {
+  Camera?: MscCameraComponent;
+  [key: string]: Record<string, number | string> | MscCameraComponent | undefined;
+}
+
 export interface MscEntity {
   visual?: string;
   physics?: MscEntityPhysics[];

@@ -16,6 +16,14 @@ import type { MscDocument } from "../parser/msc.js";
 import type { Renderer } from "./renderer.js";
 import { InputManager } from "./input.js";
 
+export interface CameraState {
+  x: number;
+  y: number;
+  zoom: number;
+  shake: number;
+  tint: [number, number, number, number];
+}
+
 export interface EngineState {
   /** Raw pixel memory — the "state PNG" flattened to RGBA bytes. */
   buffer: Uint8ClampedArray;
@@ -23,6 +31,7 @@ export interface EngineState {
   height: number;
   frameCount: number;
   tickCount: number;
+  camera: CameraState;
 }
 
 export type LogicFn = (
@@ -76,7 +85,7 @@ export class EngineLoop {
     this.state = logic(this.state, input, baked, script);
 
     // 4. Render
-    renderer.render(this.state.buffer, this.state.width, this.state.height);
+    renderer.render(this.state);
 
     this.options.onPostTick?.(this.state);
 
@@ -100,6 +109,7 @@ export function createInitialState(imageData: ImageData): EngineState {
     height: imageData.height,
     frameCount: 0,
     tickCount: 0,
+    camera: { x: 0, y: 0, zoom: 1, shake: 0, tint: [1, 1, 1, 1] },
   };
 }
 
