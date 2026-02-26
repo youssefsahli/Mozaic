@@ -23,6 +23,7 @@ function makeState(buffer?: Uint8ClampedArray): EngineState {
     height: 64,
     frameCount: 0,
     tickCount: 0,
+    camera: { x: 0, y: 0, zoom: 1, shake: 0, tint: [1, 1, 1, 1] },
   };
 }
 
@@ -30,12 +31,14 @@ describe("Evaluator Logic - Logical Operators", () => {
   it("evaluates OR (||) conditions correctly", () => {
     // 1. Setup Script
     const script: MscDocument = {
+      imports: [],
       schema: {},
       events: [],
       sprites: new Map([
-        ["idle", { kind: "static", frames: 1 }],
-        ["walk", { kind: "static", frames: 1 }],
+        ["idle", { kind: "grid", col: 0, row: 0, frames: 1 }],
+        ["walk", { kind: "grid", col: 1, row: 0, frames: 1 }],
       ]),
+      spriteGrid: 16,
       entities: {
         "Hero": {
           visual: "idle",
