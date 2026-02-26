@@ -739,12 +739,14 @@ function parseLayers(
         const source = stripQuotes(props["source"] ?? "");
 
         if (layerType === "Parallax") {
+          const pxVal = props["parallaxX"] !== undefined ? parseFloat(props["parallaxX"]) : undefined;
+          const pyVal = props["parallaxY"] !== undefined ? parseFloat(props["parallaxY"]) : undefined;
           const layer: MscLayer = {
             Parallax: {
               source,
               ...(props["repeat"] !== undefined && { repeat: props["repeat"] === "true" }),
-              ...(props["parallaxX"] !== undefined && { parallaxX: parseFloat(props["parallaxX"]) }),
-              ...(props["parallaxY"] !== undefined && { parallaxY: parseFloat(props["parallaxY"]) }),
+              ...(pxVal !== undefined && !Number.isNaN(pxVal) && { parallaxX: pxVal }),
+              ...(pyVal !== undefined && !Number.isNaN(pyVal) && { parallaxY: pyVal }),
             },
           };
           layers.push(layer);

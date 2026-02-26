@@ -271,6 +271,10 @@ export class Renderer {
   // Background buffers
   private readonly bgVertexBuffer: WebGLBuffer;
 
+  // Pre-allocated terrain vertex data (reused each frame)
+  private readonly terrainVertices: Float32Array;
+  private readonly bgQuadVertices: Float32Array;
+
   // Sprite atlas (set via setSpriteAtlas)
   private spriteAtlas: (BakedSprite | null)[] = [];
 
@@ -339,18 +343,20 @@ export class Renderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 
     // --- Background full-screen quad (clip-space, tiled UVs) ---
-    const bgVerts = new Float32Array([
+    this.bgQuadVertices = new Float32Array([
       // x,    y,   u,  v
       -1.0, -1.0, 0.0, 1.0, // bottom-left
        1.0, -1.0, 1.0, 1.0, // bottom-right
       -1.0,  1.0, 0.0, 0.0, // top-left
        1.0,  1.0, 1.0, 0.0, // top-right
     ]);
+    // Pre-allocate terrain vertex data (4 verts × 4 floats)
+    this.terrainVertices = new Float32Array(16);
     const bgBuf = gl.createBuffer();
     if (!bgBuf) throw new Error("Failed to create background vertex buffer");
     this.bgVertexBuffer = bgBuf;
     gl.bindBuffer(gl.ARRAY_BUFFER, bgBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, bgVerts, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.bgQuadVertices, gl.STATIC_DRAW);
   }
 
   /** Set the compiled sprite atlas for entity rendering. */
@@ -511,16 +517,17 @@ export class Renderer {
     height: number,
     camera: CameraState
   ): void {
-    const { gl, terrainProgram, bgVertexBuffer } = this;
+    const { gl, terrainProgram, bgVertexBuffer, terrainVertices } = this;
 
-    // Build a world-space quad for the terrain (0,0 to width,height)
-    const terrainVerts = new Float32Array([
-      // x,          y,           u,   v
-      0,            0,            0.0, 0.0, // top-left
-      layer.width,  0,            1.0, 0.0, // top-right
-      0,            layer.height, 0.0, 1.0, // bottom-left
-      layer.width,  layer.height, 1.0, 1.0, // bottom-right
-    ]);
+    // Fill pre-allocated terrain vertex data (world-space quad)
+    terrainVertices[0]  = 0;            terrainVertices[1]  = 0;
+    terrainVertices[2]  = 0.0;          terrainVertices[3]  = 0.0;
+    terrainVertices[4]  = layer.width;  terrainVertices[5]  = 0;
+    terrainVertices[6]  = 1.0;          terrainVertices[7]  = 0.0;
+    terrainVertices[8]  = 0;            terrainVertices[9]  = layer.height;
+    terrainVertices[10] = 0.0;          terrainVertices[11] = 1.0;
+    terrainVertices[12] = layer.width;  terrainVertices[13] = layer.height;
+    terrainVertices[14] = 1.0;          terrainVertices[15] = 1.0;
 
     gl.useProgram(terrainProgram);
     gl.enable(gl.BLEND);
@@ -529,7 +536,7 @@ export class Renderer {
     const stride = FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
 
     gl.bindBuffer(gl.ARRAY_BUFFER, bgVertexBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, terrainVerts, gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, terrainVertices, gl.DYNAMIC_DRAW);
 
     const posLoc = gl.getAttribLocation(terrainProgram, "a_position");
     gl.enableVertexAttribArray(posLoc);
@@ -555,14 +562,8 @@ export class Renderer {
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
     // Restore the background full-screen quad data
-    const bgVerts = new Float32Array([
-      -1.0, -1.0, 0.0, 1.0,
-       1.0, -1.0, 1.0, 1.0,
-      -1.0,  1.0, 0.0, 0.0,
-       1.0,  1.0, 1.0, 0.0,
-    ]);
     gl.bindBuffer(gl.ARRAY_BUFFER, bgVertexBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, bgVerts, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.bgQuadVertices, gl.STATIC_DRAW);
 
     gl.disable(gl.BLEND);
   }
