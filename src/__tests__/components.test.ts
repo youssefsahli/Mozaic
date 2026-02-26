@@ -10,7 +10,15 @@ import {
   playerControllerComponent,
   navigatorComponent,
   healthComponent,
+  healthEngineComponent,
   lifetimeComponent,
+  hitboxComponent,
+  platformControllerEngineComponent,
+  wandererComponent,
+  chaserComponent,
+  spawnerComponent,
+  interactableEngineComponent,
+  areaTriggerEngineComponent,
   screenShakeComponent,
   spriteAnimatorComponent,
   particleEmitterComponent,
@@ -128,7 +136,7 @@ describe("ComponentRegistry", () => {
 });
 
 describe("createDefaultRegistry", () => {
-  it("registers all 12 built-in components", () => {
+  it("registers all built-in components", () => {
     const registry = createDefaultRegistry();
     const ids = [
       "Gravity",
@@ -139,6 +147,13 @@ describe("createDefaultRegistry", () => {
       "Navigator",
       "Health",
       "Lifetime",
+      "Hitbox",
+      "PlatformController",
+      "Wanderer",
+      "Chaser",
+      "Spawner",
+      "Interactable",
+      "AreaTrigger",
       "ScreenShake",
       "SpriteAnimator",
       "ParticleEmitter",
@@ -152,6 +167,34 @@ describe("createDefaultRegistry", () => {
   it("Kinematic component exposes getContext", () => {
     const registry = createDefaultRegistry();
     const comp = registry.get("Kinematic");
+    expect(comp).toBeDefined();
+    expect(comp!.getContext).toBeDefined();
+  });
+
+  it("Health component exposes getContext with $hp and $maxHp", () => {
+    const registry = createDefaultRegistry();
+    const comp = registry.get("Health");
+    expect(comp).toBeDefined();
+    expect(comp!.getContext).toBeDefined();
+  });
+
+  it("PlatformController exposes getContext with $isGrounded and $vy", () => {
+    const registry = createDefaultRegistry();
+    const comp = registry.get("PlatformController");
+    expect(comp).toBeDefined();
+    expect(comp!.getContext).toBeDefined();
+  });
+
+  it("Interactable exposes getContext with $triggered", () => {
+    const registry = createDefaultRegistry();
+    const comp = registry.get("Interactable");
+    expect(comp).toBeDefined();
+    expect(comp!.getContext).toBeDefined();
+  });
+
+  it("AreaTrigger exposes getContext with $triggered", () => {
+    const registry = createDefaultRegistry();
+    const comp = registry.get("AreaTrigger");
     expect(comp).toBeDefined();
     expect(comp!.getContext).toBeDefined();
   });
@@ -388,6 +431,89 @@ describe("healthComponent", () => {
   });
 });
 
+describe("healthEngineComponent.getContext", () => {
+  it("exposes $hp and $maxHp from entity memory and props", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_HEALTH, 75);
+
+    const ctx = healthEngineComponent.getContext!(buf, ENTITY_PTR, { maxHp: 100 });
+    expect(ctx).toEqual({ $hp: 75, $maxHp: 100 });
+  });
+
+  it("defaults $maxHp to 100 when not specified", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_HEALTH, 50);
+
+    const ctx = healthEngineComponent.getContext!(buf, ENTITY_PTR, {});
+    expect(ctx.$maxHp).toBe(100);
+  });
+});
+
+describe("hitboxComponent", () => {
+  it("applies damage to overlapping entities", () => {
+    const buf = createStateBuffer();
+    const entityA = ENTITY_PTR;
+    const entityB = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    // Set up attacker
+    writeInt8(buf, entityA + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, entityA + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, entityA + ENTITY_POS_Y, 50);
+
+    // Set up target (overlapping)
+    writeInt8(buf, entityB + ENTITY_ACTIVE, 1);
+    writeInt8(buf, entityB + ENTITY_HEALTH, 10);
+    writeSignedInt16(buf, entityB + ENTITY_POS_X, 55);
+    writeSignedInt16(buf, entityB + ENTITY_POS_Y, 50);
+    writeSignedInt16(buf, entityB + ENTITY_VEL_X, 0);
+    writeSignedInt16(buf, entityB + ENTITY_VEL_Y, 0);
+
+    hitboxComponent(buf, entityA, { width: 16, height: 16, damage: 3, knockback: 4 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readInt8(buf, entityB + ENTITY_HEALTH)).toBe(7);
+    // Knockback should push B away from A (positive X direction)
+    expect(readSignedInt16(buf, entityB + ENTITY_VEL_X)).toBeGreaterThan(0);
+  });
+
+  it("does not damage entities outside the hitbox", () => {
+    const buf = createStateBuffer();
+    const entityA = ENTITY_PTR;
+    const entityB = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, entityA + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, entityA + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, entityA + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, entityB + ENTITY_ACTIVE, 1);
+    writeInt8(buf, entityB + ENTITY_HEALTH, 10);
+    writeSignedInt16(buf, entityB + ENTITY_POS_X, 200);
+    writeSignedInt16(buf, entityB + ENTITY_POS_Y, 200);
+
+    hitboxComponent(buf, entityA, { width: 16, height: 16, damage: 3 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readInt8(buf, entityB + ENTITY_HEALTH)).toBe(10);
+  });
+
+  it("does not reduce health below zero", () => {
+    const buf = createStateBuffer();
+    const entityA = ENTITY_PTR;
+    const entityB = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, entityA + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, entityA + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, entityA + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, entityB + ENTITY_ACTIVE, 1);
+    writeInt8(buf, entityB + ENTITY_HEALTH, 1);
+    writeSignedInt16(buf, entityB + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, entityB + ENTITY_POS_Y, 50);
+
+    hitboxComponent(buf, entityA, { damage: 5 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readInt8(buf, entityB + ENTITY_HEALTH)).toBe(0);
+  });
+});
+
 describe("lifetimeComponent", () => {
   it("initializes timer on first call, then decrements", () => {
     const buf = createStateBuffer();
@@ -411,6 +537,352 @@ describe("lifetimeComponent", () => {
 
     expect(readInt8(buf, ENTITY_PTR + ENTITY_ACTIVE)).toBe(0);
     expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(0);
+  });
+});
+
+// ── Platformer Pack ───────────────────────────────────────────
+
+describe("platformControllerEngineComponent", () => {
+  it("sets horizontal velocity from MoveLeft/MoveRight input", () => {
+    const buf = createStateBuffer();
+    const baked = makeBaked();
+
+    platformControllerEngineComponent.tick!(
+      buf, ENTITY_PTR, { speed: 3 },
+      makeInput(["Action.MoveRight"]), baked, makeState(buf)
+    );
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3);
+  });
+
+  it("sets isGrounded=1 when entity is above a collision polygon", () => {
+    const buf = createStateBuffer();
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 5);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 5);
+
+    const ground = [
+      { x: 0, y: 5 }, { x: 10, y: 5 },
+      { x: 10, y: 15 }, { x: 0, y: 15 },
+    ];
+    const baked = makeBaked({ collisionPolygons: [ground] });
+
+    platformControllerEngineComponent.tick!(
+      buf, ENTITY_PTR, {}, makeInput(), baked, makeState(buf)
+    );
+
+    const ctx = platformControllerEngineComponent.getContext!(buf, ENTITY_PTR, {});
+    expect(ctx.$isGrounded).toBe(1);
+  });
+
+  it("sets isGrounded=0 when entity is in the air", () => {
+    const buf = createStateBuffer();
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 5);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 5);
+
+    const ground = [
+      { x: 0, y: 100 }, { x: 10, y: 100 },
+      { x: 10, y: 110 }, { x: 0, y: 110 },
+    ];
+    const baked = makeBaked({ collisionPolygons: [ground] });
+
+    platformControllerEngineComponent.tick!(
+      buf, ENTITY_PTR, {}, makeInput(), baked, makeState(buf)
+    );
+
+    const ctx = platformControllerEngineComponent.getContext!(buf, ENTITY_PTR, {});
+    expect(ctx.$isGrounded).toBe(0);
+  });
+
+  it("allows jump only when grounded", () => {
+    const buf = createStateBuffer();
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 5);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 5);
+
+    const ground = [
+      { x: 0, y: 5 }, { x: 10, y: 5 },
+      { x: 10, y: 15 }, { x: 0, y: 15 },
+    ];
+    const baked = makeBaked({ collisionPolygons: [ground] });
+
+    platformControllerEngineComponent.tick!(
+      buf, ENTITY_PTR, { jumpForce: 8 },
+      makeInput(["Action.Jump"]), baked, makeState(buf)
+    );
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(-8);
+  });
+
+  it("ignores jump when in the air", () => {
+    const buf = createStateBuffer();
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 5);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 5);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 3);
+
+    const baked = makeBaked(); // no polygons = not grounded
+
+    platformControllerEngineComponent.tick!(
+      buf, ENTITY_PTR, { jumpForce: 8 },
+      makeInput(["Action.Jump"]), baked, makeState(buf)
+    );
+
+    // vy should remain unchanged (no jump applied)
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(3);
+  });
+
+  it("getContext exposes $isGrounded and $vy", () => {
+    const buf = createStateBuffer();
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, -5);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 3, 1);
+
+    const ctx = platformControllerEngineComponent.getContext!(buf, ENTITY_PTR, {});
+    expect(ctx).toEqual({ $isGrounded: 1, $vy: -5 });
+  });
+});
+
+// ── AI & Logic Pack ───────────────────────────────────────────
+
+describe("wandererComponent", () => {
+  it("sets velocity based on random direction", () => {
+    const buf = createStateBuffer();
+    // Force a non-idle direction by setting direction byte directly
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 4, 2); // right
+
+    wandererComponent(buf, ENTITY_PTR, { speed: 3, interval: 255 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(0);
+  });
+
+  it("sets zero velocity when direction is idle (0)", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 4, 0); // idle
+
+    wandererComponent(buf, ENTITY_PTR, { speed: 2, interval: 255 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(0);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(0);
+  });
+});
+
+describe("chaserComponent", () => {
+  it("moves toward target entity", () => {
+    const buf = createStateBuffer();
+    const chaserPtr = ENTITY_PTR;
+    const targetPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    // Chaser at (0, 0)
+    writeInt8(buf, chaserPtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, chaserPtr + ENTITY_POS_X, 0);
+    writeSignedInt16(buf, chaserPtr + ENTITY_POS_Y, 0);
+
+    // Target at (100, 0), type 1
+    writeInt8(buf, targetPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, targetPtr + ENTITY_TYPE_ID, 1);
+    writeSignedInt16(buf, targetPtr + ENTITY_POS_X, 100);
+    writeSignedInt16(buf, targetPtr + ENTITY_POS_Y, 0);
+
+    chaserComponent(buf, chaserPtr, { speed: 5, targetType: 1 }, makeInput(), makeBaked(), makeState(buf));
+
+    // Should move right toward target
+    expect(readSignedInt16(buf, chaserPtr + ENTITY_VEL_X)).toBe(5);
+    expect(readSignedInt16(buf, chaserPtr + ENTITY_VEL_Y)).toBe(0);
+  });
+
+  it("does nothing when no matching target exists", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 0);
+
+    chaserComponent(buf, ENTITY_PTR, { speed: 5, targetType: 99 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(0);
+  });
+});
+
+describe("spawnerComponent", () => {
+  it("spawns an entity when interval is reached", () => {
+    const buf = createStateBuffer();
+    const spawnerPtr = ENTITY_PTR;
+    writeInt8(buf, spawnerPtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, spawnerPtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, spawnerPtr + ENTITY_POS_Y, 60);
+
+    // Set timer to interval - 1 so next tick triggers spawn
+    writeInt8(buf, spawnerPtr + ENTITY_DATA_START + 3, 2);
+
+    spawnerComponent(buf, spawnerPtr, { entity: 5, interval: 3, speedX: 4, speedY: -2 }, makeInput(), makeBaked(), makeState(buf));
+
+    // Find spawned entity
+    const childPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+    expect(readInt8(buf, childPtr + ENTITY_ACTIVE)).toBe(1);
+    expect(readInt8(buf, childPtr + ENTITY_TYPE_ID)).toBe(5);
+    expect(readInt16(buf, childPtr + ENTITY_POS_X)).toBe(50);
+    expect(readInt16(buf, childPtr + ENTITY_POS_Y)).toBe(60);
+    expect(readSignedInt16(buf, childPtr + ENTITY_VEL_X)).toBe(4);
+    expect(readSignedInt16(buf, childPtr + ENTITY_VEL_Y)).toBe(-2);
+  });
+
+  it("does not spawn before interval is reached", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+
+    spawnerComponent(buf, ENTITY_PTR, { entity: 5, interval: 60 }, makeInput(), makeBaked(), makeState(buf));
+
+    // No entity should be spawned yet
+    const childPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+    expect(readInt8(buf, childPtr + ENTITY_ACTIVE)).toBe(0);
+  });
+});
+
+// ── Interaction Pack ──────────────────────────────────────────
+
+describe("interactableEngineComponent", () => {
+  it("sets triggered=1 when player is in range and input is active", () => {
+    const buf = createStateBuffer();
+    const interactablePtr = ENTITY_PTR;
+    const playerPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, interactablePtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, interactablePtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, interactablePtr + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, playerPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, playerPtr + ENTITY_TYPE_ID, 1);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_X, 55);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_Y, 50);
+
+    interactableEngineComponent.tick!(
+      buf, interactablePtr, { radius: 16, targetType: 1 },
+      makeInput(["Action.Interact"]), makeBaked(), makeState(buf)
+    );
+
+    const ctx = interactableEngineComponent.getContext!(buf, interactablePtr, {});
+    expect(ctx.$triggered).toBe(1);
+  });
+
+  it("does not trigger when input is not active", () => {
+    const buf = createStateBuffer();
+    const interactablePtr = ENTITY_PTR;
+    const playerPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, interactablePtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, interactablePtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, interactablePtr + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, playerPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, playerPtr + ENTITY_TYPE_ID, 1);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_X, 55);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_Y, 50);
+
+    interactableEngineComponent.tick!(
+      buf, interactablePtr, { radius: 16, targetType: 1 },
+      makeInput(), makeBaked(), makeState(buf)
+    );
+
+    const ctx = interactableEngineComponent.getContext!(buf, interactablePtr, {});
+    expect(ctx.$triggered).toBe(0);
+  });
+
+  it("does not trigger when player is out of range", () => {
+    const buf = createStateBuffer();
+    const interactablePtr = ENTITY_PTR;
+    const playerPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, interactablePtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, interactablePtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, interactablePtr + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, playerPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, playerPtr + ENTITY_TYPE_ID, 1);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_X, 200);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_Y, 200);
+
+    interactableEngineComponent.tick!(
+      buf, interactablePtr, { radius: 16, targetType: 1 },
+      makeInput(["Action.Interact"]), makeBaked(), makeState(buf)
+    );
+
+    const ctx = interactableEngineComponent.getContext!(buf, interactablePtr, {});
+    expect(ctx.$triggered).toBe(0);
+  });
+});
+
+describe("areaTriggerEngineComponent", () => {
+  it("sets triggered=1 when target entity enters area", () => {
+    const buf = createStateBuffer();
+    const triggerPtr = ENTITY_PTR;
+    const playerPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, triggerPtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, triggerPtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, triggerPtr + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, playerPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, playerPtr + ENTITY_TYPE_ID, 1);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_X, 52);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_Y, 50);
+
+    areaTriggerEngineComponent.tick!(
+      buf, triggerPtr, { width: 16, height: 16, targetType: 1 },
+      makeInput(), makeBaked(), makeState(buf)
+    );
+
+    const ctx = areaTriggerEngineComponent.getContext!(buf, triggerPtr, {});
+    expect(ctx.$triggered).toBe(1);
+  });
+
+  it("sets triggered=0 when target entity is outside area", () => {
+    const buf = createStateBuffer();
+    const triggerPtr = ENTITY_PTR;
+    const playerPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, triggerPtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, triggerPtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, triggerPtr + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, playerPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, playerPtr + ENTITY_TYPE_ID, 1);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_X, 200);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_Y, 200);
+
+    areaTriggerEngineComponent.tick!(
+      buf, triggerPtr, { width: 16, height: 16, targetType: 1 },
+      makeInput(), makeBaked(), makeState(buf)
+    );
+
+    const ctx = areaTriggerEngineComponent.getContext!(buf, triggerPtr, {});
+    expect(ctx.$triggered).toBe(0);
+  });
+
+  it("resets triggered when entity leaves the area", () => {
+    const buf = createStateBuffer();
+    const triggerPtr = ENTITY_PTR;
+    const playerPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, triggerPtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, triggerPtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, triggerPtr + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, playerPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, playerPtr + ENTITY_TYPE_ID, 1);
+
+    // First: player inside
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_X, 52);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_Y, 50);
+    areaTriggerEngineComponent.tick!(
+      buf, triggerPtr, { width: 16, height: 16, targetType: 1 },
+      makeInput(), makeBaked(), makeState(buf)
+    );
+    expect(areaTriggerEngineComponent.getContext!(buf, triggerPtr, {}).$triggered).toBe(1);
+
+    // Then: player outside
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_X, 200);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_Y, 200);
+    areaTriggerEngineComponent.tick!(
+      buf, triggerPtr, { width: 16, height: 16, targetType: 1 },
+      makeInput(), makeBaked(), makeState(buf)
+    );
+    expect(areaTriggerEngineComponent.getContext!(buf, triggerPtr, {}).$triggered).toBe(0);
   });
 });
 
