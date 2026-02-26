@@ -177,11 +177,11 @@ export class FileTreeView {
     // Icon
     const icon = document.createElement("span");
     icon.className = "ftv-icon";
+    const ext = node.kind === "file" ? (node.name.split(".").pop()?.toLowerCase() ?? "") : "";
     if (node.kind === "folder") {
       icon.classList.add("ftv-folder-icon");
       icon.innerHTML = node.expanded ? FTV_ICONS.folderOpen : FTV_ICONS.folder;
     } else if (node.fileType === "image") {
-      const ext = node.name.split(".").pop()?.toLowerCase() ?? "";
       if (ext === "mzk") {
         icon.classList.add("ftv-mzk-icon");
         icon.innerHTML = FTV_ICONS.mzkMap;
@@ -189,24 +189,21 @@ export class FileTreeView {
         icon.classList.add("ftv-image-icon");
         icon.innerHTML = FTV_ICONS.image;
       }
+    } else if (ext === "msc") {
+      icon.classList.add("ftv-script-icon");
+      icon.innerHTML = FTV_ICONS.mscScript;
+    } else if (ext === "json") {
+      icon.classList.add("ftv-script-icon");
+      icon.innerHTML = FTV_ICONS.json;
+    } else if (ext === "md") {
+      icon.classList.add("ftv-script-icon");
+      icon.innerHTML = FTV_ICONS.markdown;
+    } else if (ext === "txt") {
+      icon.classList.add("ftv-script-icon");
+      icon.innerHTML = FTV_ICONS.text;
     } else {
-      const ext = node.name.split(".").pop()?.toLowerCase() ?? "";
-      if (ext === "msc") {
-        icon.classList.add("ftv-script-icon");
-        icon.innerHTML = FTV_ICONS.mscScript;
-      } else if (ext === "json") {
-        icon.classList.add("ftv-script-icon");
-        icon.innerHTML = FTV_ICONS.json;
-      } else if (ext === "md") {
-        icon.classList.add("ftv-script-icon");
-        icon.innerHTML = FTV_ICONS.markdown;
-      } else if (ext === "txt") {
-        icon.classList.add("ftv-script-icon");
-        icon.innerHTML = FTV_ICONS.text;
-      } else {
-        icon.classList.add("ftv-script-icon");
-        icon.innerHTML = FTV_ICONS.script;
-      }
+      icon.classList.add("ftv-script-icon");
+      icon.innerHTML = FTV_ICONS.script;
     }
     row.appendChild(icon);
 
