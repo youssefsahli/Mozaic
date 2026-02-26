@@ -121,11 +121,11 @@ export interface PixelEditorRefs {
   stylusOnlyToggle: HTMLInputElement | null;
   pressureSizeToggle: HTMLInputElement | null;
   pressureDitherToggle: HTMLInputElement | null;
-  palettePresetSelect: HTMLSelectElement | null;
   paletteImportButton: HTMLButtonElement | null;
   paletteExportButton: HTMLButtonElement | null;
   paletteUpdateButton: HTMLButtonElement | null;
   entityBrushButton: HTMLButtonElement | null;
+  resizePixelButton: HTMLButtonElement | null;
 }
 
 /** Callbacks from the pixel editor back to the main app. */
@@ -762,30 +762,7 @@ export class PixelEditor {
       }
     });
 
-    // Palette preset dropdown (optional)
-    if (refs.palettePresetSelect) {
-      // Populate preset options
-      const names = getPresetNames();
-      for (const name of names) {
-        const opt = document.createElement("option");
-        opt.value = name;
-        opt.textContent = name;
-        refs.palettePresetSelect.appendChild(opt);
-      }
-      refs.palettePresetSelect.addEventListener("change", () => {
-        const name = refs.palettePresetSelect!.value;
-        if (!name) return;
-        const colors = loadPreset(name);
-        if (colors) {
-          this.palette.colors = colors;
-          this.palette.activeIndex = 0;
-          this.palette.activePreset = name;
-          this.brush.color = getActiveColor(this.palette);
-          refs.pixelColor.value = this.brush.color;
-          this.renderPalette();
-        }
-      });
-    }
+    /* Palette preset selection moved to modal */
 
     // Palette import/export (optional)
     refs.paletteImportButton?.addEventListener("click", () => {

@@ -141,6 +141,8 @@ interface UiRefs {
   editorFileIcon: HTMLSpanElement;
   pixelFileName: HTMLSpanElement;
   pixelFileSize: HTMLSpanElement;
+  resizePixelButton: HTMLButtonElement;
+  palettePresetButton: HTMLButtonElement;
   downloadPixelButton: HTMLButtonElement;
   statusFileInfo: HTMLSpanElement;
   statusCursorPos: HTMLSpanElement;
@@ -232,7 +234,10 @@ async function main(): Promise<void> {
   // Create the pixel editor orchestrator
   const editorRefs = getEditorRefs(ui);
   runtime.pixelEditor = new PixelEditor(editorRefs, {
-    onBake: (imageData) => bake(imageData),
+    onBake: (imageData) => {
+      runtime.imageData = imageData;
+      return bake(imageData);
+    },
     onPersist: () => schedulePersistRom(runtime),
     onStatusMessage: (text, color) => {
       ui.mscStatus.textContent = text;
@@ -390,6 +395,8 @@ function getUiRefs(): UiRefs {
     editorFileIcon: requiredElement<HTMLSpanElement>("editor-file-icon"),
     pixelFileName: requiredElement<HTMLSpanElement>("pixel-file-name"),
     pixelFileSize: requiredElement<HTMLSpanElement>("pixel-file-size"),
+    resizePixelButton: requiredElement<HTMLButtonElement>("resize-pixel-button"),
+    palettePresetButton: requiredElement<HTMLButtonElement>("palette-preset-button"),
     downloadPixelButton: requiredElement<HTMLButtonElement>("download-pixel-button"),
     statusFileInfo: requiredElement<HTMLSpanElement>("status-file-info"),
     statusCursorPos: requiredElement<HTMLSpanElement>("status-cursor-pos"),
@@ -438,11 +445,11 @@ function getEditorRefs(ui: UiRefs): PixelEditorRefs {
     stylusOnlyToggle: document.getElementById("stylus-only-toggle") as HTMLInputElement | null,
     pressureSizeToggle: document.getElementById("pressure-size-toggle") as HTMLInputElement | null,
     pressureDitherToggle: document.getElementById("pressure-dither-toggle") as HTMLInputElement | null,
-    palettePresetSelect: document.getElementById("palette-preset-select") as HTMLSelectElement | null,
     paletteImportButton: document.getElementById("palette-import-button") as HTMLButtonElement | null,
     paletteExportButton: document.getElementById("palette-export-button") as HTMLButtonElement | null,
     paletteUpdateButton: document.getElementById("palette-update-button") as HTMLButtonElement | null,
     entityBrushButton: document.getElementById("entity-brush-button") as HTMLButtonElement | null,
+    resizePixelButton: ui.resizePixelButton,
   };
 }
 
@@ -580,42 +587,51 @@ function wireFileTreeAddMenu(runtime: RuntimeState): void {
         case "new-mzk": {
           const pw = runtime.project.projectWidth;
           const ph = runtime.project.projectHeight;
-          const nameInput = prompt("SpriteROM filename:", "new_asset.mzk");
-          if (!nameInput) break;
-          let mzkName = nameInput.trim();
-          if (!mzkName.endsWith(".mzk")) mzkName += ".mzk";
-
-          const wInput = prompt(`Width (min ${MIN_PROJECT_DIMENSION}):`, String(pw));
-          if (!wInput) break;
-          const hInput = prompt(`Height (min ${MIN_PROJECT_DIMENSION}):`, String(ph));
-          if (!hInput) break;
-
-          const mzkW = Math.max(parseInt(wInput, 10) || pw, MIN_PROJECT_DIMENSION);
-          const mzkH = Math.max(parseInt(hInput, 10) || ph, MIN_PROJECT_DIMENSION);
-
-          const canvas = document.createElement("canvas");
-          canvas.width = mzkW;
-          canvas.height = mzkH;
-          const ctx = canvas.getContext("2d")!;
-          ctx.fillStyle = "#000000";
-          ctx.fillRect(0, 0, mzkW, mzkH);
-          const dataUrl = canvas.toDataURL("image/png");
           
-          const node = createImageFile(mzkName, dataUrl, mzkW, mzkH);
-          addChild(runtime.project.root, node);
-          runtime.project.activeFileId = node.id;
-          saveProject(runtime.project);
-          
-          // Switch to pixel editor for this image
-          runtime.imageData = createBlankImageData(mzkW, mzkH, "#000000");
-          runtime.baked = bake(runtime.imageData);
-          runtime.pixelEditor?.setImageData(runtime.imageData);
-          runtime.pixelEditor?.setBaked(runtime.baked);
-          
-          switchEditorMode(runtime, "image");
-          switchTab(runtime, "pixel");
-          runtime.fileTreeView?.render();
-          showStatus(runtime, `New ${mzkW}×${mzkH} SpriteROM created.`, "var(--success)");
+          showModal(
+            "New MZK Asset",
+            `
+            <div class="modal-row"><label>Name:</label><input id="modal-mzk-name" type="text" value="new_asset.mzk" autofocus></div>
+            <div class="modal-row"><label>Width:</label><input id="modal-mzk-w" type="number" min="8" value="${pw}"></div>
+            <div class="modal-row"><label>Height:</label><input id="modal-mzk-h" type="number" min="8" value="${ph}"></div>
+            `,
+            () => {
+              const nameInput = document.getElementById("modal-mzk-name") as HTMLInputElement;
+              const wInput = document.getElementById("modal-mzk-w") as HTMLInputElement;
+              const hInput = document.getElementById("modal-mzk-h") as HTMLInputElement;
+
+              let mzkName = nameInput.value.trim();
+              if (!mzkName) return;
+              if (!mzkName.endsWith(".mzk")) mzkName += ".mzk";
+              
+              const mzkW = Math.max(parseInt(wInput.value, 10) || pw, MIN_PROJECT_DIMENSION);
+              const mzkH = Math.max(parseInt(hInput.value, 10) || ph, MIN_PROJECT_DIMENSION);
+
+              const canvas = document.createElement("canvas");
+              canvas.width = mzkW;
+              canvas.height = mzkH;
+              const ctx = canvas.getContext("2d")!;
+              ctx.fillStyle = "#000000";
+              ctx.fillRect(0, 0, mzkW, mzkH);
+              const dataUrl = canvas.toDataURL("image/png");
+              
+              const node = createImageFile(mzkName, dataUrl, mzkW, mzkH);
+              addChild(runtime.project.root, node);
+              runtime.project.activeFileId = node.id;
+              saveProject(runtime.project);
+              
+              // Switch to pixel editor for this image
+              runtime.imageData = createBlankImageData(mzkW, mzkH, "#000000");
+              runtime.baked = bake(runtime.imageData);
+              runtime.pixelEditor?.setImageData(runtime.imageData);
+              runtime.pixelEditor?.setBaked(runtime.baked);
+              
+              switchEditorMode(runtime, "image");
+              switchTab(runtime, "pixel");
+              runtime.fileTreeView?.render();
+              showStatus(runtime, `New ${mzkW}×${mzkH} SpriteROM created.`, "var(--success)");
+            }
+          );
           break;
         }
         case "new-text": {
@@ -1009,6 +1025,28 @@ function wireUi(runtime: RuntimeState): void {
   ui.downloadPixelButton.addEventListener("click", () => {
     downloadCurrentImage(runtime);
   });
+  ui.resizePixelButton.addEventListener("click", () => {
+    if (!runtime.imageData) return;
+    const w = runtime.imageData.width;
+    const h = runtime.imageData.height;
+    showModal(
+      "Resize Canvas",
+      `
+      <div class="modal-row"><label>Width:</label><input id="modal-resize-w" type="number" min="1" value="${w}"></div>
+      <div class="modal-row"><label>Height:</label><input id="modal-resize-h" type="number" min="1" value="${h}"></div>
+      <p style="font-size:10px; color:var(--text-dim); margin-top:8px">Canvas will be cropped or expanded from top-left.</p>
+      `,
+      () => {
+        const wInput = document.getElementById("modal-resize-w") as HTMLInputElement;
+        const hInput = document.getElementById("modal-resize-h") as HTMLInputElement;
+        const newW = parseInt(wInput.value, 10);
+        const newH = parseInt(hInput.value, 10);
+        if (newW > 0 && newH > 0) {
+          runtime.pixelEditor?.resizeCanvas(newW, newH);
+        }
+      }
+    );
+  });
 
   // Ctrl+S shortcut
   window.addEventListener("keydown", (e) => {
@@ -1350,12 +1388,59 @@ function wireUi(runtime: RuntimeState): void {
   // Wire collapsible sidebar toggle
   const sidebarToggle = document.getElementById("toggle-sidebar-btn");
   const leftSidebar = document.getElementById("left-sidebar");
+  const leftSplitHandle = document.getElementById("left-split-handle");
+  const LEFT_SIDEBAR_WIDTH_KEY = "mozaic:sidebar-width";
+
   if (sidebarToggle && leftSidebar) {
+    // Restore width
+    const storedW = localStorage.getItem(LEFT_SIDEBAR_WIDTH_KEY);
+    if (storedW) {
+      leftSidebar.style.width = storedW;
+    }
+
     sidebarToggle.addEventListener("click", () => {
-      leftSidebar.classList.toggle("is-collapsed");
+      const isCollapsed = leftSidebar.classList.toggle("is-collapsed");
       sidebarToggle.classList.toggle("is-active");
+      if (leftSplitHandle) leftSplitHandle.style.display = isCollapsed ? "none" : "";
       // Trigger canvas resize after transition
       setTimeout(() => resizeGameCanvas(ui), 200);
+    });
+  }
+
+  // Wire left split handle
+  if (leftSidebar && leftSplitHandle) {
+    let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
+
+    leftSplitHandle.addEventListener("pointerdown", (e) => {
+      isDragging = true;
+      startX = e.clientX;
+      startWidth = leftSidebar.getBoundingClientRect().width;
+      
+      leftSplitHandle.classList.add("is-dragging");
+      leftSplitHandle.setPointerCapture(e.pointerId);
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
+      e.preventDefault();
+    });
+
+    window.addEventListener("pointermove", (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const newW = startWidth + dx;
+      const clampedW = Math.max(120, Math.min(400, newW));
+      leftSidebar.style.width = `${clampedW}px`;
+    });
+
+    window.addEventListener("pointerup", () => {
+      if (!isDragging) return;
+      isDragging = false;
+      leftSplitHandle.classList.remove("is-dragging");
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      localStorage.setItem(LEFT_SIDEBAR_WIDTH_KEY, leftSidebar.style.width);
+      resizeGameCanvas(ui);
     });
   }
 
@@ -3127,3 +3212,53 @@ function openOrCreateFileByName(runtime: RuntimeState, filename: string): void {
 }
 
 main().catch(console.error);
+
+// ── Modal System ──────────────────────────────────────────────
+
+function showModal(title: string, bodyHtml: string, onOk: () => void): void {
+  const overlay = document.getElementById("modal-overlay");
+  if (!overlay) return;
+  
+  const win = overlay.querySelector(".modal-window");
+  const titleEl = overlay.querySelector(".modal-title");
+  const bodyEl = overlay.querySelector(".modal-body");
+  const closeBtns = overlay.querySelectorAll(".modal-close, .modal-close-btn");
+  const okBtn = overlay.querySelector(".modal-btn-primary");
+
+  if (!win || !titleEl || !bodyEl || !okBtn) return;
+
+  titleEl.textContent = title;
+  bodyEl.innerHTML = bodyHtml;
+  overlay.classList.add("is-visible");
+
+  // Focus first input
+  setTimeout(() => {
+    const input = bodyEl.querySelector("input");
+    input?.focus();
+  }, 50);
+
+  const close = () => {
+    overlay.classList.remove("is-visible");
+    cleanup();
+  };
+
+  const handleOk = () => {
+    onOk();
+    close();
+  };
+
+  const handleKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") close();
+    if (e.key === "Enter" && (e.target as HTMLElement).tagName !== "TEXTAREA") handleOk();
+  };
+
+  const cleanup = () => {
+    closeBtns.forEach((b) => b.removeEventListener("click", close));
+    okBtn.removeEventListener("click", handleOk);
+    window.removeEventListener("keydown", handleKey);
+  };
+
+  closeBtns.forEach((b) => b.addEventListener("click", close));
+  okBtn.addEventListener("click", handleOk);
+  window.addEventListener("keydown", handleKey);
+}

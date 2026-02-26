@@ -45,19 +45,19 @@
         overflow: hidden;
       }
 
-      /* ── App Shell — 4-column IDE grid (with splitter) ── */
+      /* ── App Shell — 5-column IDE grid (with splitters) ── */
       #mozaic-app {
         display: grid;
         height: 100dvh;
         width: 100vw;
         overflow: hidden;
         grid-template-rows: var(--header-h) 1fr 20px;
-        /* Sidebar | Center | Splitter | Panel */
-        grid-template-columns: auto 1fr auto auto;
+        /* Sidebar | Split | Center | Split | Panel */
+        grid-template-columns: auto auto 1fr auto auto;
         grid-template-areas:
-          "header  header  header   header"
-          "sidebar center  splitter panel"
-          "status  status  status   status";
+          "header  header  header   header   header"
+          "sidebar lsplit  center   rsplit   panel"
+          "status  status  status   status   status";
       }
 
       /* ── Header — compact 32px toolbar ──────── */
@@ -104,6 +104,63 @@
         flex-shrink: 0;
         margin: 0 2px;
       }
+
+      /* ── Modal Overlay ────────────────────── */
+      #modal-overlay {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(2px);
+        z-index: 1000;
+        display: none;
+        align-items: center; justify-content: center;
+      }
+      #modal-overlay.is-visible { display: flex }
+      .modal-window {
+        background: var(--surface);
+        border: 1px solid var(--border-hi);
+        box-shadow: var(--shadow-md);
+        border-radius: var(--radius-lg);
+        min-width: 300px; max-width: 90vw;
+        display: flex; flex-direction: column;
+        animation: modal-pop 150ms ease-out;
+      }
+      @keyframes modal-pop { from { transform: scale(0.95); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+      .modal-header {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: space-between;
+        background: var(--surface-2);
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      }
+      .modal-title { font-weight: bold; color: var(--text-bright); font-size: 12px }
+      .modal-close {
+        background: transparent !important; border: none !important;
+        color: var(--text-dim) !important; font-size: 16px !important;
+        padding: 0 !important; width: 20px; height: 20px;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .modal-close:hover { color: var(--text) !important }
+      .modal-body { padding: 16px; display: flex; flex-direction: column; gap: 12px }
+      .modal-row { display: flex; align-items: center; gap: 8px }
+      .modal-row label { flex: 1; color: var(--text-dim) }
+      .modal-row input, .modal-row select {
+        background: var(--bg); border: 1px solid var(--border);
+        color: var(--text); padding: 4px 8px; border-radius: var(--radius);
+        flex: 2; min-width: 0;
+      }
+      .modal-footer {
+        padding: 8px 12px;
+        border-top: 1px solid var(--border);
+        display: flex; justify-content: flex-end; gap: 8px;
+        background: var(--surface-2);
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      }
+      .modal-btn-primary {
+        background: var(--accent-bg) !important;
+        border-color: var(--accent) !important;
+        color: var(--accent) !important;
+      }
+      .modal-btn-primary:hover { background: var(--accent) !important; color: #000 !important }
 
       /* ── Left Sidebar (collapsible file tree) ── */
       #left-sidebar {
@@ -221,7 +278,7 @@
 
       /* ── Split handle (between center & right) ── */
       #split-handle {
-        grid-area: splitter;
+        grid-area: rsplit;
         width: 6px; /* Wider hit area for easier grabbing */
         cursor: col-resize;
         position: relative;
@@ -230,7 +287,7 @@
         display: flex;
         justify-content: center;
       }
-      #split-handle::before {
+      #split-handle::before, #left-split-handle::before {
         content: '';
         width: 1px;
         height: 100%;
@@ -238,10 +295,24 @@
         transition: all 150ms ease;
       }
       #split-handle:hover::before,
-      #split-handle.is-dragging::before {
+      #split-handle.is-dragging::before,
+      #left-split-handle:hover::before,
+      #left-split-handle.is-dragging::before {
         background: var(--accent);
         box-shadow: 0 0 6px var(--accent);
         width: 2px;
+      }
+
+      /* ── Left Split handle ───────────────────── */
+      #left-split-handle {
+        grid-area: lsplit;
+        width: 6px;
+        cursor: col-resize;
+        position: relative;
+        z-index: 10;
+        transition: background 120ms;
+        display: flex;
+        justify-content: center;
       }
 
       /* ── Right panel — tabbed editor ─────────── */
@@ -1461,6 +1532,9 @@
           </div>
         </aside>
 
+        <!-- LEFT SPLITTER -->
+        <div id="left-split-handle"></div>
+
         <!-- CENTER: Game canvas ──────────── -->
         <main id="canvas-area">
           <canvas id="mozaic-canvas"></canvas>
@@ -1525,6 +1599,7 @@
                 <span class="editor-toolbar-name" id="pixel-file-name">No image</span>
                 <span class="editor-toolbar-badge" id="pixel-file-size"></span>
                 <span class="editor-toolbar-spacer"></span>
+                <button id="resize-pixel-button" type="button" class="toolbar-btn" title="Resize canvas">Resize</button>
                 <button id="download-pixel-button" type="button" class="toolbar-btn" title="Download as PNG">&#8595; PNG</button>
               </div>
               <div id="pixel-controls">
@@ -1532,9 +1607,7 @@
                   <input id="pixel-color" type="color" value="#ff00ff" />
                   <button id="palette-add-button" type="button" title="Add to palette">+</button>
                   <button id="palette-update-button" type="button" title="Update active palette slot">&#8635;</button>
-                  <select id="palette-preset-select" title="Palette presets">
-                    <option value="">Preset...</option>
-                  </select>
+                  <button id="palette-preset-button" type="button" title="Palette presets">Presets</button>
                   <button id="palette-import-button" type="button" title="Import palette">&#8593;</button>
                   <button id="palette-export-button" type="button" title="Export palette">&#8595;</button>
                 </div>
@@ -1633,6 +1706,21 @@
         <span class="status-spacer"></span>
         <span class="status-item" id="status-cursor-pos"></span>
         <span class="status-item">Mozaic Engine</span>
+      </div>
+
+      <!-- ── Modal ────────────────────────── -->
+      <div id="modal-overlay">
+        <div class="modal-window">
+          <div class="modal-header">
+            <span class="modal-title">Title</span>
+            <button class="modal-close">&times;</button>
+          </div>
+          <div class="modal-body"></div>
+          <div class="modal-footer">
+            <button class="btn modal-close-btn">Cancel</button>
+            <button class="btn modal-btn-primary">OK</button>
+          </div>
+        </div>
       </div>
 
     </div><!-- #mozaic-app -->
