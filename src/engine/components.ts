@@ -9,7 +9,11 @@
  * Built-in libraries:
  *   1. Physics & Kinematics  — Gravity, Kinematic, Collider, Friction
  *   2. Gameplay & AI         — PlayerController, Navigator, Health, Lifetime
- *   3. Drawing & Effects     — ScreenShake, SpriteAnimator, ParticleEmitter
+ *   3. Combat & Status       — Hitbox
+ *   4. Platformer            — PlatformController
+ *   5. AI & Logic            — Wanderer, Chaser, Spawner
+ *   6. Interaction           — Interactable, AreaTrigger
+ *   7. Drawing & Effects     — ScreenShake, SpriteAnimator, ParticleEmitter
  */
 
 import type { InputState } from "./input.js";
@@ -236,6 +240,16 @@ export const healthComponent: ComponentFn = (buffer, entityPtr) => {
   }
 };
 
+/** Health as an EngineComponent — exposes $hp, $maxHp via getContext. */
+export const healthEngineComponent: EngineComponent = {
+  name: "Health",
+  tick: healthComponent,
+  getContext: (buffer, ptr, props) => ({
+    $hp: readInt8(buffer, ptr + ENTITY_HEALTH),
+    $maxHp: (props.maxHp as number) ?? 100,
+  }),
+};
+
 /** Countdown timer that destroys the entity when it expires. Uses data byte 11. */
 export const lifetimeComponent: ComponentFn = (buffer, entityPtr, props) => {
   const timerByte = entityPtr + ENTITY_DATA_START;
@@ -254,6 +268,336 @@ export const lifetimeComponent: ComponentFn = (buffer, entityPtr, props) => {
   } else {
     writeInt8(buffer, timerByte, timer);
   }
+};
+
+/**
+ * Hitbox — checks for overlapping entities in the pool and applies damage/knockback.
+ *
+ * Props: width (default 16), height (default 16), damage (default 1), knockback (default 4)
+ */
+export const hitboxComponent: ComponentFn = (buffer, entityPtr, props) => {
+  const w = (props.width as number) ?? 16;
+  const h = (props.height as number) ?? 16;
+  const damage = (props.damage as number) ?? 1;
+  const knockback = (props.knockback as number) ?? 4;
+
+  const ax = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+  const ay = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
+  const halfW = w / 2;
+  const halfH = h / 2;
+
+  const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+  const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
+  for (
+    let ptr = poolStart;
+    ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
+    ptr += ENTITY_SLOT_SIZE
+  ) {
+    if (ptr === entityPtr) continue;
+    if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
+
+    const bx = readSignedInt16(buffer, ptr + ENTITY_POS_X);
+    const by = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
+    if (
+      Math.abs(ax - bx) < halfW &&
+      Math.abs(ay - by) < halfH
+    ) {
+      // Apply damage
+      const hp = readInt8(buffer, ptr + ENTITY_HEALTH);
+      if (hp > 0) {
+        writeInt8(buffer, ptr + ENTITY_HEALTH, Math.max(0, hp - damage));
+      }
+      // Apply knockback away from attacker
+      const dx = bx - ax;
+      const dy = by - ay;
+      const len = Math.sqrt(dx * dx + dy * dy) || 1;
+      const kx = Math.round((dx / len) * knockback);
+      const ky = Math.round((dy / len) * knockback);
+      const ovx = readSignedInt16(buffer, ptr + ENTITY_VEL_X);
+      const ovy = readSignedInt16(buffer, ptr + ENTITY_VEL_Y);
+      writeSignedInt16(buffer, ptr + ENTITY_VEL_X, ovx + kx);
+      writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, ovy + ky);
+    }
+  }
+};
+
+// ── Platformer Pack ───────────────────────────────────────────
+
+/**
+ * PlatformController — side-scrolling controller with jump mechanics.
+ *
+ * Listens for Action.Jump and Action.MoveLeft/Right.
+ * Checks if entity is touching the ground before allowing a jump.
+ *
+ * Props: speed (default 1), jumpForce (default 5)
+ * Uses data byte 14 for isGrounded flag.
+ * Context Exposed: $isGrounded (0 or 1), $vy.
+ */
+export const platformControllerEngineComponent: EngineComponent = {
+  name: "PlatformController",
+  tick: (buffer, entityPtr, props, input, baked) => {
+    const speed = (props.speed as number) ?? 1;
+    const jumpForce = (props.jumpForce as number) ?? 5;
+    const groundedByte = entityPtr + ENTITY_DATA_START + 3;
+
+    // Check grounded: a point just below the entity is inside a collision polygon
+    const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+    const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
+    let grounded = 0;
+    for (const poly of baked.collisionPolygons) {
+      if (pointInPolygon({ x: px, y: py + 1 }, poly)) {
+        grounded = 1;
+        break;
+      }
+    }
+    writeInt8(buffer, groundedByte, grounded);
+
+    // Horizontal movement
+    let vx = 0;
+    if (input.active.has("Action.MoveLeft")) vx -= speed;
+    if (input.active.has("Action.MoveRight")) vx += speed;
+    writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, vx);
+
+    // Jump (only when grounded)
+    if (grounded === 1 && input.active.has("Action.Jump")) {
+      writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, -jumpForce);
+    }
+  },
+  getContext: (buffer, ptr) => ({
+    $isGrounded: readInt8(buffer, ptr + ENTITY_DATA_START + 3),
+    $vy: readSignedInt16(buffer, ptr + ENTITY_VEL_Y),
+  }),
+};
+
+// ── AI & Logic Pack ───────────────────────────────────────────
+
+/**
+ * Wanderer — randomly picks a direction, walks, then stops and picks again.
+ *
+ * Props: speed (default 1), interval (frames between direction changes, default 60)
+ * Uses data byte 14 for timer, byte 15 for direction (0=idle, 1=left, 2=right, 3=up, 4=down).
+ */
+export const wandererComponent: ComponentFn = (buffer, entityPtr, props) => {
+  const speed = (props.speed as number) ?? 1;
+  const interval = Math.min((props.interval as number) ?? 60, 255);
+  const timerByte = entityPtr + ENTITY_DATA_START + 3;
+  const dirByte = entityPtr + ENTITY_DATA_START + 4;
+
+  let timer = readInt8(buffer, timerByte);
+  timer++;
+
+  if (timer >= interval) {
+    timer = 0;
+    // Pick a random direction: 0=idle, 1=left, 2=right, 3=up, 4=down
+    const dir = Math.floor(Math.random() * 5);
+    writeInt8(buffer, dirByte, dir);
+  }
+  writeInt8(buffer, timerByte, timer);
+
+  const dir = readInt8(buffer, dirByte);
+  let vx = 0;
+  let vy = 0;
+  if (dir === 1) vx = -speed;
+  else if (dir === 2) vx = speed;
+  else if (dir === 3) vy = -speed;
+  else if (dir === 4) vy = speed;
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, vx);
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, vy);
+};
+
+/**
+ * Chaser — moves toward the first active entity matching targetType.
+ *
+ * Props: speed (default 1), targetType (type ID to chase, default 1)
+ */
+export const chaserComponent: ComponentFn = (buffer, entityPtr, props) => {
+  const speed = (props.speed as number) ?? 1;
+  const targetType = (props.targetType as number) ?? 1;
+
+  const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+  const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
+  let tx = 0;
+  let ty = 0;
+  let found = false;
+
+  for (
+    let ptr = poolStart;
+    ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
+    ptr += ENTITY_SLOT_SIZE
+  ) {
+    if (ptr === entityPtr) continue;
+    if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
+    if (readInt8(buffer, ptr + ENTITY_TYPE_ID) === targetType) {
+      tx = readSignedInt16(buffer, ptr + ENTITY_POS_X);
+      ty = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) return;
+
+  const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+  const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
+  const dx = tx - px;
+  const dy = ty - py;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, Math.round((dx / len) * speed));
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, Math.round((dy / len) * speed));
+};
+
+/**
+ * Spawner — emits a new entity at regular intervals.
+ *
+ * Props: entity (type ID, default 0), interval (frames, default 60),
+ *        speedX (default 0), speedY (default 0)
+ * Uses data byte 14 for timer.
+ */
+export const spawnerComponent: ComponentFn = (buffer, entityPtr, props) => {
+  const typeId = (props.entity as number) ?? 0;
+  const interval = Math.min((props.interval as number) ?? 60, 255);
+  const speedX = (props.speedX as number) ?? 0;
+  const speedY = (props.speedY as number) ?? 0;
+  const timerByte = entityPtr + ENTITY_DATA_START + 3;
+
+  let timer = readInt8(buffer, timerByte);
+  timer++;
+  if (timer < interval) {
+    writeInt8(buffer, timerByte, timer);
+    return;
+  }
+
+  // Reset timer and spawn
+  writeInt8(buffer, timerByte, 0);
+
+  const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+  const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
+
+  const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+  const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
+  for (
+    let ptr = poolStart;
+    ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
+    ptr += ENTITY_SLOT_SIZE
+  ) {
+    if (ptr === entityPtr) continue;
+    if (readInt8(buffer, ptr + ENTITY_ACTIVE) !== 0) continue;
+
+    writeInt8(buffer, ptr + ENTITY_ACTIVE, 1);
+    writeInt8(buffer, ptr + ENTITY_TYPE_ID, typeId);
+    writeInt16(buffer, ptr + ENTITY_POS_X, px);
+    writeInt16(buffer, ptr + ENTITY_POS_Y, py);
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_X, speedX);
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, speedY);
+    break;
+  }
+};
+
+// ── Interaction Pack ──────────────────────────────────────────
+
+/**
+ * Interactable — defines a radius; if a player-type entity is within range
+ * and a specific input action is active, sets a triggered flag.
+ *
+ * Props: radius (default 16), action (input action name, default "Action.Interact"),
+ *        targetType (type ID of interactor, default 1)
+ * Uses data byte 14 for triggered flag (0 or 1).
+ * Context Exposed: $triggered (0 or 1).
+ */
+export const interactableEngineComponent: EngineComponent = {
+  name: "Interactable",
+  tick: (buffer, entityPtr, props, input) => {
+    const radius = (props.radius as number) ?? 16;
+    const action = (props.action as string) ?? "Action.Interact";
+    const targetType = (props.targetType as number) ?? 1;
+    const triggeredByte = entityPtr + ENTITY_DATA_START + 3;
+
+    const ax = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+    const ay = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
+
+    const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+    const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
+    let inRange = false;
+
+    for (
+      let ptr = poolStart;
+      ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
+      ptr += ENTITY_SLOT_SIZE
+    ) {
+      if (ptr === entityPtr) continue;
+      if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
+      if (readInt8(buffer, ptr + ENTITY_TYPE_ID) !== targetType) continue;
+
+      const bx = readSignedInt16(buffer, ptr + ENTITY_POS_X);
+      const by = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
+      const dx = ax - bx;
+      const dy = ay - by;
+      if (dx * dx + dy * dy <= radius * radius) {
+        inRange = true;
+        break;
+      }
+    }
+
+    if (inRange && input.active.has(action)) {
+      writeInt8(buffer, triggeredByte, 1);
+    } else {
+      writeInt8(buffer, triggeredByte, 0);
+    }
+  },
+  getContext: (buffer, ptr) => ({
+    $triggered: readInt8(buffer, ptr + ENTITY_DATA_START + 3),
+  }),
+};
+
+/**
+ * AreaTrigger — fires when a player-type entity enters the area.
+ *
+ * Props: width (default 16), height (default 16),
+ *        targetType (type ID to detect, default 1)
+ * Uses data byte 14 for triggered flag (0 or 1).
+ * Context Exposed: $triggered (0 or 1).
+ */
+export const areaTriggerEngineComponent: EngineComponent = {
+  name: "AreaTrigger",
+  tick: (buffer, entityPtr, props) => {
+    const w = (props.width as number) ?? 16;
+    const h = (props.height as number) ?? 16;
+    const targetType = (props.targetType as number) ?? 1;
+    const triggeredByte = entityPtr + ENTITY_DATA_START + 3;
+
+    const ax = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+    const ay = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
+    const halfW = w / 2;
+    const halfH = h / 2;
+
+    const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+    const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
+
+    for (
+      let ptr = poolStart;
+      ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
+      ptr += ENTITY_SLOT_SIZE
+    ) {
+      if (ptr === entityPtr) continue;
+      if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
+      if (readInt8(buffer, ptr + ENTITY_TYPE_ID) !== targetType) continue;
+
+      const bx = readSignedInt16(buffer, ptr + ENTITY_POS_X);
+      const by = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
+      if (
+        Math.abs(ax - bx) < halfW &&
+        Math.abs(ay - by) < halfH
+      ) {
+        writeInt8(buffer, triggeredByte, 1);
+        return;
+      }
+    }
+
+    writeInt8(buffer, triggeredByte, 0);
+  },
+  getContext: (buffer, ptr) => ({
+    $triggered: readInt8(buffer, ptr + ENTITY_DATA_START + 3),
+  }),
 };
 
 // ── Library 3: Drawing & Effects ──────────────────────────────
@@ -496,8 +840,23 @@ export function createDefaultRegistry(): ComponentRegistry {
   registry.register("PlayerController", playerControllerComponent);
   registry.register("TopDownController", topDownControllerComponent);
   registry.register("Navigator", navigatorComponent);
-  registry.register("Health", healthComponent);
+  registry.register("Health", healthEngineComponent);
   registry.register("Lifetime", lifetimeComponent);
+
+  // Combat & Status
+  registry.register("Hitbox", hitboxComponent);
+
+  // Platformer
+  registry.register("PlatformController", platformControllerEngineComponent);
+
+  // AI & Logic
+  registry.register("Wanderer", wandererComponent);
+  registry.register("Chaser", chaserComponent);
+  registry.register("Spawner", spawnerComponent);
+
+  // Interaction
+  registry.register("Interactable", interactableEngineComponent);
+  registry.register("AreaTrigger", areaTriggerEngineComponent);
   
   // Experimental
   registry.register("SineWave", sineWaveComponent);
