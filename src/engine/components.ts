@@ -540,6 +540,8 @@ export const interactableEngineComponent: EngineComponent = {
 
     if (inRange && input.active.has(action)) {
       writeInt8(buffer, triggeredByte, 1);
+    } else {
+      writeInt8(buffer, triggeredByte, 0);
     }
   },
   getContext: (buffer, ptr) => ({
