@@ -243,7 +243,7 @@ export interface BackgroundLayer {
 
 export type CompiledLayer =
   | { type: "Parallax"; texture: WebGLTexture; width: number; height: number; parallaxX: number; parallaxY: number; }
-  | { type: "Terrain"; texture: WebGLTexture; width: number; height: number; }
+  | { type: "Terrain"; texture: WebGLTexture; width: number; height: number; repeat: boolean; }
   | { type: "Entities" }
   | { type: "UI" };
 
@@ -519,15 +519,44 @@ export class Renderer {
   ): void {
     const { gl, terrainProgram, bgVertexBuffer, terrainVertices } = this;
 
-    // Fill pre-allocated terrain vertex data (world-space quad)
-    terrainVertices[0]  = 0;            terrainVertices[1]  = 0;
-    terrainVertices[2]  = 0.0;          terrainVertices[3]  = 0.0;
-    terrainVertices[4]  = layer.width;  terrainVertices[5]  = 0;
-    terrainVertices[6]  = 1.0;          terrainVertices[7]  = 0.0;
-    terrainVertices[8]  = 0;            terrainVertices[9]  = layer.height;
-    terrainVertices[10] = 0.0;          terrainVertices[11] = 1.0;
-    terrainVertices[12] = layer.width;  terrainVertices[13] = layer.height;
-    terrainVertices[14] = 1.0;          terrainVertices[15] = 1.0;
+    let x0: number, y0: number, x1: number, y1: number;
+    let u0: number, v0: number, u1: number, v1: number;
+
+    if (layer.repeat) {
+      // Calculate visible world bounds with margin to cover the camera view
+      const viewW = width / camera.zoom;
+      const viewH = height / camera.zoom;
+      const margin = 256; // Extra padding
+      
+      x0 = camera.x - viewW / 2 - margin;
+      y0 = camera.y - viewH / 2 - margin;
+      x1 = camera.x + viewW / 2 + margin;
+      y1 = camera.y + viewH / 2 + margin;
+
+      // Map world position to UVs based on texture size
+      u0 = x0 / layer.width;
+      v0 = y0 / layer.height;
+      u1 = x1 / layer.width;
+      v1 = y1 / layer.height;
+    } else {
+      x0 = 0;
+      y0 = 0;
+      x1 = layer.width;
+      y1 = layer.height;
+      u0 = 0.0;
+      v0 = 0.0;
+      u1 = 1.0;
+      v1 = 1.0;
+    }
+
+    terrainVertices[0]  = x0;  terrainVertices[1]  = y0;
+    terrainVertices[2]  = u0;  terrainVertices[3]  = v0;
+    terrainVertices[4]  = x1;  terrainVertices[5]  = y0;
+    terrainVertices[6]  = u1;  terrainVertices[7]  = v0;
+    terrainVertices[8]  = x0;  terrainVertices[9]  = y1;
+    terrainVertices[10] = u0;  terrainVertices[11] = v1;
+    terrainVertices[12] = x1;  terrainVertices[13] = y1;
+    terrainVertices[14] = u1;  terrainVertices[15] = v1;
 
     gl.useProgram(terrainProgram);
     gl.enable(gl.BLEND);

@@ -342,6 +342,7 @@ export async function bootProject(
               texture: tex,
               width: imgData.width,
               height: imgData.height,
+              repeat: def.repeat === true,
             });
           } catch {
             logToConsole(consoleEl, `Failed to decode Terrain image: ${def.source}`, "error");
