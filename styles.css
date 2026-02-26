@@ -52,6 +52,7 @@
 /* Full-viewport grid when the ide-layout class is present */
 #mozaic-app.ide-layout {
   display: grid;
+  height: 100vh;
   height: 100dvh;
   width: 100vw;
   overflow: hidden;
