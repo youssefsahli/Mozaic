@@ -76,6 +76,13 @@ export interface MscInstance {
   y: number;
 }
 
+export type MscLayer =
+  | { Parallax: { source: string; repeat?: boolean; parallaxX?: number; parallaxY?: number; } }
+  | { Terrain: { source: string; repeat?: boolean; } }
+  | { UI: { source: string; } }
+  | "Entities"
+  | { Entities: any };
+
 export interface MscDocument {
   source?: string;
   imports: string[];
@@ -87,6 +94,7 @@ export interface MscDocument {
   animations?: number[][];
   instances?: MscInstance[];
   backgrounds?: MscBackgroundLayer[];
+  layers?: MscLayer[];
   inputs?: MscInput[];
 }
 
@@ -169,6 +177,15 @@ export function buildMscAst(tokens: MscLineToken[]): MscDocument {
       i = parseBackgrounds(tokens, i + 1, backgrounds);
       if (backgrounds.length > 0) {
         doc.backgrounds = backgrounds;
+      }
+      continue;
+    }
+
+    if (key === "Layers") {
+      const layers: MscLayer[] = [];
+      i = parseLayers(tokens, i + 1, layers);
+      if (layers.length > 0) {
+        doc.layers = layers;
       }
       continue;
     }
@@ -639,6 +656,110 @@ function parseBackgrounds(
           i++;
         }
         backgrounds.push(entry);
+        continue;
+      }
+    }
+
+    i++;
+  }
+  return i;
+}
+
+function parseLayers(
+  tokens: MscLineToken[],
+  start: number,
+  layers: MscLayer[]
+): number {
+  let i = start;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (token.kind === "empty" || token.kind === "comment") {
+      i++;
+      continue;
+    }
+    if (token.indent === 0) break;
+
+    if (token.kind === "list") {
+      const line = token.listValue ?? "";
+      const listIndent = token.indent;
+
+      // "Entities" or "Entities: {}" or "Entities: <anything>"
+      if (line === "Entities") {
+        layers.push("Entities");
+        i++;
+        continue;
+      }
+      if (line.startsWith("Entities:")) {
+        layers.push({ Entities: {} });
+        i++;
+        continue;
+      }
+
+      // Parse typed layers: Parallax, Terrain, UI
+      const layerTypeMatch = line.match(/^(Parallax|Terrain|UI):(.*)$/);
+      if (layerTypeMatch) {
+        const layerType = layerTypeMatch[1];
+        const inlineValue = layerTypeMatch[2].trim();
+
+        // Collect props from inline form or multi-line children
+        const props: Record<string, string> = {};
+
+        if (inlineValue) {
+          // Inline form: Parallax: { source: "sky.mzk", repeat: true }
+          const inner = inlineValue.replace(/^\{|\}$/g, "").trim();
+          if (inner) {
+            for (const part of inner.split(",")) {
+              const colonIdx = part.indexOf(":");
+              if (colonIdx !== -1) {
+                const k = part.slice(0, colonIdx).trim();
+                const v = part.slice(colonIdx + 1).trim();
+                props[k] = v;
+              }
+            }
+          }
+        }
+
+        // Multi-line form: read children at higher indent
+        i++;
+        while (i < tokens.length) {
+          const sub = tokens[i];
+          if (sub.kind === "empty" || sub.kind === "comment") {
+            i++;
+            continue;
+          }
+          if (sub.indent <= listIndent) break;
+          if (sub.kind === "mapping") {
+            const pk = sub.key ?? "";
+            const pv = sub.value ?? "";
+            props[pk] = pv;
+          }
+          i++;
+        }
+
+        const source = stripQuotes(props["source"] ?? "");
+
+        if (layerType === "Parallax") {
+          const layer: MscLayer = {
+            Parallax: {
+              source,
+              ...(props["repeat"] !== undefined && { repeat: props["repeat"] === "true" }),
+              ...(props["parallaxX"] !== undefined && { parallaxX: parseFloat(props["parallaxX"]) }),
+              ...(props["parallaxY"] !== undefined && { parallaxY: parseFloat(props["parallaxY"]) }),
+            },
+          };
+          layers.push(layer);
+        } else if (layerType === "Terrain") {
+          const layer: MscLayer = {
+            Terrain: {
+              source,
+              ...(props["repeat"] !== undefined && { repeat: props["repeat"] === "true" }),
+            },
+          };
+          layers.push(layer);
+        } else if (layerType === "UI") {
+          layers.push({ UI: { source } });
+        }
+
         continue;
       }
     }
