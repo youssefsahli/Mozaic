@@ -490,6 +490,11 @@ export class Renderer {
 
     gl.useProgram(entProgram);
 
+    // Rebind main texture for entities (as it was unbound by backgrounds)
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.texture);
+    gl.uniform1i(gl.getUniformLocation(entProgram, "u_texture"), 0);
+
     // Enable alpha blending for transparent sprite pixels
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

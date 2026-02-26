@@ -344,7 +344,11 @@ function collectBindings(
   script: MscDocument | undefined
 ): Array<{ key: string; action: string }> {
   if (!script) return [];
-  return Object.values(script.entities).flatMap((e) => e.inputs ?? []);
+  const entityInputs = Object.values(script.entities).flatMap(
+    (e) => e.inputs ?? []
+  );
+  const globalInputs = script.inputs ?? [];
+  return [...entityInputs, ...globalInputs];
 }
 
 function updateInputDebug(el: HTMLElement, input: InputManager): void {

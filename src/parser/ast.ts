@@ -87,6 +87,7 @@ export interface MscDocument {
   animations?: number[][];
   instances?: MscInstance[];
   backgrounds?: MscBackgroundLayer[];
+  inputs?: MscInput[];
 }
 
 export function buildMscAst(tokens: MscLineToken[]): MscDocument {
@@ -97,6 +98,7 @@ export function buildMscAst(tokens: MscLineToken[]): MscDocument {
     events: [],
     sprites: new Map(),
     spriteGrid: 0,
+    inputs: [],
   };
 
   let i = 0;
@@ -171,6 +173,12 @@ export function buildMscAst(tokens: MscLineToken[]): MscDocument {
       continue;
     }
 
+    if (key === "Input") {
+      if (!doc.inputs) doc.inputs = [];
+      i = parseInputs(tokens, i + 1, doc.inputs);
+      continue;
+    }
+
     i++;
   }
 
@@ -236,6 +244,56 @@ function parseEntity(
         continue;
       } else if (key === "States") {
         i = parseStates(tokens, i + 1, token.indent, entity);
+        continue;
+      } else if (key === "Input") {
+        const inputIndent = token.indent;
+        let j = i + 1;
+        while (j < tokens.length) {
+          const sub = tokens[j];
+          if (sub.kind === "empty" || sub.kind === "comment") {
+            j++;
+            continue;
+          }
+          if (sub.indent <= inputIndent) break;
+
+          if (sub.kind === "list") {
+            const line = sub.listValue ?? "";
+            const inputMatch = line.match(/^(\S+)\s+->\s+(\S+)$/);
+            if (inputMatch && entity.inputs) {
+              entity.inputs.push({ key: inputMatch[1], action: inputMatch[2] });
+            }
+          }
+          j++;
+        }
+        i = j;
+        continue;
+      } else if (key === "Physics") {
+        const physIndent = token.indent;
+        let j = i + 1;
+        while (j < tokens.length) {
+          const sub = tokens[j];
+          if (sub.kind === "empty" || sub.kind === "comment") {
+            j++;
+            continue;
+          }
+          if (sub.indent <= physIndent) break;
+
+          if (sub.kind === "list") {
+            const line = sub.listValue ?? "";
+            const shapeMatch = line.match(/^shape:\s+(\S+)$/);
+            if (shapeMatch && entity.physics) {
+              entity.physics.push({ shape: shapeMatch[1], solid: false });
+            }
+
+            const solidMatch = line.match(/^solid:\s+(true|false)$/);
+            if (solidMatch && entity.physics && entity.physics.length > 0) {
+              entity.physics[entity.physics.length - 1].solid =
+                solidMatch[1] === "true";
+            }
+          }
+          j++;
+        }
+        i = j;
         continue;
       } else {
         let props: Record<string, number | string> = {};
@@ -585,6 +643,32 @@ function parseBackgrounds(
       }
     }
 
+    i++;
+  }
+  return i;
+}
+
+function parseInputs(
+  tokens: MscLineToken[],
+  start: number,
+  inputs: MscInput[]
+): number {
+  let i = start;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (token.kind === "empty" || token.kind === "comment") {
+      i++;
+      continue;
+    }
+    if (token.indent === 0) break;
+
+    if (token.kind === "list") {
+      const line = token.listValue ?? "";
+      const inputMatch = line.match(/^(\S+)\s+->\s+(\S+)$/);
+      if (inputMatch) {
+        inputs.push({ key: inputMatch[1], action: inputMatch[2] });
+      }
+    }
     i++;
   }
   return i;

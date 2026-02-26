@@ -207,4 +207,18 @@ describe("buildMscAst", () => {
     const ast = buildMscAst(tokenizeMsc(SOURCE));
     expect(ast.backgrounds).toBeUndefined();
   });
+
+  it("parses global Input block", () => {
+    const src = [
+      'Input:',
+      '  - Key_W -> Action.MoveUp',
+      '  - Key_S -> Action.MoveDown',
+      ''
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.inputs).toBeDefined();
+    expect(ast.inputs).toHaveLength(2);
+    expect(ast.inputs![0]).toEqual({ key: "Key_W", action: "Action.MoveUp" });
+    expect(ast.inputs![1]).toEqual({ key: "Key_S", action: "Action.MoveDown" });
+  });
 });
