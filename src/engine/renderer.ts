@@ -166,6 +166,34 @@ void main() {
 }
 `;
 
+// --- Terrain program: world-space positioning with camera + zoom ---
+const TERRAIN_VERTEX_SRC = `
+attribute vec2 a_position;
+attribute vec2 a_texCoord;
+uniform vec2 u_resolution;
+uniform vec2 u_camPos;
+uniform float u_zoom;
+varying vec2 v_texCoord;
+void main() {
+  vec2 pos = (a_position - u_camPos) * u_zoom;
+  vec2 clip = (pos / u_resolution) * 2.0 - 1.0;
+  clip.y = -clip.y;
+  gl_Position = vec4(clip, 0.0, 1.0);
+  v_texCoord = a_texCoord;
+}
+`;
+
+const TERRAIN_FRAGMENT_SRC = `
+precision mediump float;
+uniform sampler2D u_texture;
+varying vec2 v_texCoord;
+void main() {
+  vec4 color = texture2D(u_texture, v_texCoord);
+  if (color.a < 0.01) discard;
+  gl_FragColor = color;
+}
+`;
+
 // ── Helpers ───────────────────────────────────────────────────
 
 function compileShader(
@@ -211,6 +239,14 @@ export interface BackgroundLayer {
   parallaxY: number;
 }
 
+// ── Compiled Layer (Layers array) ─────────────────────────────
+
+export type CompiledLayer =
+  | { type: "Parallax"; texture: WebGLTexture; width: number; height: number; parallaxX: number; parallaxY: number; }
+  | { type: "Terrain"; texture: WebGLTexture; width: number; height: number; }
+  | { type: "Entities" }
+  | { type: "UI" };
+
 // ── Constants ─────────────────────────────────────────────────
 
 const MAX_ENTITIES = 1024;
@@ -224,6 +260,7 @@ export class Renderer {
   private readonly gl: WebGLRenderingContext;
   private readonly entProgram: WebGLProgram;
   private readonly bgProgram: WebGLProgram;
+  private readonly terrainProgram: WebGLProgram;
   private readonly texture: WebGLTexture;
 
   // Entity buffers
@@ -234,11 +271,18 @@ export class Renderer {
   // Background buffers
   private readonly bgVertexBuffer: WebGLBuffer;
 
+  // Pre-allocated terrain vertex data (reused each frame)
+  private readonly terrainVertices: Float32Array;
+  private readonly bgQuadVertices: Float32Array;
+
   // Sprite atlas (set via setSpriteAtlas)
   private spriteAtlas: (BakedSprite | null)[] = [];
 
   // Background layers (set via setBackgrounds)
   private backgroundLayers: BackgroundLayer[] = [];
+
+  // Compiled layers (set via setLayers)
+  private compiledLayers: CompiledLayer[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl");
@@ -250,6 +294,9 @@ export class Renderer {
 
     // --- Compile background program ---
     this.bgProgram = createProgram(gl, BG_VERTEX_SRC, BG_FRAGMENT_SRC);
+
+    // --- Compile terrain program ---
+    this.terrainProgram = createProgram(gl, TERRAIN_VERTEX_SRC, TERRAIN_FRAGMENT_SRC);
 
     // --- Entity batch buffers ---
     this.entVertices = new Float32Array(
@@ -296,18 +343,20 @@ export class Renderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
 
     // --- Background full-screen quad (clip-space, tiled UVs) ---
-    const bgVerts = new Float32Array([
+    this.bgQuadVertices = new Float32Array([
       // x,    y,   u,  v
       -1.0, -1.0, 0.0, 1.0, // bottom-left
        1.0, -1.0, 1.0, 1.0, // bottom-right
       -1.0,  1.0, 0.0, 0.0, // top-left
        1.0,  1.0, 1.0, 0.0, // top-right
     ]);
+    // Pre-allocate terrain vertex data (4 verts × 4 floats)
+    this.terrainVertices = new Float32Array(16);
     const bgBuf = gl.createBuffer();
     if (!bgBuf) throw new Error("Failed to create background vertex buffer");
     this.bgVertexBuffer = bgBuf;
     gl.bindBuffer(gl.ARRAY_BUFFER, bgBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, bgVerts, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, this.bgQuadVertices, gl.STATIC_DRAW);
   }
 
   /** Set the compiled sprite atlas for entity rendering. */
@@ -318,6 +367,11 @@ export class Renderer {
   /** Set the background layers for parallax rendering. */
   setBackgrounds(layers: BackgroundLayer[]): void {
     this.backgroundLayers = layers;
+  }
+
+  /** Set the compiled layers for unified render loop. */
+  setLayers(layers: CompiledLayer[]): void {
+    this.compiledLayers = layers;
   }
 
   /**
@@ -345,7 +399,34 @@ export class Renderer {
   }
 
   /**
-   * Render: clear background then draw entity batch.
+   * Create a WebGL texture from ImageData with configurable wrap mode.
+   * When repeat is true, uses gl.REPEAT; otherwise uses gl.CLAMP_TO_EDGE.
+   */
+  createLayerTexture(imageData: ImageData, repeat: boolean): WebGLTexture {
+    const { gl } = this;
+    const tex = gl.createTexture();
+    if (!tex) throw new Error("Failed to create layer texture");
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    const wrapMode = repeat ? gl.REPEAT : gl.CLAMP_TO_EDGE;
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapMode);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapMode);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      imageData
+    );
+    return tex;
+  }
+
+  /**
+   * Render: clear background then draw layers in order (Painter's Algorithm).
+   * If compiledLayers is set, iterates through the layers array.
+   * Otherwise falls back to legacy backgrounds + entities.
    * @param engineState  Full engine state including buffer, dimensions, and camera
    */
   render(engineState: EngineState): void {
@@ -372,11 +453,119 @@ export class Renderer {
     gl.clearColor(0.1, 0.1, 0.12, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // ── Parallax backgrounds (painter's algorithm: first = furthest) ──
-    this.renderBackgrounds(camera);
+    if (this.compiledLayers.length > 0) {
+      // ── Unified Layers render loop (Painter's Algorithm) ──
+      for (const layer of this.compiledLayers) {
+        if (layer.type === "Entities") {
+          this.renderEntities(state, width, height, camera);
+        } else if (layer.type === "Parallax") {
+          this.renderParallaxLayer(layer, camera);
+        } else if (layer.type === "Terrain") {
+          this.renderTerrainLayer(layer, width, height, camera);
+        }
+        // UI: stubbed for future UI pass
+      }
+    } else {
+      // ── Legacy render path ──
+      this.renderBackgrounds(camera);
+      this.renderEntities(state, width, height, camera);
+    }
+  }
 
-    // ── Entities ──────────────────────────────────────────────
-    this.renderEntities(state, width, height, camera);
+  private renderParallaxLayer(
+    layer: Extract<CompiledLayer, { type: "Parallax" }>,
+    camera: CameraState
+  ): void {
+    const { gl, bgProgram, bgVertexBuffer } = this;
+
+    gl.useProgram(bgProgram);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    const stride = FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, bgVertexBuffer);
+    const posLoc = gl.getAttribLocation(bgProgram, "a_position");
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, stride, 0);
+
+    const texLoc = gl.getAttribLocation(bgProgram, "a_texCoord");
+    gl.enableVertexAttribArray(texLoc);
+    gl.vertexAttribPointer(
+      texLoc,
+      2,
+      gl.FLOAT,
+      false,
+      stride,
+      2 * Float32Array.BYTES_PER_ELEMENT
+    );
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, layer.texture);
+    gl.uniform1i(gl.getUniformLocation(bgProgram, "u_texture"), 0);
+    gl.uniform2f(gl.getUniformLocation(bgProgram, "u_camPos"), camera.x, camera.y);
+    gl.uniform2f(gl.getUniformLocation(bgProgram, "u_parallax"), layer.parallaxX, layer.parallaxY);
+    gl.uniform2f(gl.getUniformLocation(bgProgram, "u_textureSize"), layer.width, layer.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    gl.disable(gl.BLEND);
+  }
+
+  private renderTerrainLayer(
+    layer: Extract<CompiledLayer, { type: "Terrain" }>,
+    width: number,
+    height: number,
+    camera: CameraState
+  ): void {
+    const { gl, terrainProgram, bgVertexBuffer, terrainVertices } = this;
+
+    // Fill pre-allocated terrain vertex data (world-space quad)
+    terrainVertices[0]  = 0;            terrainVertices[1]  = 0;
+    terrainVertices[2]  = 0.0;          terrainVertices[3]  = 0.0;
+    terrainVertices[4]  = layer.width;  terrainVertices[5]  = 0;
+    terrainVertices[6]  = 1.0;          terrainVertices[7]  = 0.0;
+    terrainVertices[8]  = 0;            terrainVertices[9]  = layer.height;
+    terrainVertices[10] = 0.0;          terrainVertices[11] = 1.0;
+    terrainVertices[12] = layer.width;  terrainVertices[13] = layer.height;
+    terrainVertices[14] = 1.0;          terrainVertices[15] = 1.0;
+
+    gl.useProgram(terrainProgram);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    const stride = FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, bgVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, terrainVertices, gl.DYNAMIC_DRAW);
+
+    const posLoc = gl.getAttribLocation(terrainProgram, "a_position");
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, stride, 0);
+
+    const texLoc = gl.getAttribLocation(terrainProgram, "a_texCoord");
+    gl.enableVertexAttribArray(texLoc);
+    gl.vertexAttribPointer(
+      texLoc,
+      2,
+      gl.FLOAT,
+      false,
+      stride,
+      2 * Float32Array.BYTES_PER_ELEMENT
+    );
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, layer.texture);
+    gl.uniform1i(gl.getUniformLocation(terrainProgram, "u_texture"), 0);
+    gl.uniform2f(gl.getUniformLocation(terrainProgram, "u_resolution"), width, height);
+    gl.uniform2f(gl.getUniformLocation(terrainProgram, "u_camPos"), camera.x, camera.y);
+    gl.uniform1f(gl.getUniformLocation(terrainProgram, "u_zoom"), camera.zoom);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // Restore the background full-screen quad data
+    gl.bindBuffer(gl.ARRAY_BUFFER, bgVertexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, this.bgQuadVertices, gl.STATIC_DRAW);
+
+    gl.disable(gl.BLEND);
   }
 
   private renderBackgrounds(camera: CameraState): void {

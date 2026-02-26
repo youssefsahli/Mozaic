@@ -11,12 +11,12 @@
  */
 
 import { bake, type BakedAsset } from "../engine/baker.js";
-import { Renderer, compileSpriteAtlas, type BackgroundLayer } from "../engine/renderer.js";
+import { Renderer, compileSpriteAtlas, type BackgroundLayer, type CompiledLayer } from "../engine/renderer.js";
 import { InputManager } from "../engine/input.js";
 import { EngineLoop, createInitialState } from "../engine/loop.js";
 import { buildEvaluatorLogic } from "../engine/evaluator.js";
 import { createDefaultRegistry } from "../engine/components.js";
-import { parseMsc, type MscDocument } from "../parser/msc.js";
+import { parseMsc, type MscDocument, type MscLayer } from "../parser/msc.js";
 import { parseWithImports } from "../engine/import-resolver.js";
 import { spawnEntity } from "../engine/pool.js";
 import type { ProjectFiles } from "./file-system.js";
@@ -287,6 +287,80 @@ export async function bootProject(
       logToConsole(
         consoleEl,
         `Loaded ${bgLayers.length} background layer(s).`,
+        "info"
+      );
+    }
+  }
+
+  // Load Layers from script and wire into renderer
+  if (script.layers && script.layers.length > 0 && project.entryPointId) {
+    const epNode = findNode(project.root, project.entryPointId);
+    const compiled: CompiledLayer[] = [];
+    for (const layer of script.layers) {
+      if (layer === "Entities" || (typeof layer === "object" && "Entities" in layer)) {
+        compiled.push({ type: "Entities" });
+        continue;
+      }
+      if (typeof layer === "object" && "Parallax" in layer) {
+        const def = layer.Parallax;
+        const node = epNode
+          ? resolveImportPath(project.root, epNode.id, def.source) ??
+            findNodeByPath(project.root, def.source)
+          : findNodeByPath(project.root, def.source);
+        if (node && node.fileType === "image" && node.content) {
+          try {
+            const imgData = await dataUrlToImageData(node.content);
+            const tex = renderer.createLayerTexture(imgData, def.repeat === true);
+            compiled.push({
+              type: "Parallax",
+              texture: tex,
+              width: imgData.width,
+              height: imgData.height,
+              parallaxX: def.parallaxX ?? 1,
+              parallaxY: def.parallaxY ?? 1,
+            });
+          } catch {
+            logToConsole(consoleEl, `Failed to decode Parallax image: ${def.source}`, "error");
+          }
+        } else {
+          logToConsole(consoleEl, `Parallax image "${def.source}" not found in project.`, "error");
+        }
+        continue;
+      }
+      if (typeof layer === "object" && "Terrain" in layer) {
+        const def = layer.Terrain;
+        const node = epNode
+          ? resolveImportPath(project.root, epNode.id, def.source) ??
+            findNodeByPath(project.root, def.source)
+          : findNodeByPath(project.root, def.source);
+        if (node && node.fileType === "image" && node.content) {
+          try {
+            const imgData = await dataUrlToImageData(node.content);
+            const tex = renderer.createLayerTexture(imgData, def.repeat === true);
+            compiled.push({
+              type: "Terrain",
+              texture: tex,
+              width: imgData.width,
+              height: imgData.height,
+            });
+          } catch {
+            logToConsole(consoleEl, `Failed to decode Terrain image: ${def.source}`, "error");
+          }
+        } else {
+          logToConsole(consoleEl, `Terrain image "${def.source}" not found in project.`, "error");
+        }
+        continue;
+      }
+      if (typeof layer === "object" && "UI" in layer) {
+        compiled.push({ type: "UI" });
+        continue;
+      }
+    }
+    if (compiled.length > 0) {
+      renderer.setLayers(compiled);
+      logToConsole(
+        consoleEl,
+        `Loaded ${compiled.length} layer(s) for unified render loop.`,
         "info"
       );
     }

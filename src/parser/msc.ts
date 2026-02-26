@@ -18,6 +18,7 @@ import {
   type MscInstance,
   type MscSchema,
   type MscBackgroundLayer,
+  type MscLayer,
 } from "./ast.js";
 
 export type {
@@ -30,6 +31,7 @@ export type {
   MscInstance,
   MscSchema,
   MscBackgroundLayer,
+  MscLayer,
 };
 
 export function parseMsc(source: string): MscDocument {

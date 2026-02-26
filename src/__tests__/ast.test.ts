@@ -221,4 +221,134 @@ describe("buildMscAst", () => {
     expect(ast.inputs![0]).toEqual({ key: "Key_W", action: "Action.MoveUp" });
     expect(ast.inputs![1]).toEqual({ key: "Key_S", action: "Action.MoveDown" });
   });
+
+  it("does not set layers when Layers block is absent", () => {
+    const ast = buildMscAst(tokenizeMsc(SOURCE));
+    expect(ast.layers).toBeUndefined();
+  });
+
+  it("parses Layers block with Parallax multi-line form", () => {
+    const src = [
+      'Layers:',
+      '  - Parallax:',
+      '      source: "sky.mzk"',
+      '      repeat: true',
+      '      parallaxX: 0.1',
+      '      parallaxY: 0.2',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.layers).toBeDefined();
+    expect(ast.layers!.length).toBe(1);
+    expect(ast.layers![0]).toEqual({
+      Parallax: { source: "sky.mzk", repeat: true, parallaxX: 0.1, parallaxY: 0.2 },
+    });
+  });
+
+  it("parses Layers block with Terrain layer", () => {
+    const src = [
+      'Layers:',
+      '  - Terrain:',
+      '      source: "ground.mzk"',
+      '      repeat: true',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.layers).toBeDefined();
+    expect(ast.layers!.length).toBe(1);
+    expect(ast.layers![0]).toEqual({
+      Terrain: { source: "ground.mzk", repeat: true },
+    });
+  });
+
+  it("parses Layers block with bare Entities string", () => {
+    const src = [
+      'Layers:',
+      '  - Entities',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.layers).toBeDefined();
+    expect(ast.layers!.length).toBe(1);
+    expect(ast.layers![0]).toBe("Entities");
+  });
+
+  it("parses Layers block with Entities: {} form", () => {
+    const src = [
+      'Layers:',
+      '  - Entities: {}',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.layers).toBeDefined();
+    expect(ast.layers!.length).toBe(1);
+    expect(ast.layers![0]).toEqual({ Entities: {} });
+  });
+
+  it("parses Layers block with UI layer", () => {
+    const src = [
+      'Layers:',
+      '  - UI:',
+      '      source: "hud.mzk"',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.layers).toBeDefined();
+    expect(ast.layers!.length).toBe(1);
+    expect(ast.layers![0]).toEqual({ UI: { source: "hud.mzk" } });
+  });
+
+  it("preserves Layers order (painter's algorithm)", () => {
+    const src = [
+      'Layers:',
+      '  - Parallax:',
+      '      source: "sky.mzk"',
+      '      parallaxX: 0.1',
+      '      parallaxY: 0.1',
+      '  - Terrain:',
+      '      source: "ground.mzk"',
+      '  - Entities',
+      '  - UI:',
+      '      source: "hud.mzk"',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.layers).toBeDefined();
+    expect(ast.layers!.length).toBe(4);
+    // Check order: Parallax, Terrain, Entities, UI
+    expect("Parallax" in (ast.layers![0] as any)).toBe(true);
+    expect("Terrain" in (ast.layers![1] as any)).toBe(true);
+    expect(ast.layers![2]).toBe("Entities");
+    expect("UI" in (ast.layers![3] as any)).toBe(true);
+  });
+
+  it("parses Parallax layer without optional fields", () => {
+    const src = [
+      'Layers:',
+      '  - Parallax:',
+      '      source: "sky.mzk"',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.layers).toBeDefined();
+    const layer = ast.layers![0] as { Parallax: any };
+    expect(layer.Parallax.source).toBe("sky.mzk");
+    expect(layer.Parallax.repeat).toBeUndefined();
+    expect(layer.Parallax.parallaxX).toBeUndefined();
+    expect(layer.Parallax.parallaxY).toBeUndefined();
+  });
+
+  it("parses Terrain layer without repeat", () => {
+    const src = [
+      'Layers:',
+      '  - Terrain:',
+      '      source: "tiles.mzk"',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.layers).toBeDefined();
+    const layer = ast.layers![0] as { Terrain: any };
+    expect(layer.Terrain.source).toBe("tiles.mzk");
+    expect(layer.Terrain.repeat).toBeUndefined();
+  });
 });
