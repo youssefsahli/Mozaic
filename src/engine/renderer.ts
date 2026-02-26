@@ -142,6 +142,30 @@ void main() {
 }
 `;
 
+// --- Background program: parallax-shifted UV tiling ---
+const BG_VERTEX_SRC = `
+attribute vec2 a_position;
+attribute vec2 a_texCoord;
+uniform vec2 u_camPos;
+uniform vec2 u_parallax;
+uniform vec2 u_textureSize;
+varying vec2 v_texCoord;
+void main() {
+  gl_Position = vec4(a_position, 0.0, 1.0);
+  v_texCoord = a_texCoord + ((u_camPos * u_parallax) / u_textureSize);
+}
+`;
+
+const BG_FRAGMENT_SRC = `
+precision mediump float;
+uniform sampler2D u_texture;
+varying vec2 v_texCoord;
+void main() {
+  vec4 color = texture2D(u_texture, v_texCoord);
+  gl_FragColor = color;
+}
+`;
+
 // ── Helpers ───────────────────────────────────────────────────
 
 function compileShader(
@@ -177,6 +201,16 @@ function createProgram(
   return program;
 }
 
+// ── Background Layer ──────────────────────────────────────────
+
+export interface BackgroundLayer {
+  texture: WebGLTexture;
+  width: number;
+  height: number;
+  parallaxX: number;
+  parallaxY: number;
+}
+
 // ── Constants ─────────────────────────────────────────────────
 
 const MAX_ENTITIES = 1024;
@@ -189,6 +223,7 @@ const INDICES_PER_QUAD = 6;
 export class Renderer {
   private readonly gl: WebGLRenderingContext;
   private readonly entProgram: WebGLProgram;
+  private readonly bgProgram: WebGLProgram;
   private readonly texture: WebGLTexture;
 
   // Entity buffers
@@ -196,8 +231,14 @@ export class Renderer {
   private readonly entIndexBuffer: WebGLBuffer;
   private readonly entVertices: Float32Array;
 
+  // Background buffers
+  private readonly bgVertexBuffer: WebGLBuffer;
+
   // Sprite atlas (set via setSpriteAtlas)
   private spriteAtlas: (BakedSprite | null)[] = [];
+
+  // Background layers (set via setBackgrounds)
+  private backgroundLayers: BackgroundLayer[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl");
@@ -206,6 +247,9 @@ export class Renderer {
 
     // --- Compile entity program ---
     this.entProgram = createProgram(gl, ENT_VERTEX_SRC, ENT_FRAGMENT_SRC);
+
+    // --- Compile background program ---
+    this.bgProgram = createProgram(gl, BG_VERTEX_SRC, BG_FRAGMENT_SRC);
 
     // --- Entity batch buffers ---
     this.entVertices = new Float32Array(
@@ -250,11 +294,54 @@ export class Renderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+
+    // --- Background full-screen quad (clip-space, tiled UVs) ---
+    const bgVerts = new Float32Array([
+      // x,    y,   u,  v
+      -1.0, -1.0, 0.0, 1.0, // bottom-left
+       1.0, -1.0, 1.0, 1.0, // bottom-right
+      -1.0,  1.0, 0.0, 0.0, // top-left
+       1.0,  1.0, 1.0, 0.0, // top-right
+    ]);
+    const bgBuf = gl.createBuffer();
+    if (!bgBuf) throw new Error("Failed to create background vertex buffer");
+    this.bgVertexBuffer = bgBuf;
+    gl.bindBuffer(gl.ARRAY_BUFFER, bgBuf);
+    gl.bufferData(gl.ARRAY_BUFFER, bgVerts, gl.STATIC_DRAW);
   }
 
   /** Set the compiled sprite atlas for entity rendering. */
   setSpriteAtlas(atlas: (BakedSprite | null)[]): void {
     this.spriteAtlas = atlas;
+  }
+
+  /** Set the background layers for parallax rendering. */
+  setBackgrounds(layers: BackgroundLayer[]): void {
+    this.backgroundLayers = layers;
+  }
+
+  /**
+   * Create a WebGL texture from ImageData, configured for tiling (REPEAT wrap).
+   * Used by the bootstrapper to load background .mzk textures.
+   */
+  createTilingTexture(imageData: ImageData): WebGLTexture {
+    const { gl } = this;
+    const tex = gl.createTexture();
+    if (!tex) throw new Error("Failed to create background texture");
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      imageData
+    );
+    return tex;
   }
 
   /**
@@ -285,8 +372,54 @@ export class Renderer {
     gl.clearColor(0.1, 0.1, 0.12, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    // ── Parallax backgrounds (painter's algorithm: first = furthest) ──
+    this.renderBackgrounds(camera);
+
     // ── Entities ──────────────────────────────────────────────
     this.renderEntities(state, width, height, camera);
+  }
+
+  private renderBackgrounds(camera: CameraState): void {
+    const { gl, bgProgram, bgVertexBuffer, backgroundLayers } = this;
+    if (backgroundLayers.length === 0) return;
+
+    gl.useProgram(bgProgram);
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    const stride = FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, bgVertexBuffer);
+    const posLoc = gl.getAttribLocation(bgProgram, "a_position");
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, stride, 0);
+
+    const texLoc = gl.getAttribLocation(bgProgram, "a_texCoord");
+    gl.enableVertexAttribArray(texLoc);
+    gl.vertexAttribPointer(
+      texLoc,
+      2,
+      gl.FLOAT,
+      false,
+      stride,
+      2 * Float32Array.BYTES_PER_ELEMENT
+    );
+
+    const camPosLoc = gl.getUniformLocation(bgProgram, "u_camPos");
+    const parallaxLoc = gl.getUniformLocation(bgProgram, "u_parallax");
+    const texSizeLoc = gl.getUniformLocation(bgProgram, "u_textureSize");
+
+    for (const layer of backgroundLayers) {
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, layer.texture);
+      gl.uniform1i(gl.getUniformLocation(bgProgram, "u_texture"), 0);
+      gl.uniform2f(camPosLoc, camera.x, camera.y);
+      gl.uniform2f(parallaxLoc, layer.parallaxX, layer.parallaxY);
+      gl.uniform2f(texSizeLoc, layer.width, layer.height);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    gl.disable(gl.BLEND);
   }
 
   private renderEntities(

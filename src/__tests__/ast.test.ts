@@ -123,4 +123,88 @@ describe("buildMscAst", () => {
     expect(ast.sprites.size).toBe(0);
     expect(ast.spriteGrid).toBe(0);
   });
+
+  it("parses Backgrounds block (inline form)", () => {
+    const src = [
+      'Backgrounds:',
+      '  - { source: "sky.mzk", parallaxX: 0.1, parallaxY: 0.2 }',
+      '  - { source: "mountains.mzk", parallaxX: 0.5, parallaxY: 0.3 }',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.backgrounds).toBeDefined();
+    expect(ast.backgrounds!.length).toBe(2);
+    expect(ast.backgrounds![0]).toEqual({
+      source: "sky.mzk",
+      parallaxX: 0.1,
+      parallaxY: 0.2,
+    });
+    expect(ast.backgrounds![1]).toEqual({
+      source: "mountains.mzk",
+      parallaxX: 0.5,
+      parallaxY: 0.3,
+    });
+  });
+
+  it("parses Backgrounds block (multi-line form)", () => {
+    const src = [
+      'Backgrounds:',
+      '  - source: "sky.mzk"',
+      '    parallaxX: 0.1',
+      '    parallaxY: 0.2',
+      '  - source: "clouds.mzk"',
+      '    parallaxX: 0.3',
+      '    parallaxY: 0.4',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.backgrounds).toBeDefined();
+    expect(ast.backgrounds!.length).toBe(2);
+    expect(ast.backgrounds![0]).toEqual({
+      source: "sky.mzk",
+      parallaxX: 0.1,
+      parallaxY: 0.2,
+    });
+    expect(ast.backgrounds![1]).toEqual({
+      source: "clouds.mzk",
+      parallaxX: 0.3,
+      parallaxY: 0.4,
+    });
+  });
+
+  it("defaults parallax to 1 when omitted in multi-line form", () => {
+    const src = [
+      'Backgrounds:',
+      '  - source: "layer.mzk"',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.backgrounds).toBeDefined();
+    expect(ast.backgrounds![0]).toEqual({
+      source: "layer.mzk",
+      parallaxX: 1,
+      parallaxY: 1,
+    });
+  });
+
+  it("preserves Backgrounds order (painter's algorithm)", () => {
+    const src = [
+      'Backgrounds:',
+      '  - { source: "far.mzk", parallaxX: 0.1, parallaxY: 0.1 }',
+      '  - { source: "mid.mzk", parallaxX: 0.5, parallaxY: 0.5 }',
+      '  - { source: "near.mzk", parallaxX: 0.9, parallaxY: 0.9 }',
+      '',
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.backgrounds!.map(b => b.source)).toEqual([
+      "far.mzk",
+      "mid.mzk",
+      "near.mzk",
+    ]);
+  });
+
+  it("does not set backgrounds when Backgrounds block is absent", () => {
+    const ast = buildMscAst(tokenizeMsc(SOURCE));
+    expect(ast.backgrounds).toBeUndefined();
+  });
 });
