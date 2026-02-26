@@ -318,6 +318,23 @@ export class PixelEditor {
     this.applySnapshot(snapshot);
   }
 
+  /** Resize the document canvas to new dimensions, copying existing pixels. */
+  resizeCanvas(newW: number, newH: number): void {
+    if (!this.imageData || newW <= 0 || newH <= 0) return;
+    const old = this.imageData;
+    const resized = new ImageData(newW, newH);
+    const copyW = Math.min(old.width, newW);
+    const copyH = Math.min(old.height, newH);
+    for (let y = 0; y < copyH; y++) {
+      const srcOff = y * old.width * 4;
+      const dstOff = y * newW * 4;
+      resized.data.set(old.data.subarray(srcOff, srcOff + copyW * 4), dstOff);
+    }
+    this.setImageData(resized);
+    this.baked = this.callbacks.onBake(this.imageData!);
+    this.callbacks.onPersist();
+  }
+
   /** Clean up all event listeners and DOM elements. */
   dispose(): void {
     this.inputHandler?.dispose();
