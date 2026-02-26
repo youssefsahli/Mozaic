@@ -11,7 +11,7 @@
  */
 
 import { bake, type BakedAsset } from "../engine/baker.js";
-import { Renderer, compileSpriteAtlas } from "../engine/renderer.js";
+import { Renderer, compileSpriteAtlas, type BackgroundLayer } from "../engine/renderer.js";
 import { InputManager } from "../engine/input.js";
 import { EngineLoop, createInitialState } from "../engine/loop.js";
 import { buildEvaluatorLogic } from "../engine/evaluator.js";
@@ -246,6 +246,51 @@ export async function bootProject(
     clonedData.height
   );
   renderer.setSpriteAtlas(spriteAtlas);
+
+  // Load background layers from script and wire into renderer
+  if (script.backgrounds && script.backgrounds.length > 0 && project.entryPointId) {
+    const epNode = findNode(project.root, project.entryPointId);
+    const bgLayers: BackgroundLayer[] = [];
+    for (const bg of script.backgrounds) {
+      const bgNode = epNode
+        ? resolveImportPath(project.root, epNode.id, bg.source) ??
+          findNodeByPath(project.root, bg.source)
+        : findNodeByPath(project.root, bg.source);
+      if (bgNode && bgNode.fileType === "image" && bgNode.content) {
+        try {
+          const bgImageData = await dataUrlToImageData(bgNode.content);
+          const bgTexture = renderer.createTilingTexture(bgImageData);
+          bgLayers.push({
+            texture: bgTexture,
+            width: bgImageData.width,
+            height: bgImageData.height,
+            parallaxX: bg.parallaxX,
+            parallaxY: bg.parallaxY,
+          });
+        } catch {
+          logToConsole(
+            consoleEl,
+            `Failed to decode background image: ${bg.source}`,
+            "error"
+          );
+        }
+      } else {
+        logToConsole(
+          consoleEl,
+          `Background image "${bg.source}" not found in project.`,
+          "error"
+        );
+      }
+    }
+    if (bgLayers.length > 0) {
+      renderer.setBackgrounds(bgLayers);
+      logToConsole(
+        consoleEl,
+        `Loaded ${bgLayers.length} background layer(s).`,
+        "info"
+      );
+    }
+  }
 
   const bindings = collectBindings(script);
   const inputManager = new InputManager(bindings);

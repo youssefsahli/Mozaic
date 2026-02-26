@@ -64,6 +64,12 @@ export interface MscSpriteAbsolute {
 
 export type MscSpriteDef = MscSpriteGrid | MscSpriteAbsolute;
 
+export interface MscBackgroundLayer {
+  source: string;
+  parallaxX: number;
+  parallaxY: number;
+}
+
 export interface MscInstance {
   entity: string;
   x: number;
@@ -80,6 +86,7 @@ export interface MscDocument {
   spriteGrid: number;
   animations?: number[][];
   instances?: MscInstance[];
+  backgrounds?: MscBackgroundLayer[];
 }
 
 export function buildMscAst(tokens: MscLineToken[]): MscDocument {
@@ -151,6 +158,15 @@ export function buildMscAst(tokens: MscLineToken[]): MscDocument {
       i = parseInstances(tokens, i + 1, instances);
       if (instances.length > 0) {
         doc.instances = instances;
+      }
+      continue;
+    }
+
+    if (key === "Backgrounds") {
+      const backgrounds: MscBackgroundLayer[] = [];
+      i = parseBackgrounds(tokens, i + 1, backgrounds);
+      if (backgrounds.length > 0) {
+        doc.backgrounds = backgrounds;
       }
       continue;
     }
@@ -495,6 +511,76 @@ function parseInstances(
           i++;
         }
         instances.push(entry);
+        continue;
+      }
+    }
+
+    i++;
+  }
+  return i;
+}
+
+function parseBackgrounds(
+  tokens: MscLineToken[],
+  start: number,
+  backgrounds: MscBackgroundLayer[]
+): number {
+  let i = start;
+  while (i < tokens.length) {
+    const token = tokens[i];
+    if (token.kind === "empty" || token.kind === "comment") {
+      i++;
+      continue;
+    }
+    if (token.indent === 0) break;
+
+    if (token.kind === "list") {
+      const line = token.listValue ?? "";
+
+      // Inline form: { source: "sky.mzk", parallaxX: 0.1, parallaxY: 0.1 }
+      const inlineMatch = line.match(
+        /^\{\s*source:\s*"([^"]+)"\s*,\s*parallaxX:\s*(-?[\d.]+)\s*,\s*parallaxY:\s*(-?[\d.]+)\s*\}$/
+      );
+      if (inlineMatch) {
+        backgrounds.push({
+          source: inlineMatch[1],
+          parallaxX: parseFloat(inlineMatch[2]),
+          parallaxY: parseFloat(inlineMatch[3]),
+        });
+        i++;
+        continue;
+      }
+
+      // Multi-line form first line: source: "sky.mzk"
+      const sourceMatch = line.match(/^source:\s*"([^"]+)"$/);
+      if (sourceMatch) {
+        const entry: MscBackgroundLayer = {
+          source: sourceMatch[1],
+          parallaxX: 1,
+          parallaxY: 1,
+        };
+        i++;
+        while (i < tokens.length) {
+          const propToken = tokens[i];
+          if (propToken.kind === "empty" || propToken.kind === "comment") {
+            i++;
+            continue;
+          }
+          if (propToken.indent <= token.indent) break;
+          if (propToken.kind === "mapping") {
+            const pk = propToken.key ?? "";
+            const pv = propToken.value ?? "";
+            if (pk === "parallaxX") {
+              const n = parseFloat(pv);
+              if (!Number.isNaN(n)) entry.parallaxX = n;
+            } else if (pk === "parallaxY") {
+              const n = parseFloat(pv);
+              if (!Number.isNaN(n)) entry.parallaxY = n;
+            }
+          }
+          i++;
+        }
+        backgrounds.push(entry);
         continue;
       }
     }
