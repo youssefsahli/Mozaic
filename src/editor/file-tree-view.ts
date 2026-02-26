@@ -41,6 +41,8 @@ const FTV_ICONS = {
   folder: `<svg viewBox="0 0 16 16"><path d="M1.5 4h5l1.5-1.5H14v10H1.5z"/></svg>`,
   folderOpen: `<svg viewBox="0 0 16 16"><path d="M1.5 4h5l1.5-1.5H14v2.5H4L2 12.5H1.5z"/><path d="M4 6h10.5l-2 6.5H2.5z"/></svg>`,
   script: `<svg viewBox="0 0 16 16"><path d="M4 1.5h5.5l3 3V14H4z"/><path d="M9.5 1.5v3h3"/><line x1="6" y1="7" x2="10" y2="7"/><line x1="6" y1="9" x2="11" y2="9"/><line x1="6" y1="11" x2="9" y2="11"/></svg>`,
+  mscScript: `<svg viewBox="0 0 16 16"><polygon points="8,2 14,13 2,13" fill="currentColor" opacity=".85" stroke="none"/></svg>`,
+  mzkMap: `<svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" fill="currentColor" opacity=".85" stroke="none"/></svg>`,
   image: `<svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1.5"/><circle cx="5.5" cy="5.5" r="1.2" fill="currentColor" opacity=".4" stroke="none"/><path d="M2 11l3-3 2 2 3-4 4 5"/></svg>`,
   json: `<svg viewBox="0 0 16 16"><path d="M5 2.5C3.5 2.5 3 3.5 3 4.5v2c0 .8-.5 1.5-1 1.5.5 0 1 .7 1 1.5v2c0 1 .5 2 2 2"/><path d="M11 2.5c1.5 0 2 1 2 2v2c0 .8.5 1.5 1 1.5-.5 0-1 .7-1 1.5v2c0 1-.5 2-2 2"/></svg>`,
   markdown: `<svg viewBox="0 0 16 16"><rect x="1.5" y="3" width="13" height="10" rx="1.5"/><path d="M4 10V6l2 2.5L8 6v4"/><path d="M11 8.5l1.5-1.5L14 8.5"/></svg>`,
@@ -179,18 +181,30 @@ export class FileTreeView {
       icon.classList.add("ftv-folder-icon");
       icon.innerHTML = node.expanded ? FTV_ICONS.folderOpen : FTV_ICONS.folder;
     } else if (node.fileType === "image") {
-      icon.classList.add("ftv-image-icon");
-      icon.innerHTML = FTV_ICONS.image;
-    } else {
-      icon.classList.add("ftv-script-icon");
       const ext = node.name.split(".").pop()?.toLowerCase() ?? "";
-      if (ext === "json") {
+      if (ext === "mzk") {
+        icon.classList.add("ftv-mzk-icon");
+        icon.innerHTML = FTV_ICONS.mzkMap;
+      } else {
+        icon.classList.add("ftv-image-icon");
+        icon.innerHTML = FTV_ICONS.image;
+      }
+    } else {
+      const ext = node.name.split(".").pop()?.toLowerCase() ?? "";
+      if (ext === "msc") {
+        icon.classList.add("ftv-script-icon");
+        icon.innerHTML = FTV_ICONS.mscScript;
+      } else if (ext === "json") {
+        icon.classList.add("ftv-script-icon");
         icon.innerHTML = FTV_ICONS.json;
       } else if (ext === "md") {
+        icon.classList.add("ftv-script-icon");
         icon.innerHTML = FTV_ICONS.markdown;
       } else if (ext === "txt") {
+        icon.classList.add("ftv-script-icon");
         icon.innerHTML = FTV_ICONS.text;
       } else {
+        icon.classList.add("ftv-script-icon");
         icon.innerHTML = FTV_ICONS.script;
       }
     }
