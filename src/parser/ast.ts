@@ -221,15 +221,48 @@ function parseEntity(
       } else if (key === "States") {
         i = parseStates(tokens, i + 1, token.indent, entity);
         continue;
-      } else if (value) {
-        const props = parseComponentProps(value);
-        if (props !== null) {
-          if (!entity.components) entity.components = {};
-          entity.components[key] = props;
+      } else {
+        let props: Record<string, number | string> = {};
+
+        if (value) {
+          const parsed = parseComponentProps(value);
+          if (parsed) props = parsed;
         }
+
+        // Check for nested properties (higher indent)
+        const componentIndent = token.indent;
+        let j = i + 1;
+        while (j < tokens.length) {
+          const sub = tokens[j];
+          if (sub.kind === "empty" || sub.kind === "comment") {
+            j++;
+            continue;
+          }
+          if (sub.indent <= componentIndent) break;
+
+          if (sub.kind === "mapping") {
+            const pk = sub.key ?? "";
+            const pv = sub.value ?? "";
+            if (pv.startsWith('"') || pv.startsWith("'")) {
+              props[pk] = stripQuotes(pv);
+            } else {
+              const n = parseFloat(pv);
+              props[pk] = Number.isNaN(n) ? pv : n;
+            }
+          }
+          j++;
+        }
+
+        // Only add if we found props or if it's explicitly an empty object/component
+        // But exclude known keys if any (none here as we handled Visual etc)
+        if (Object.keys(props).length > 0 || value === "" || value === "{}") {
+          if (!entity.components) entity.components = {};
+          entity.components[key] = { ...(entity.components[key] || {}), ...props };
+        }
+
+        i = j;
+        continue;
       }
-      i++;
-      continue;
     }
 
     if (token.indent >= 2 && token.kind === "list") {
