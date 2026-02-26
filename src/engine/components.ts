@@ -385,6 +385,93 @@ export const cameraEngineComponent: EngineComponent = {
   },
 };
 
+// ── Library 5: Experimental Components ────────────────────────
+
+/**
+ * Applies sine-wave velocity.
+ * Props: frequency (default 0.1), amplitude (default 1), axis (default "y")
+ */
+export const sineWaveComponent: ComponentFn = (buffer, entityPtr, props, _input, _baked, state) => {
+  const freq = (props.frequency as number) ?? 0.1;
+  const amp = (props.amplitude as number) ?? 1;
+  const axis = (props.axis as string) ?? "y";
+
+  const val = Math.round(Math.cos(state.tickCount * freq) * amp);
+  
+  if (axis === "x") {
+    writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, val);
+  } else {
+    writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, val);
+  }
+};
+
+/**
+ * Patrols back and forth. Reverses direction when blocked (velocity becomes 0).
+ * Props: speed (default 1), axis (default "x")
+ * State: Uses Byte 14 for direction (1 or 255/-1).
+ */
+export const patrolComponent: ComponentFn = (buffer, entityPtr, props) => {
+  const speed = (props.speed as number) ?? 1;
+  const axis = (props.axis as string) ?? "x";
+  
+  const dirByte = entityPtr + 14;
+  let dir = readInt8(buffer, dirByte);
+  
+  if (dir === 0) {
+    dir = 1;
+    writeInt8(buffer, dirByte, dir);
+  }
+  
+  const mathDir = dir === 255 ? -1 : 1;
+  const velOffset = axis === "x" ? ENTITY_VEL_X : ENTITY_VEL_Y;
+  
+  const currentVel = readSignedInt16(buffer, entityPtr + velOffset);
+
+  // If velocity is blocked (and we are not just starting), flip.
+  // We assume if velocity is 0, we hit something.
+  if (Math.abs(currentVel) === 0) {
+     const newDir = mathDir === 1 ? 255 : 1;
+     writeInt8(buffer, dirByte, newDir);
+     writeSignedInt16(buffer, entityPtr + velOffset, (newDir === 255 ? -1 : 1) * speed);
+  } else {
+     writeSignedInt16(buffer, entityPtr + velOffset, mathDir * speed);
+  }
+};
+
+/**
+ * Blinks the entity visibility on/off.
+ * Props: interval (frames, default 30)
+ * State: Byte 15 (timer), Byte 14 (original sprite ID)
+ */
+export const blinkComponent: ComponentFn = (buffer, entityPtr, props) => {
+  const interval = (props.interval as number) ?? 30;
+  const timerByte = entityPtr + 15;
+  let timer = readInt8(buffer, timerByte);
+  
+  timer++;
+  if (timer > interval) {
+    timer = 0;
+    
+    const spriteByte = entityPtr + ENTITY_DATA_START; // 11
+    const currentSprite = readInt8(buffer, spriteByte);
+    const storedSprite = readInt8(buffer, entityPtr + 14);
+    
+    // Toggle
+    if (currentSprite !== 0) {
+      // Hide
+      writeInt8(buffer, entityPtr + 14, currentSprite);
+      writeInt8(buffer, spriteByte, 0);
+    } else if (storedSprite !== 0) {
+      // Show
+      writeInt8(buffer, spriteByte, storedSprite);
+      writeInt8(buffer, entityPtr + 14, 0); // Clear stored
+    }
+  }
+  writeInt8(buffer, timerByte, timer);
+};
+
+
+
 // ── Default Registry ──────────────────────────────────────────
 
 /** Create a ComponentRegistry pre-loaded with all built-in components. */
@@ -403,6 +490,11 @@ export function createDefaultRegistry(): ComponentRegistry {
   registry.register("Navigator", navigatorComponent);
   registry.register("Health", healthComponent);
   registry.register("Lifetime", lifetimeComponent);
+  
+  // Experimental
+  registry.register("SineWave", sineWaveComponent);
+  registry.register("Patrol", patrolComponent);
+  registry.register("Blink", blinkComponent);
 
   // Drawing & Effects
   registry.register("ScreenShake", screenShakeComponent);
@@ -414,3 +506,4 @@ export function createDefaultRegistry(): ComponentRegistry {
 
   return registry;
 }
+
