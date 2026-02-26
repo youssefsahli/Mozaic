@@ -45,18 +45,19 @@
         overflow: hidden;
       }
 
-      /* ── App Shell — 3-column IDE grid ─────── */
+      /* ── App Shell — 4-column IDE grid (with splitter) ── */
       #mozaic-app {
         display: grid;
         height: 100dvh;
         width: 100vw;
         overflow: hidden;
         grid-template-rows: var(--header-h) 1fr 20px;
-        grid-template-columns: auto 1fr auto;
+        /* Sidebar | Center | Splitter | Panel */
+        grid-template-columns: auto 1fr auto auto;
         grid-template-areas:
-          "header  header  header"
-          "sidebar center  panel"
-          "status  status  status";
+          "header  header  header   header"
+          "sidebar center  splitter panel"
+          "status  status  status   status";
       }
 
       /* ── Header — compact 32px toolbar ──────── */
@@ -220,19 +221,27 @@
 
       /* ── Split handle (between center & right) ── */
       #split-handle {
-        width: 3px;
-        background: var(--border);
+        grid-area: splitter;
+        width: 6px; /* Wider hit area for easier grabbing */
         cursor: col-resize;
-        flex-shrink: 0;
-        transition: background 120ms;
         position: relative;
+        z-index: 10;
+        transition: background 120ms;
+        display: flex;
+        justify-content: center;
       }
-      #split-handle:hover,
-      #split-handle.is-dragging { background: var(--accent) }
       #split-handle::before {
         content: '';
-        position: absolute;
-        inset: 0 -3px;
+        width: 1px;
+        height: 100%;
+        background: var(--border);
+        transition: all 150ms ease;
+      }
+      #split-handle:hover::before,
+      #split-handle.is-dragging::before {
+        background: var(--accent);
+        box-shadow: 0 0 6px var(--accent);
+        width: 2px;
       }
 
       /* ── Right panel — tabbed editor ─────────── */
@@ -243,10 +252,12 @@
         display: flex;
         flex-direction: column;
         background: var(--surface);
-        border-left: 1px solid var(--border);
+        /* Border handled by split-handle */
+        /* border-left: 1px solid var(--border); */
         overflow: hidden;
         transition: width var(--ease), min-width var(--ease);
       }
+      #side-panel.is-resizing { transition: none !important }
       #side-panel.is-collapsed {
         width: 0;
         min-width: 0;

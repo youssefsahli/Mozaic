@@ -63,6 +63,7 @@ import { parseSpriteROM } from "./editor/importer.js";
 type EditorMode = "script" | "config" | "image";
 const LAST_ROM_STORAGE_KEY = "mozaic:last-rom";
 const LAST_SCRIPT_STORAGE_KEY = "mozaic:last-script";
+const PANEL_WIDTH_KEY = "mozaic:panel-width";
 
 interface MozaicConfig {
   game: {
@@ -1375,34 +1376,62 @@ function wireUi(runtime: RuntimeState): void {
   // Wire split handle for resizable right panel
   const canvasArea = document.getElementById("canvas-area");
   if (splitHandle && sidePanel) {
+    // Restore width
+    const storedW = localStorage.getItem(PANEL_WIDTH_KEY);
+    if (storedW) {
+      sidePanel.style.width = storedW;
+    }
+
     let isDragging = false;
+    let startX = 0;
+    let startWidth = 0;
 
     splitHandle.addEventListener("pointerdown", (e) => {
       isDragging = true;
+      startX = e.clientX;
+      startWidth = sidePanel.getBoundingClientRect().width;
+
       splitHandle.classList.add("is-dragging");
+      sidePanel.classList.add("is-resizing"); // Disable transition
       splitHandle.setPointerCapture(e.pointerId);
+      
       document.body.style.userSelect = "none";
+      document.body.style.cursor = "col-resize";
       e.preventDefault();
     });
 
     window.addEventListener("pointermove", (e) => {
       if (!isDragging) return;
+      
+      const dx = startX - e.clientX;
+      const newW = startWidth + dx;
+
       const totalW = window.innerWidth;
-      const sidebarW = leftSidebar ? leftSidebar.offsetWidth : 0;
+      const sidebarW = leftSidebar ? leftSidebar.getBoundingClientRect().width : 0;
       const handleW = splitHandle.offsetWidth;
-      const rightEdge = totalW;
-      const x = e.clientX;
-      const minPanel = 200;
-      const maxPanel = totalW - sidebarW - 200 - handleW;
-      const panelW = Math.max(minPanel, Math.min(maxPanel, rightEdge - x - handleW));
-      sidePanel.style.width = `${panelW}px`;
+      
+      // Constraints
+      const minPanel = 180; 
+      const minCenter = 150;
+      const maxPanel = totalW - sidebarW - minCenter - handleW;
+      
+      const clampedW = Math.max(minPanel, Math.min(maxPanel, newW));
+      sidePanel.style.width = `${clampedW}px`;
     });
 
     window.addEventListener("pointerup", () => {
       if (!isDragging) return;
       isDragging = false;
+      
       splitHandle.classList.remove("is-dragging");
+      sidePanel.classList.remove("is-resizing"); // Re-enable transition
+      
       document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+      localStorage.setItem(PANEL_WIDTH_KEY, sidePanel.style.width);
+      
+      // Trigger resize for canvas
+      resizeGameCanvas(ui);
     });
   }
 
