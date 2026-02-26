@@ -1,0 +1,153 @@
+/* ── Mozaic Sci-Fi Theme ─────────────────────────────── */
+/* Centralised design tokens & IDE layout overhaul       */
+
+/* ── Step 1 — Global Theme (CSS Variables) ─────────── */
+:root {
+  /* Void / deep space backgrounds */
+  --bg-deep:          #050A14;
+  --bg-panel:         #0A1222;
+  --bg-panel-border:  #16243E;
+
+  /* Typography colours */
+  --text-main:   #A0B6D4;
+  --text-bright: #E2F1FF;
+
+  /* Accent palette */
+  --accent-cyan:     #00F0FF;
+  --gradient-active: linear-gradient(135deg, #0052D4 0%, #4364F7 50%, #6FB1FC 100%);
+
+  /* Fonts */
+  --font-code: 'Fira Code', 'Consolas', monospace;
+  --font-ui:   'Inter', 'Segoe UI', sans-serif;
+}
+
+/* ── Step 2 — Triangle Motif (Backgrounds & Buttons) ── */
+
+/* Subtle triangular mosaic pattern on the app container */
+#mozaic-app {
+  background-color: var(--bg-deep);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpolygon points='30,0 60,60 0,60' fill='none' stroke='%2316243E' stroke-width='0.5' opacity='0.35'/%3E%3Cpolygon points='0,0 30,60 60,0' fill='none' stroke='%2316243E' stroke-width='0.5' opacity='0.2'/%3E%3C/svg%3E");
+  background-size: 60px 60px;
+}
+
+/* Sci-fi chamfered button */
+.sci-fi-button {
+  background: var(--gradient-active);
+  color: var(--text-bright);
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+  border: none;
+  padding: 6px 16px;
+  font: 12px/1.4 var(--font-ui);
+  cursor: pointer;
+  letter-spacing: .03em;
+  transition: filter 150ms, transform 100ms;
+}
+.sci-fi-button:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+}
+
+/* ── Step 3 — IDE Grid Layout ──────────────────────── */
+
+/* Full-viewport grid when the ide-layout class is present */
+#mozaic-app.ide-layout {
+  display: grid;
+  height: 100vh;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+  grid-template-columns: 1fr 5px 2fr;
+  grid-template-rows: var(--header-h) 1fr 24px;
+  grid-template-areas:
+    "header  header  header"
+    "preview handle  editor"
+    "status  status  status";
+  gap: 0;
+}
+
+/* Map existing elements to grid areas */
+#mozaic-app.ide-layout > #mozaic-header   { grid-area: header; }
+#mozaic-app.ide-layout > #mozaic-workspace { display: contents; }
+#mozaic-app.ide-layout #canvas-area       { grid-area: preview; }
+#mozaic-app.ide-layout #split-handle      { grid-area: handle; }
+#mozaic-app.ide-layout #side-panel        { grid-area: editor; }
+#mozaic-app.ide-layout > #status-bar      { grid-area: status; }
+
+/* ── Step 4 — Styling the Panes ───────────────────── */
+
+/* Glass / holographic panel styling */
+#mozaic-app.ide-layout #canvas-area,
+#mozaic-app.ide-layout #side-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-panel-border);
+  box-shadow: inset 0 1px 0 rgba(0,240,255,.04), 0 0 20px rgba(0,0,0,.3);
+  overflow: hidden;
+}
+
+/* Subtle top glow on panels for holographic feel */
+#mozaic-app.ide-layout #canvas-area::before,
+#mozaic-app.ide-layout #side-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,240,255,.25) 50%, transparent 100%);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Header styling for the grid */
+#mozaic-app.ide-layout > #mozaic-header {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--bg-panel-border);
+}
+
+/* Status bar styling */
+#mozaic-app.ide-layout > #status-bar {
+  background: var(--bg-panel);
+  border-top: 1px solid var(--bg-panel-border);
+}
+
+/* ── Custom Scrollbars (thin, dark-blue + cyan) ────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-panel-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-cyan);
+}
+
+/* Firefox thin scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bg-panel-border) var(--bg-deep);
+}
+
+/* ── Tab bar — angled chamfer on active tab ────────── */
+#mozaic-app.ide-layout .tab-btn.is-active {
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+}
+
+/* ── Run button — upgrade to sci-fi style ──────────── */
+#mozaic-app.ide-layout .header-btn-primary {
+  background: var(--gradient-active) !important;
+  color: var(--text-bright) !important;
+  border: none !important;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  font-weight: 600;
+  letter-spacing: .04em;
+  padding: 4px 14px !important;
+  transition: filter 150ms;
+}
+#mozaic-app.ide-layout .header-btn-primary:hover {
+  filter: brightness(1.15);
+}
