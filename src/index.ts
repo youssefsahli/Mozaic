@@ -1346,12 +1346,35 @@ function wireUi(runtime: RuntimeState): void {
     });
   });
 
-  // Wire split handle for resizable split screen
-  const splitHandle = document.getElementById("split-handle");
-  const canvasArea = document.getElementById("canvas-area");
-  const sidePanel = document.getElementById("side-panel");
+  // Wire collapsible sidebar toggle
+  const sidebarToggle = document.getElementById("toggle-sidebar-btn");
+  const leftSidebar = document.getElementById("left-sidebar");
+  if (sidebarToggle && leftSidebar) {
+    sidebarToggle.addEventListener("click", () => {
+      leftSidebar.classList.toggle("is-collapsed");
+      sidebarToggle.classList.toggle("is-active");
+      // Trigger canvas resize after transition
+      setTimeout(() => resizeGameCanvas(ui), 200);
+    });
+  }
 
-  if (splitHandle && canvasArea && sidePanel) {
+  // Wire collapsible right panel toggle
+  const panelToggle = document.getElementById("toggle-panel-btn");
+  const sidePanel = document.getElementById("side-panel");
+  const splitHandle = document.getElementById("split-handle");
+  if (panelToggle && sidePanel && splitHandle) {
+    panelToggle.addEventListener("click", () => {
+      const isCollapsed = sidePanel.classList.toggle("is-collapsed");
+      panelToggle.classList.toggle("is-active");
+      splitHandle.style.display = isCollapsed ? "none" : "";
+      // Trigger canvas resize after transition
+      setTimeout(() => resizeGameCanvas(ui), 200);
+    });
+  }
+
+  // Wire split handle for resizable right panel
+  const canvasArea = document.getElementById("canvas-area");
+  if (splitHandle && sidePanel) {
     let isDragging = false;
 
     splitHandle.addEventListener("pointerdown", (e) => {
@@ -1364,19 +1387,15 @@ function wireUi(runtime: RuntimeState): void {
 
     window.addEventListener("pointermove", (e) => {
       if (!isDragging) return;
-      const workspace = document.getElementById("mozaic-workspace");
-      if (!workspace) return;
-      const rect = workspace.getBoundingClientRect();
+      const totalW = window.innerWidth;
+      const sidebarW = leftSidebar ? leftSidebar.offsetWidth : 0;
       const handleW = splitHandle.offsetWidth;
-      const x = e.clientX - rect.left;
-      const minLeft = 200;
-      const minRight = 280;
-      const maxLeft = rect.width - minRight - handleW;
-      const clampedX = Math.max(minLeft, Math.min(maxLeft, x));
-
-      canvasArea.style.flex = "none";
-      canvasArea.style.width = `${clampedX}px`;
-      sidePanel.style.width = `${rect.width - clampedX - handleW}px`;
+      const rightEdge = totalW;
+      const x = e.clientX;
+      const minPanel = 200;
+      const maxPanel = totalW - sidebarW - 200 - handleW;
+      const panelW = Math.max(minPanel, Math.min(maxPanel, rightEdge - x - handleW));
+      sidePanel.style.width = `${panelW}px`;
     });
 
     window.addEventListener("pointerup", () => {
