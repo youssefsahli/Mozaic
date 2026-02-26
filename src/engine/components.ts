@@ -142,8 +142,8 @@ export const colliderComponent: ComponentFn = (
   _input,
   baked
 ) => {
-  const px = readInt16(buffer, entityPtr + ENTITY_POS_X);
-  const py = readInt16(buffer, entityPtr + ENTITY_POS_Y);
+  const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+  const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
   for (const poly of baked.collisionPolygons) {
     if (pointInPolygon({ x: px, y: py }, poly)) {
       writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, 0);
@@ -359,6 +359,7 @@ export function parseHexTint(hex: string): [number, number, number, number] {
  *   shake       — screen shake intensity (default 0.0)
  *   tint        — hex color multiplier (default "#FFFFFF")
  *   followSpeed — lerp speed for smooth camera follow (default 1.0 = instant)
+ *   zoomSpeed   — lerp speed for smooth camera zoom (default 1.0 = instant)
  */
 export const cameraEngineComponent: EngineComponent = {
   name: "Camera",
@@ -367,6 +368,13 @@ export const cameraEngineComponent: EngineComponent = {
     const shake = (props.shake as number) ?? 0;
     const tint = parseHexTint((props.tint as string) ?? "#FFFFFF");
     const followSpeed = Math.min(1, Math.max(0, (props.followSpeed as number) ?? 1)); // clamp to [0, 1]
+    
+    // Optional zoom smoothing (can also use 'lerp' or 'transition' generic props)
+    const zoomSpeed = Math.min(1, Math.max(0, 
+      (props.zoomSpeed as number) ?? 
+      (props.transition as number) ?? 
+      1
+    ));
 
     const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
     const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
@@ -379,7 +387,7 @@ export const cameraEngineComponent: EngineComponent = {
     state.camera.x += (targetX - state.camera.x) * followSpeed;
     state.camera.y += (targetY - state.camera.y) * followSpeed;
 
-    state.camera.zoom = zoom;
+    state.camera.zoom += (zoom - state.camera.zoom) * zoomSpeed;
     state.camera.shake = shake;
     state.camera.tint = tint;
   },

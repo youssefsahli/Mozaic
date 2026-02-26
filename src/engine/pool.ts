@@ -19,8 +19,8 @@ import {
   ENTITY_POS_Y,
   readInt8,
   writeInt8,
-  readInt16,
-  writeInt16,
+  readSignedInt16,
+  writeSignedInt16,
 } from "./memory.js";
 
 /**
@@ -45,8 +45,8 @@ export function spawnEntity(
     if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) {
       writeInt8(buffer, ptr + ENTITY_ACTIVE, 1);
       writeInt8(buffer, ptr + ENTITY_TYPE_ID, typeId);
-      writeInt16(buffer, ptr + ENTITY_POS_X, x);
-      writeInt16(buffer, ptr + ENTITY_POS_Y, y);
+      writeSignedInt16(buffer, ptr + ENTITY_POS_X, x);
+      writeSignedInt16(buffer, ptr + ENTITY_POS_Y, y);
 
       // Zero residual bytes (velocity, health, data) to prevent stale data
       for (let i = 6; i < ENTITY_SLOT_SIZE; i++) {
@@ -80,8 +80,8 @@ export function eraseEntityAt(
   for (let ptr = startByte; ptr + ENTITY_SLOT_SIZE - 1 <= endByte; ptr += ENTITY_SLOT_SIZE) {
     if (readInt8(buffer, ptr + ENTITY_ACTIVE) !== 1) continue;
 
-    const ex = readInt16(buffer, ptr + ENTITY_POS_X);
-    const ey = readInt16(buffer, ptr + ENTITY_POS_Y);
+    const ex = readSignedInt16(buffer, ptr + ENTITY_POS_X);
+    const ey = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
 
     if (x >= ex && x < ex + 16 && y >= ey && y < ey + 16) {
       writeInt8(buffer, ptr + ENTITY_ACTIVE, 0);

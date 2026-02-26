@@ -7,7 +7,7 @@
 
 import {
   readInt8,
-  readInt16,
+  readSignedInt16,
   ENTITY_SLOT_SIZE,
   ENTITY_ACTIVE,
   ENTITY_POS_X,
@@ -671,8 +671,8 @@ export class Renderer {
       const sprite = spriteAtlas[spriteId];
       if (!sprite) continue;
 
-      const posX = readInt16(state, ptr + ENTITY_POS_X);
-      const posY = readInt16(state, ptr + ENTITY_POS_Y);
+      const posX = readSignedInt16(state, ptr + ENTITY_POS_X);
+      const posY = readSignedInt16(state, ptr + ENTITY_POS_Y);
 
       // Screen-space corners (world position, camera handled in shader)
       const x0 = posX - sprite.ox;
