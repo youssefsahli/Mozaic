@@ -6,7 +6,7 @@
     <title>Mozaic</title>
     <link rel="stylesheet" href="/styles.css" />
     <style>
-      /* ── CSS Variables — Sci-Fi Mosaic Palette ── */
+      /* ── CSS Variables — Compact IDE Palette ── */
       :root {
         --bg:         #050A14;
         --surface:    #0A1222;
@@ -23,13 +23,13 @@
         --success:    #00E676;
         --warning:    #FFD740;
         --info:       #40C4FF;
-        --radius:     4px;
-        --radius-lg:  6px;
+        --radius:     3px;
+        --radius-lg:  5px;
         --font-mono:  'Fira Code','Consolas',ui-monospace,SFMono-Regular,Menlo,Monaco,monospace;
-        --header-h:   40px;
-        --tab-h:      28px;
-        --handle-w:   5px;
-        --ease:       200ms cubic-bezier(0.4,0,0.2,1);
+        --header-h:   32px;
+        --tab-h:      26px;
+        --sidebar-w:  180px;
+        --ease:       150ms cubic-bezier(0.4,0,0.2,1);
         --shadow-sm:  0 1px 2px rgba(0,0,0,.4);
         --shadow-md:  0 2px 8px rgba(0,0,0,.5);
       }
@@ -40,130 +40,187 @@
       body {
         background: var(--bg);
         color: var(--text);
-        font: 12px/1.4 var(--font-mono);
+        font: 11px/1.4 var(--font-mono);
         height: 100dvh;
         overflow: hidden;
-        display: flex;
-        flex-direction: column;
       }
 
-      /* ── Header ───────────────────────────────── */
+      /* ── App Shell — 3-column IDE grid ─────── */
+      #mozaic-app {
+        display: grid;
+        height: 100dvh;
+        width: 100vw;
+        overflow: hidden;
+        grid-template-rows: var(--header-h) 1fr 20px;
+        grid-template-columns: auto 1fr auto;
+        grid-template-areas:
+          "header  header  header"
+          "sidebar center  panel"
+          "status  status  status";
+      }
+
+      /* ── Header — compact 32px toolbar ──────── */
       #mozaic-header {
+        grid-area: header;
         height: var(--header-h);
-        min-height: var(--header-h);
         background: var(--surface);
         border-bottom: 1px solid var(--border);
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 0 10px;
-        flex-shrink: 0;
+        gap: 2px;
+        padding: 0 6px;
       }
       #header-brand {
         display: flex;
         align-items: center;
-        gap: 7px;
+        gap: 5px;
         color: var(--accent);
         font-weight: bold;
-        letter-spacing: .04em;
         white-space: nowrap;
         flex-shrink: 0;
+        margin-right: 4px;
       }
-      #header-logo { font-size: 15px }
-      #header-title { font-size: 12px; text-transform: uppercase; letter-spacing: .1em }
+      #header-logo { font-size: 13px }
+      #header-title { font-size: 10px; text-transform: uppercase; letter-spacing: .08em }
       #header-divider {
-        width: 1px;
-        height: 20px;
-        background: var(--border-hi);
-        flex-shrink: 0;
-      }
-      #header-actions {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        flex: 1;
-        flex-wrap: wrap;
-      }
-      .header-sep {
         width: 1px;
         height: 16px;
         background: var(--border-hi);
         flex-shrink: 0;
-        margin: 0 4px;
+        margin: 0 2px;
+      }
+      #header-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        flex: 1;
+        min-width: 0;
+      }
+      .header-sep {
+        width: 1px;
+        height: 14px;
+        background: var(--border-hi);
+        flex-shrink: 0;
+        margin: 0 2px;
       }
 
-      /* ── Workspace (split layout) ──────────────── */
-      #mozaic-app {
+      /* ── Left Sidebar (collapsible file tree) ── */
+      #left-sidebar {
+        grid-area: sidebar;
+        width: var(--sidebar-w);
+        background: var(--surface);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transition: width var(--ease), min-width var(--ease);
+        min-width: var(--sidebar-w);
+      }
+      #left-sidebar.is-collapsed {
+        width: 0;
+        min-width: 0;
+        border-right: none;
+      }
+      #left-sidebar.is-collapsed > * { display: none }
+
+      /* File tree panel inside sidebar */
+      #file-tree-panel {
         display: flex;
         flex-direction: column;
         flex: 1;
+        min-height: 0;
         overflow: hidden;
       }
-      #mozaic-workspace {
+      #file-tree-header {
         display: flex;
+        align-items: center;
+        gap: 3px;
+        padding: 3px 6px;
+        background: var(--surface-2);
+        border-bottom: 1px solid var(--border);
+        user-select: none;
+        flex-shrink: 0;
+        min-height: 24px;
+      }
+      #file-tree-header:hover { background: var(--surface-3) }
+      #file-tree-title {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+        color: var(--text-dim);
+        cursor: pointer;
         flex: 1;
-        overflow: hidden;
+      }
+      #file-tree-toggle {
+        font-size: 9px;
+        color: var(--text-dim);
+        transition: transform 120ms;
+        cursor: pointer;
+      }
+      #file-tree-panel.is-collapsed #file-tree-toggle { transform: rotate(-90deg) }
+      #file-tree-panel.is-collapsed #file-tree-container { display: none }
+      #file-tree-container {
+        overflow-y: auto;
+        overflow-x: hidden;
+        flex: 1;
+        padding: 1px 0;
       }
 
-      /* ── Canvas area (left) ────────────────────── */
+      /* ── Center — Game canvas (largest area) ── */
       #canvas-area {
-        flex: 3 1 0%;
-        min-width: 200px;
+        grid-area: center;
         display: flex;
         align-items: center;
         justify-content: center;
         overflow: hidden;
         background: var(--bg);
-        padding: 8px;
+        padding: 4px;
         position: relative;
+        min-width: 100px;
       }
-
-      /* ── Compiler Console overlay ──────────────── */
-      #compiler-console {
-        position: absolute;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        max-height: 50%;
-        overflow-y: auto;
-        background: rgba(5, 10, 20, 0.94);
-        font: 12px/1.6 var(--font-mono);
-        color: #ccc;
-        padding: 8px 12px;
-        z-index: 10;
-        display: none;
-      }
-      #compiler-console.is-visible { display: block; }
-      #compiler-console .cc-line { white-space: pre-wrap; }
-      #compiler-console .cc-info  { color: #b0b0b0; }
-      #compiler-console .cc-success { color: #6a9955; }
-      #compiler-console .cc-error { color: #d16969; }
-
-      /* ── Input Debug overlay ──────────────────── */
-      #input-debug {
-        position: absolute;
-        top: 10px;
-        right: 10px;
-        font-family: var(--font-mono);
-        font-size: 11px;
-        color: var(--accent);
-        background: rgba(0, 0, 0, 0.7);
-        padding: 4px 8px;
-        border-radius: 4px;
-        pointer-events: none;
-        white-space: pre-wrap;
-        z-index: 100;
-        display: none;
-      }
-      #input-debug.is-visible { display: block; }
       #mozaic-canvas {
         max-width: 100%;
         max-height: 100%;
       }
 
-      /* ── Split handle ──────────────────────────── */
+      /* ── Compiler Console overlay ──────────── */
+      #compiler-console {
+        position: absolute;
+        bottom: 0; left: 0; right: 0;
+        max-height: 50%;
+        overflow-y: auto;
+        background: rgba(5, 10, 20, 0.94);
+        font: 11px/1.5 var(--font-mono);
+        color: #ccc;
+        padding: 4px 8px;
+        z-index: 10;
+        display: none;
+      }
+      #compiler-console.is-visible { display: block }
+      #compiler-console .cc-line { white-space: pre-wrap }
+      #compiler-console .cc-info  { color: #b0b0b0 }
+      #compiler-console .cc-success { color: #6a9955 }
+      #compiler-console .cc-error { color: #d16969 }
+
+      /* ── Input Debug overlay ──────────────── */
+      #input-debug {
+        position: absolute;
+        top: 6px; right: 6px;
+        font: 10px var(--font-mono);
+        color: var(--accent);
+        background: rgba(0,0,0,.7);
+        padding: 2px 6px;
+        border-radius: 3px;
+        pointer-events: none;
+        white-space: pre-wrap;
+        z-index: 100;
+        display: none;
+      }
+      #input-debug.is-visible { display: block }
+
+      /* ── Split handle (between center & right) ── */
       #split-handle {
-        width: var(--handle-w);
+        width: 3px;
         background: var(--border);
         cursor: col-resize;
         flex-shrink: 0;
@@ -171,27 +228,38 @@
         position: relative;
       }
       #split-handle:hover,
-      #split-handle.is-dragging {
-        background: var(--accent);
-      }
+      #split-handle.is-dragging { background: var(--accent) }
       #split-handle::before {
         content: '';
         position: absolute;
-        inset: 0 -4px;
+        inset: 0 -3px;
       }
 
-      /* ── Side panel (right) ────────────────────── */
+      /* ── Right panel — tabbed editor ─────────── */
       #side-panel {
-        flex: 2 1 0%;
-        min-width: 280px;
+        grid-area: panel;
+        width: 340px;
+        min-width: 0;
         display: flex;
         flex-direction: column;
         background: var(--surface);
         border-left: 1px solid var(--border);
         overflow: hidden;
+        transition: width var(--ease), min-width var(--ease);
+      }
+      #side-panel.is-collapsed {
+        width: 0;
+        min-width: 0;
+        border-left: none;
+      }
+      #side-panel.is-collapsed > * { display: none }
+
+      /* ── Workspace wrapper (center + split + panel) ── */
+      #mozaic-workspace {
+        display: contents;
       }
 
-      /* ── Tab bar ───────────────────────────────── */
+      /* ── Tab bar — compact ──────────────────── */
       #tab-bar {
         display: flex;
         align-items: stretch;
@@ -204,17 +272,21 @@
       }
       .tab-btn {
         flex: 1;
-        padding: 0 12px;
+        padding: 0 6px;
         background: transparent;
         border: none;
         border-bottom: 2px solid transparent;
         color: var(--text-dim);
-        font: 11px/1 var(--font-mono);
+        font: 10px/1 var(--font-mono);
         text-transform: uppercase;
-        letter-spacing: .06em;
+        letter-spacing: .05em;
         cursor: pointer;
         transition: color var(--ease), border-color var(--ease), background var(--ease);
         white-space: nowrap;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
       }
       .tab-btn:hover {
         color: var(--text);
@@ -226,8 +298,14 @@
         background: var(--accent-bg) !important;
       }
       .tab-btn[hidden] { display: none }
+      .tab-icon {
+        width: 12px; height: 12px;
+        fill: none; stroke: currentColor;
+        stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+        flex-shrink: 0;
+      }
 
-      /* ── Tab content ───────────────────────────── */
+      /* ── Tab content ───────────────────────── */
       #tab-content {
         flex: 1;
         overflow: hidden;
@@ -240,25 +318,24 @@
         flex-direction: column;
         overflow-y: auto;
         overflow-x: hidden;
-        padding: 6px;
-        gap: 6px;
+        padding: 4px;
+        gap: 4px;
       }
-      .tab-pane.is-active {
-        display: flex;
-      }
+      .tab-pane.is-active { display: flex }
 
-      /* ── Section label ────────────────────────── */
+      /* ── Section label ────────────────────── */
       .section-label {
-        font-size: 10px;
+        font-size: 9px;
         text-transform: uppercase;
         letter-spacing: .06em;
         color: var(--text-dim);
+        margin-top: 2px;
       }
 
-      /* ── Shared button ────────────────────────── */
-      button:not(.tab-btn), .btn {
+      /* ── Shared button — compact ──────────── */
+      button:not(.tab-btn):not(.pane-toggle-btn), .btn {
         font: inherit;
-        padding: 3px 8px;
+        padding: 2px 6px;
         background: var(--surface-2);
         border: 1px solid var(--border);
         color: var(--text);
@@ -266,35 +343,36 @@
         cursor: pointer;
         transition: background 80ms, border-color 80ms;
         white-space: nowrap;
-        line-height: 1.5;
+        line-height: 1.4;
+        font-size: 10px;
       }
-      button:not(.tab-btn):hover  { background: var(--surface-3); border-color: var(--border-hi) }
-      button:not(.tab-btn):active { background: var(--surface-2) }
-      button:not(.tab-btn):disabled { opacity: .35; cursor: default; pointer-events: none }
-      .is-active:not(.tab-btn) {
+      button:not(.tab-btn):not(.pane-toggle-btn):hover  { background: var(--surface-3); border-color: var(--border-hi) }
+      button:not(.tab-btn):not(.pane-toggle-btn):active { background: var(--surface-2) }
+      button:not(.tab-btn):not(.pane-toggle-btn):disabled { opacity: .35; cursor: default; pointer-events: none }
+      .is-active:not(.tab-btn):not(.pane-toggle-btn) {
         background: var(--accent-bg) !important;
         border-color: var(--accent) !important;
         color: var(--accent) !important;
       }
 
-      /* ── Button row ───────────────────────────── */
-      .btn-row { display: flex; gap: 4px; flex-wrap: wrap }
+      /* ── Button row ───────────────────────── */
+      .btn-row { display: flex; gap: 3px; flex-wrap: wrap }
 
-      /* ── Script editor ────────────────────────── */
+      /* ── Script editor ────────────────────── */
       #msc-editor-wrap {
         position: relative;
         flex: 1;
-        min-height: 140px;
+        min-height: 100px;
         background: var(--bg);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         overflow: hidden;
       }
       #msc-highlight, #msc-editor {
-        position: absolute; top: 0; right: 0; bottom: 0; left: 36px;
+        position: absolute; top: 0; right: 0; bottom: 0; left: 32px;
         margin: 0; border: 0;
-        padding: 6px 8px;
-        font: 12px/1.45 var(--font-mono);
+        padding: 4px 6px;
+        font: 11px/1.45 var(--font-mono);
         white-space: pre; overflow: auto;
       }
       #msc-highlight { pointer-events: none; color: #ddd }
@@ -308,39 +386,34 @@
         outline: none;
         box-shadow: inset 0 0 0 1px var(--accent);
       }
-      #msc-editor::selection {
-        background: rgba(0,240,255,.25);
-      }
-      #msc-highlight::selection,
-      #msc-highlight *::selection {
-        background: transparent;
-      }
+      #msc-editor::selection { background: rgba(0,240,255,.25) }
+      #msc-highlight::selection, #msc-highlight *::selection { background: transparent }
       #msc-status {
-        min-height: 14px;
-        font-size: 11px;
+        min-height: 12px;
+        font-size: 10px;
         color: var(--text-dim);
         flex-shrink: 0;
       }
 
-      /* ── Pixel editor controls ────────────────── */
-      #pixel-controls { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0 }
-      .pixel-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap }
+      /* ── Pixel editor controls ────────────── */
+      #pixel-controls { display: flex; flex-direction: column; gap: 3px; flex-shrink: 0 }
+      .pixel-row { display: flex; align-items: center; gap: 3px; flex-wrap: wrap }
       .pixel-row input[type=number] {
-        width: 48px; padding: 2px 4px;
+        width: 40px; padding: 1px 3px;
         background: var(--bg); border: 1px solid var(--border);
         color: var(--text); border-radius: var(--radius); font: inherit;
       }
       .pixel-row input[type=color] {
-        width: 22px; height: 22px; padding: 0;
+        width: 20px; height: 20px; padding: 0;
         border: 1px solid var(--border); border-radius: var(--radius);
         background: none; cursor: pointer;
       }
-      .pixel-row label { color: var(--text-dim); cursor: pointer; user-select: none }
+      .pixel-row label { color: var(--text-dim); cursor: pointer; user-select: none; font-size: 10px }
 
-      /* ── Pixel toolbox (vertical icon bar) ────── */
+      /* ── Pixel toolbox ────────────────────── */
       #pixel-workspace {
         display: flex;
-        gap: 4px;
+        gap: 3px;
         flex: 1;
         min-height: 0;
         overflow: hidden;
@@ -348,38 +421,68 @@
       #pixel-toolbox {
         display: flex;
         flex-direction: column;
-        gap: 2px;
+        gap: 1px;
         flex-shrink: 0;
+        padding: 3px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
       }
       .tool-btn {
-        width: 26px !important;
-        height: 26px !important;
-        min-width: 26px !important;
+        width: 24px !important; height: 24px !important; min-width: 24px !important;
         padding: 0 !important;
         display: flex !important;
         align-items: center;
         justify-content: center;
-        font-size: 13px;
+        font-size: 12px;
         line-height: 1;
+        border-radius: var(--radius) !important;
+        transition: all 80ms;
       }
+      .tool-btn:hover {
+        background: var(--surface-3) !important;
+        border-color: var(--border-hi) !important;
+      }
+      .tool-btn.is-active {
+        box-shadow: 0 0 0 1px var(--accent);
+        background: var(--accent-bg) !important;
+        border-color: var(--accent) !important;
+      }
+      .tool-btn svg {
+        width: 14px; height: 14px;
+        fill: none; stroke: currentColor;
+        stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round;
+      }
+      .tool-btn.is-active svg { stroke: var(--accent) }
       .toolbox-sep {
-        width: 18px;
-        height: 1px;
+        width: 16px; height: 1px;
         background: var(--border);
-        margin: 3px auto;
+        margin: 2px auto;
+        opacity: .5;
       }
 
-      /* ── Palette ──────────────────────────────── */
-      #palette-swatches { display: flex; gap: 3px; flex-wrap: wrap }
+      /* ── Palette ──────────────────────────── */
+      #palette-swatches {
+        display: flex; gap: 2px; flex-wrap: wrap;
+        padding: 3px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        min-height: 22px;
+      }
       .palette-swatch {
         width: 16px; height: 16px;
-        border: 1px solid var(--border); border-radius: 2px;
-        cursor: pointer; transition: border-color 80ms;
+        border: 1px solid rgba(255,255,255,.08); border-radius: 2px;
+        cursor: pointer; transition: border-color 80ms, transform 80ms;
         position: relative;
         overflow: visible;
       }
-      .palette-swatch:hover { border-color: var(--text-dim) }
-      .palette-swatch.is-active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) }
+      .palette-swatch:hover { border-color: var(--text-dim); transform: scale(1.15); z-index: 2 }
+      .palette-swatch.is-active {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1.5px var(--accent);
+        transform: scale(1.15); z-index: 2;
+      }
       .palette-swatch.is-locked::after {
         content: ''; position: absolute; inset: 0;
         border: 1px solid rgba(255,255,255,.5);
@@ -387,53 +490,53 @@
       }
       .palette-swatch .lock-indicator {
         position: absolute; bottom: -2px; right: -2px;
-        font-size: 7px; line-height: 1; pointer-events: none;
+        font-size: 6px; line-height: 1; pointer-events: none;
       }
       .palette-swatch .msc-indicator {
         position: absolute; top: -2px; right: -2px;
-        width: 4px; height: 4px; border-radius: 50%;
+        width: 3px; height: 3px; border-radius: 50%;
         background: var(--accent); pointer-events: none;
       }
       .palette-swatch .swatch-name {
-        position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
+        position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
         font-size: 7px; white-space: nowrap; pointer-events: none;
         color: var(--text); background: var(--surface-3);
-        padding: 1px 3px; border-radius: 2px;
+        padding: 1px 2px; border-radius: 2px;
         opacity: 0; transition: opacity 80ms;
         z-index: 10;
       }
       .palette-swatch:hover .swatch-name { opacity: 1 }
       #palette-preset-select {
-        padding: 2px 4px; font: inherit;
+        padding: 1px 3px; font: inherit; font-size: 10px;
         background: var(--surface-2); border: 1px solid var(--border);
         color: var(--text); border-radius: var(--radius); cursor: pointer;
       }
 
-      /* ── Named color chips (script editor palette bar) ── */
+      /* ── Named color chips ──────────────── */
       #palette-color-chips {
-        display: flex; gap: 3px; flex-wrap: wrap;
+        display: flex; gap: 2px; flex-wrap: wrap;
         flex-shrink: 0; min-height: 0;
       }
       .palette-chip {
-        display: inline-flex; align-items: center; gap: 4px;
-        padding: 2px 6px 2px 4px;
+        display: inline-flex; align-items: center; gap: 3px;
+        padding: 1px 4px 1px 3px;
         border: 1px solid var(--border); border-radius: var(--radius);
         background: var(--surface-2); cursor: pointer;
         transition: border-color 80ms, background 80ms;
-        font-size: 10px; color: var(--text);
+        font-size: 9px; color: var(--text);
       }
       .palette-chip:hover { border-color: var(--border-hi); background: var(--surface-3) }
       .palette-chip-swatch {
-        width: 10px; height: 10px; border-radius: 2px;
+        width: 8px; height: 8px; border-radius: 2px;
         border: 1px solid rgba(255,255,255,.15); flex-shrink: 0;
       }
       #palette-chips-label {
-        font-size: 9px; color: var(--text-dim);
+        font-size: 8px; color: var(--text-dim);
         text-transform: uppercase; letter-spacing: .04em;
         flex-shrink: 0; align-self: center;
       }
 
-      /* ── Editor File Tabs ───────────────────────── */
+      /* ── Editor File Tabs ─────────────────── */
       #editor-tabs {
         display: flex;
         align-items: stretch;
@@ -450,20 +553,20 @@
       .editor-tab {
         display: flex;
         align-items: center;
-        gap: 4px;
-        padding: 0 4px 0 10px;
-        height: 28px;
+        gap: 3px;
+        padding: 0 3px 0 8px;
+        height: 24px;
         border-right: 1px solid var(--border);
         cursor: pointer;
         white-space: nowrap;
         flex-shrink: 0;
-        font-size: 11px;
+        font-size: 10px;
         color: var(--text-dim);
         background: var(--surface-2);
         transition: color 80ms, background 80ms;
         user-select: none;
-        max-width: 180px;
-        min-width: 60px;
+        max-width: 150px;
+        min-width: 50px;
         position: relative;
       }
       .editor-tab:hover { background: var(--surface-3); color: var(--text) }
@@ -486,18 +589,18 @@
         min-width: 0;
       }
       .editor-tab-close {
-        width: 16px; height: 16px;
+        width: 14px; height: 14px;
         flex-shrink: 0;
         display: flex; align-items: center; justify-content: center;
         border: none !important;
         background: transparent !important;
         color: var(--text-dim) !important;
         padding: 0 !important;
-        font-size: 14px !important;
+        font-size: 12px !important;
         line-height: 1;
-        min-width: 16px !important;
+        min-width: 14px !important;
         cursor: pointer !important;
-        border-radius: 3px !important;
+        border-radius: 2px !important;
         opacity: 0;
         transition: opacity 80ms, background 80ms, color 80ms;
       }
@@ -514,19 +617,19 @@
         position: fixed;
         display: none;
         z-index: 1000;
-        min-width: 160px;
-        max-height: 180px;
+        min-width: 140px;
+        max-height: 160px;
         overflow-y: auto;
         background: var(--surface-2);
         border: 1px solid var(--border-hi);
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
         padding: 2px;
-        font: 11px/1.4 var(--font-mono);
+        font: 10px/1.4 var(--font-mono);
       }
       #msc-autocomplete.is-open { display: block }
       .autocomplete-item {
-        padding: 4px 8px;
+        padding: 3px 6px;
         cursor: pointer;
         border-radius: 2px;
         color: var(--text);
@@ -538,23 +641,22 @@
         color: var(--accent);
       }
       .autocomplete-hint {
-        font-size: 9px;
+        font-size: 8px;
         color: var(--text-dim);
-        margin-left: 6px;
+        margin-left: 4px;
       }
 
-      /* ── Used colors bar (text editor) ── */
+      /* ── Used colors bar ──────────────── */
       #editor-used-colors {
         display: flex;
         gap: 2px;
         flex-wrap: wrap;
         flex-shrink: 0;
         min-height: 0;
-        padding: 2px 0;
+        padding: 1px 0;
       }
       .editor-color-swatch {
-        width: 16px;
-        height: 16px;
+        width: 14px; height: 14px;
         border: 1px solid var(--border);
         border-radius: 2px;
         cursor: pointer;
@@ -564,19 +666,20 @@
       }
       .editor-color-swatch:hover {
         border-color: var(--accent);
-        transform: scale(1.2);
+        transform: scale(1.15);
         z-index: 2;
       }
 
-      /* ── Toggle chips ─────────────────────────── */
-      .chip-row { display: flex; gap: 3px; flex-wrap: wrap }
+      /* ── Toggle chips ─────────────────── */
+      .chip-row { display: flex; gap: 2px; flex-wrap: wrap }
       .chip-row label {
-        display: inline-flex; align-items: center; gap: 3px;
-        padding: 2px 6px;
+        display: inline-flex; align-items: center; gap: 2px;
+        padding: 1px 5px;
         background: var(--surface-2); border: 1px solid var(--border);
         border-radius: var(--radius); cursor: pointer;
         transition: background 80ms, border-color 80ms;
         user-select: none;
+        font-size: 10px;
       }
       .chip-row label:hover { border-color: var(--border-hi) }
       .chip-row input[type=checkbox] { display: none }
@@ -587,7 +690,7 @@
         background: var(--accent-bg); border-color: var(--accent);
       }
 
-      /* ── Pixel canvas area ────────────────────── */
+      /* ── Pixel canvas area ────────────── */
       #pixel-editor-wrap {
         flex: 1;
         min-width: 0;
@@ -605,31 +708,32 @@
         pointer-events: none; image-rendering: pixelated;
       }
       #pixel-footer {
-        font-size: 10px; color: var(--text-dim);
+        font-size: 9px; color: var(--text-dim);
         display: flex; justify-content: space-between;
         flex-shrink: 0;
+        padding: 2px 4px;
       }
 
-      /* ── Pixel bottom bar (modern zoom & size) ── */
+      /* ── Pixel bottom bar ──────────────── */
       #pixel-bottom-bar {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 16px;
-        padding: 8px 12px;
+        gap: 10px;
+        padding: 4px 8px;
         background: var(--surface-2);
         border: 1px solid var(--border);
-        border-radius: 6px;
+        border-radius: var(--radius);
         flex-shrink: 0;
       }
       .bar-group {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
       }
       .bar-group label {
         color: var(--text-dim);
-        font-size: 10px;
+        font-size: 9px;
         text-transform: uppercase;
         letter-spacing: .04em;
         white-space: nowrap;
@@ -639,8 +743,8 @@
       .bar-group input[type=range] {
         -webkit-appearance: none;
         appearance: none;
-        width: 80px;
-        height: 4px;
+        width: 60px;
+        height: 3px;
         background: var(--border-hi);
         border-radius: 2px;
         outline: none;
@@ -649,40 +753,34 @@
       .bar-group input[type=range]::-webkit-slider-thumb {
         -webkit-appearance: none;
         appearance: none;
-        width: 12px;
-        height: 12px;
+        width: 10px; height: 10px;
         border-radius: 50%;
         background: var(--accent);
         border: none;
         cursor: pointer;
-        transition: transform 80ms;
-      }
-      .bar-group input[type=range]::-webkit-slider-thumb:hover {
-        transform: scale(1.2);
       }
       .bar-group input[type=range]::-moz-range-thumb {
-        width: 12px;
-        height: 12px;
+        width: 10px; height: 10px;
         border-radius: 50%;
         background: var(--accent);
         border: none;
         cursor: pointer;
       }
       .bar-group span {
-        min-width: 24px;
+        min-width: 20px;
         color: var(--text-dim);
-        font-size: 11px;
+        font-size: 10px;
       }
       .bar-divider {
         width: 1px;
-        height: 16px;
+        height: 12px;
         background: var(--border-hi);
         flex-shrink: 0;
       }
 
-      /* ── Docs ──────────────────────────────────── */
+      /* ── Docs ──────────────────────────── */
       #docs-search {
-        width: 100%; padding: 6px 8px;
+        width: 100%; padding: 4px 6px;
         border-radius: var(--radius);
         background: var(--bg); border: 1px solid var(--border);
         color: var(--text); font: inherit;
@@ -690,24 +788,23 @@
       }
       #docs-search::placeholder { color: var(--text-dim) }
       #docs-results {
-        display: flex; flex-direction: column; gap: 3px;
-        max-height: 180px; overflow: auto;
+        display: flex; flex-direction: column; gap: 2px;
+        max-height: 160px; overflow: auto;
         flex-shrink: 0;
-        padding-right: 1px;
       }
       .doc-item {
         text-align: left;
         background: var(--surface-2); border: 1px solid var(--border);
         color: var(--text); border-radius: var(--radius);
-        padding: 6px 8px; cursor: pointer;
+        padding: 4px 6px; cursor: pointer;
         transition: border-color 80ms; font: inherit;
       }
       .doc-item:hover { border-color: var(--border-hi) }
       .doc-item small {
         display: block;
         color: var(--text-dim);
-        margin-top: 3px;
-        font-size: 10px;
+        margin-top: 2px;
+        font-size: 9px;
         text-transform: uppercase;
         letter-spacing: .05em;
       }
@@ -715,156 +812,87 @@
       #docs-content {
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        padding: 8px;
+        padding: 6px;
         background: var(--bg);
-        font-size: 11px; line-height: 1.55;
+        font-size: 10px; line-height: 1.5;
         color: var(--text);
         overflow: auto;
         flex: 1;
       }
-      .docs-empty {
-        color: var(--text-dim);
-      }
+      .docs-empty { color: var(--text-dim) }
       .docs-outline {
         border: 1px solid var(--border);
         background: var(--surface-2);
         border-radius: var(--radius);
-        padding: 6px 8px;
-        margin-bottom: 8px;
+        padding: 4px 6px;
+        margin-bottom: 6px;
       }
       .docs-outline-title {
         color: var(--text-dim);
-        font-size: 10px;
+        font-size: 9px;
         text-transform: uppercase;
         letter-spacing: .06em;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
       }
       .docs-outline-list {
         list-style: none;
         display: flex;
         flex-direction: column;
-        gap: 3px;
+        gap: 2px;
       }
-      .docs-outline-list a {
-        color: var(--text);
-        text-decoration: none;
-      }
-      .docs-outline-list a:hover {
-        color: var(--accent);
-      }
-      .docs-article {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-      }
+      .docs-outline-list a { color: var(--text); text-decoration: none }
+      .docs-outline-list a:hover { color: var(--accent) }
+      .docs-article { display: flex; flex-direction: column; gap: 6px }
       .docs-article-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
+        display: flex; align-items: center;
+        justify-content: space-between; gap: 6px;
       }
-      .docs-article-title {
-        font-size: 13px;
-        color: var(--text);
-      }
+      .docs-article-title { font-size: 12px; color: var(--text) }
       .docs-badge {
         border: 1px solid var(--accent);
         color: var(--accent);
         background: var(--accent-bg);
         border-radius: var(--radius);
-        font-size: 10px;
-        padding: 1px 6px;
+        font-size: 9px;
+        padding: 1px 5px;
         text-transform: uppercase;
         letter-spacing: .06em;
         white-space: nowrap;
       }
-      .docs-section-title {
-        margin-top: 2px;
-        font-size: 12px;
-        color: var(--accent);
-      }
-      .docs-subsection-title {
-        margin-top: 2px;
-        font-size: 11px;
-        color: var(--text);
-      }
-      .docs-paragraph {
-        color: var(--text);
-      }
-      .docs-list {
-        padding-left: 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 2px;
-      }
-      .docs-list li {
-        color: var(--text);
-      }
+      .docs-section-title { margin-top: 2px; font-size: 11px; color: var(--accent) }
+      .docs-subsection-title { margin-top: 2px; font-size: 10px; color: var(--text) }
+      .docs-paragraph { color: var(--text) }
+      .docs-list { padding-left: 14px; display: flex; flex-direction: column; gap: 2px }
+      .docs-list li { color: var(--text) }
       .docs-code {
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        padding: 6px;
+        padding: 4px;
         background: var(--surface-2);
         white-space: pre-wrap;
         overflow-wrap: anywhere;
       }
 
-      /* ── Canvas ───────────────────────────────── */
+      /* ── Canvas ───────────────────────── */
       canvas { display: block; border: 1px solid var(--border); image-rendering: pixelated }
 
-      /* ── Syntax highlighting ──────────────────── */
+      /* ── Syntax highlighting ──────────── */
       .msc-keyword { color: #56b6c2 }
       .msc-string  { color: #98c379 }
       .msc-comment { color: #6a9955 }
       .msc-symbol  { color: #e5c07b }
 
-      /* ── File Tree View ──────────────────────── */
-      #file-tree-panel {
-        display: flex;
-        flex-direction: column;
-        border-bottom: 1px solid var(--border);
-        max-height: 240px;
-        min-height: 0;
-        overflow: hidden;
-        flex-shrink: 0;
-      }
-      #file-tree-header {
-        display: flex;
-        align-items: center;
-        gap: 4px;
-        padding: 4px 8px;
-        background: var(--surface-2);
-        border-bottom: 1px solid var(--border);
-        user-select: none;
-        flex-shrink: 0;
-      }
-      #file-tree-header:hover { background: var(--surface-3) }
-      #file-tree-title {
-        font-size: 10px;
-        text-transform: uppercase;
-        letter-spacing: .06em;
-        color: var(--text-dim);
-        cursor: pointer;
-        flex: 1;
-      }
-      #file-tree-toggle {
-        font-size: 10px;
-        color: var(--text-dim);
-        transition: transform 120ms;
-        cursor: pointer;
-      }
-
-      /* ── File tree action buttons ───────────── */
+      /* ── File tree action buttons ─────── */
       .ftv-header-actions {
         display: flex;
         align-items: center;
-        gap: 2px;
+        gap: 1px;
         flex-shrink: 0;
       }
       .ftv-header-btn {
-        font: 11px/1 var(--font-mono) !important;
-        width: 22px !important; height: 22px !important;
-        min-width: 22px !important;
+        font: 10px/1 var(--font-mono) !important;
+        width: 20px !important; height: 20px !important;
+        min-width: 20px !important;
         padding: 0 !important;
         display: flex !important;
         align-items: center !important;
@@ -872,7 +900,7 @@
         background: transparent !important;
         border: 1px solid transparent !important;
         color: var(--text-dim) !important;
-        border-radius: 3px !important;
+        border-radius: 2px !important;
         cursor: pointer !important;
         transition: all 80ms !important;
       }
@@ -882,18 +910,18 @@
         color: var(--text) !important;
       }
 
-      /* ── Header "New" dropdown menu ──────────── */
+      /* ── Header dropdown menus ────────── */
       .header-menu-anchor { position: relative; display: inline-block }
       .header-dropdown {
         position: absolute;
         top: 100%; left: 0;
         z-index: 100;
-        min-width: 200px;
+        min-width: 180px;
         background: var(--surface-2);
         border: 1px solid var(--border-hi);
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-md);
-        padding: 4px;
+        padding: 3px;
         display: none;
         flex-direction: column;
       }
@@ -901,11 +929,11 @@
       .header-dropdown-row {
         display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 4px 10px;
+        gap: 4px;
+        padding: 3px 8px;
       }
       .header-dropdown-label {
-        font-size: 10px;
+        font-size: 9px;
         color: var(--text-dim);
         text-transform: uppercase;
         letter-spacing: .04em;
@@ -913,8 +941,8 @@
       }
       .header-dropdown-select {
         flex: 1;
-        padding: 2px 4px;
-        font: 11px var(--font-mono);
+        padding: 1px 3px;
+        font: 10px var(--font-mono);
         background: var(--surface-3);
         border: 1px solid var(--border);
         color: var(--text);
@@ -922,34 +950,34 @@
         cursor: pointer;
       }
 
-      /* ── Add-file dropdown menu ─────────────── */
+      /* ── Add-file dropdown ─────────── */
       .ftv-menu-anchor { position: relative }
       .ftv-dropdown {
         position: absolute;
         top: 100%; right: 0;
         z-index: 100;
-        min-width: 180px;
+        min-width: 160px;
         background: var(--surface-2);
         border: 1px solid var(--border-hi);
         border-radius: var(--radius-lg);
         box-shadow: var(--shadow-md);
-        padding: 4px;
+        padding: 3px;
         display: none;
         flex-direction: column;
       }
       .ftv-dropdown.is-open { display: flex }
       .ftv-dropdown-item {
-        font: 11px/1.2 var(--font-mono) !important;
+        font: 10px/1.2 var(--font-mono) !important;
         text-align: left !important;
-        padding: 6px 10px !important;
+        padding: 4px 8px !important;
         background: transparent !important;
         border: none !important;
         color: var(--text) !important;
-        border-radius: 3px !important;
+        border-radius: 2px !important;
         cursor: pointer !important;
         display: flex !important;
         align-items: center !important;
-        gap: 8px !important;
+        gap: 6px !important;
         width: 100% !important;
         min-width: auto !important;
         transition: background 60ms !important;
@@ -961,168 +989,145 @@
       .ftv-dropdown-sep {
         height: 1px;
         background: var(--border);
-        margin: 3px 6px;
+        margin: 2px 4px;
       }
       .ftv-dropdown-icon {
-        width: 14px; display: inline-flex;
+        width: 12px; display: inline-flex;
         align-items: center; justify-content: center;
         flex-shrink: 0;
       }
       .ftv-dropdown-icon svg {
-        width: 14px; height: 14px;
+        width: 12px; height: 12px;
         fill: none; stroke: currentColor;
         stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
       }
       .ftv-dropdown-label { flex: 1 }
       .ftv-dropdown-hint {
-        font-size: 9px;
+        font-size: 8px;
         color: var(--text-dim);
         letter-spacing: .02em;
       }
-      #file-tree-panel.is-collapsed #file-tree-toggle {
-        transform: rotate(-90deg);
-      }
-      #file-tree-panel.is-collapsed #file-tree-container {
-        display: none;
-      }
-      #file-tree-container {
-        overflow-y: auto;
-        overflow-x: hidden;
-        flex: 1;
-        padding: 2px 0;
-      }
 
       /* Tree items */
-      .ftv-list {
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-      .ftv-nested {
-        padding-left: 0;
-      }
-      .ftv-item {
-        margin: 0;
-        padding: 0;
-      }
+      .ftv-list { list-style: none; margin: 0; padding: 0 }
+      .ftv-nested { padding-left: 0 }
+      .ftv-item { margin: 0; padding: 0 }
       .ftv-row {
         display: flex;
         align-items: center;
         gap: 3px;
-        padding: 2px 6px 2px 4px;
+        padding: 2px 6px 2px 3px;
         cursor: pointer;
         transition: background 60ms;
         white-space: nowrap;
-        font-size: 11px;
-        min-height: 22px;
+        font-size: 10px;
+        min-height: 20px;
+        border-radius: 2px;
+        margin: 0 3px;
       }
-      .ftv-row:hover {
-        background: rgba(255,255,255,.04);
-      }
-      .ftv-row.ftv-active {
-        background: var(--accent-bg);
-        color: var(--accent);
-      }
+      .ftv-row:hover { background: rgba(255,255,255,.04) }
+      .ftv-row.ftv-active { background: var(--accent-bg); color: var(--accent) }
       .ftv-chevron {
-        width: 12px;
-        font-size: 9px;
-        color: var(--text-dim);
-        text-align: center;
-        flex-shrink: 0;
-        cursor: pointer;
+        width: 10px; font-size: 8px;
+        color: var(--text-dim); text-align: center;
+        flex-shrink: 0; cursor: pointer;
       }
-      .ftv-chevron-spacer {
-        width: 12px;
-        flex-shrink: 0;
-      }
+      .ftv-chevron-spacer { width: 10px; flex-shrink: 0 }
       .ftv-icon {
-        font-size: 11px;
-        flex-shrink: 0;
-        width: 16px;
-        text-align: center;
+        font-size: 10px; flex-shrink: 0;
+        width: 14px; text-align: center;
+        display: flex; align-items: center; justify-content: center;
       }
+      .ftv-icon svg {
+        width: 12px; height: 12px;
+        fill: none; stroke: currentColor;
+        stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+      }
+      .ftv-folder-icon { color: var(--accent) }
+      .ftv-script-icon { color: var(--info) }
+      .ftv-image-icon { color: #c586c0 }
       .ftv-label {
         flex: 1;
         overflow: hidden;
         text-overflow: ellipsis;
         color: var(--text);
       }
-      .ftv-row.ftv-active .ftv-label {
-        color: var(--accent);
-      }
+      .ftv-row.ftv-active .ftv-label { color: var(--accent) }
       .ftv-entry-star {
         color: #e8a317;
-        font-size: 11px;
-        margin-left: 4px;
+        font-size: 10px;
+        margin-left: 3px;
         flex-shrink: 0;
       }
       .ftv-actions {
         display: none;
-        gap: 2px;
+        gap: 1px;
         margin-left: auto;
         flex-shrink: 0;
       }
-      .ftv-row:hover .ftv-actions {
-        display: flex;
-      }
+      .ftv-row:hover .ftv-actions { display: flex }
       .ftv-action-btn {
         background: none !important;
         border: none !important;
         padding: 0 2px !important;
-        font-size: 10px;
+        font-size: 9px;
         color: var(--text-dim);
         cursor: pointer;
         line-height: 1;
         min-width: auto !important;
         min-height: auto !important;
+        border-radius: 2px !important;
+        opacity: .7;
+        transition: all 80ms;
       }
       .ftv-action-btn:hover {
         color: var(--accent) !important;
-        background: none !important;
+        background: var(--accent-bg) !important;
+        opacity: 1;
       }
       .ftv-rename-input {
         flex: 1;
-        font: 11px/1 var(--font-mono);
+        font: 10px/1 var(--font-mono);
         background: var(--bg);
         border: 1px solid var(--accent);
         color: var(--text);
-        padding: 1px 4px;
+        padding: 1px 3px;
         border-radius: 2px;
         outline: none;
       }
 
-      /* ── Scrollbar ────────────────────────────── */
+      /* ── Scrollbar ────────────────────── */
       ::-webkit-scrollbar { width: 4px; height: 4px }
       ::-webkit-scrollbar-track { background: transparent }
       ::-webkit-scrollbar-thumb { background: var(--bg-panel-border, #16243E); border-radius: 3px }
       ::-webkit-scrollbar-thumb:hover { background: var(--accent-cyan, #00F0FF) }
 
-      /* ── Editor Toolbar ────────────────────────── */
+      /* ── Editor Toolbar — compact ─────── */
       .editor-toolbar {
         display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 5px 10px;
+        gap: 4px;
+        padding: 3px 6px;
         background: var(--surface-2);
         border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
+        border-radius: var(--radius);
         flex-shrink: 0;
-        min-height: 32px;
+        min-height: 26px;
       }
       .editor-toolbar-icon {
-        font-size: 13px;
+        font-size: 11px;
         color: var(--accent);
         flex-shrink: 0;
         display: flex;
         align-items: center;
       }
       .editor-toolbar-icon svg {
-        width: 14px; height: 14px;
+        width: 12px; height: 12px;
         fill: none; stroke: var(--accent);
         stroke-width: 1.5;
       }
       .editor-toolbar-name {
-        font-size: 11px;
+        font-size: 10px;
         color: var(--text);
         font-weight: 600;
         overflow: hidden;
@@ -1131,26 +1136,26 @@
       }
       .editor-toolbar-dot {
         color: var(--warning);
-        font-size: 16px;
+        font-size: 14px;
         line-height: 1;
         flex-shrink: 0;
         animation: pulse-dot 2s ease-in-out infinite;
       }
       @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
       .editor-toolbar-badge {
-        font-size: 9px;
+        font-size: 8px;
         color: var(--text-dim);
         background: var(--surface-3);
-        padding: 2px 6px;
-        border-radius: 3px;
+        padding: 1px 4px;
+        border-radius: 2px;
         flex-shrink: 0;
         letter-spacing: .04em;
         text-transform: uppercase;
       }
       .editor-toolbar-spacer { flex: 1 }
       .toolbar-btn {
-        font: 11px/1.2 var(--font-mono) !important;
-        padding: 3px 10px !important;
+        font: 10px/1.2 var(--font-mono) !important;
+        padding: 2px 6px !important;
         background: var(--surface-3) !important;
         border: 1px solid var(--border) !important;
         color: var(--text-dim) !important;
@@ -1159,7 +1164,7 @@
         transition: all 80ms !important;
         display: inline-flex !important;
         align-items: center !important;
-        gap: 4px !important;
+        gap: 3px !important;
         min-width: auto !important;
         width: auto !important;
         height: auto !important;
@@ -1167,7 +1172,6 @@
       .toolbar-btn:hover {
         color: var(--text) !important;
         border-color: var(--border-hi) !important;
-        background: var(--surface-3) !important;
       }
       .toolbar-btn-accent {
         background: var(--accent-bg) !important;
@@ -1179,16 +1183,16 @@
         border-color: var(--accent) !important;
       }
 
-      /* ── Line Numbers ──────────────────────────── */
+      /* ── Line Numbers ──────────────────── */
       #line-numbers {
         position: absolute;
         left: 0; top: 0; bottom: 0;
-        width: 36px;
-        padding: 6px 6px 6px 2px;
+        width: 32px;
+        padding: 4px 4px 4px 2px;
         background: rgba(5,10,20,.85);
         border-right: 1px solid var(--border);
         color: #2A4060;
-        font: 12px/1.45 var(--font-mono);
+        font: 11px/1.45 var(--font-mono);
         text-align: right;
         white-space: pre;
         overflow-y: hidden;
@@ -1197,7 +1201,31 @@
         z-index: 1;
       }
 
-      /* ── Header improvements ───────────────────── */
+      /* ── Header buttons — icon-style ──── */
+      .hdr-icon-btn {
+        width: 26px; height: 26px;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        padding: 0 !important;
+        background: var(--surface-2) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: var(--radius) !important;
+        color: var(--text-dim) !important;
+        cursor: pointer;
+        transition: all 80ms;
+        flex-shrink: 0;
+      }
+      .hdr-icon-btn:hover {
+        background: var(--surface-3) !important;
+        border-color: var(--border-hi) !important;
+        color: var(--text) !important;
+      }
+      .hdr-icon-btn svg {
+        width: 14px; height: 14px;
+        fill: none; stroke: currentColor;
+        stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
+      }
       .header-btn-primary {
         background: var(--accent) !important;
         color: var(--bg) !important;
@@ -1208,142 +1236,94 @@
         background: var(--accent-hover) !important;
         border-color: var(--accent-hover) !important;
       }
+      .header-btn-primary svg { stroke: var(--bg) }
       .header-file-info {
-        font-size: 11px;
+        font-size: 10px;
         color: var(--text-dim);
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        max-width: 200px;
+        max-width: 160px;
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 3px;
       }
       .header-file-dot {
-        width: 6px; height: 6px;
+        width: 5px; height: 5px;
         border-radius: 50%;
         background: var(--success);
         flex-shrink: 0;
         display: inline-block;
       }
 
-      /* ── Status Bar ────────────────────────────── */
-      #status-bar {
-        height: 24px; min-height: 24px;
-        display: flex; align-items: center;
-        padding: 0 12px;
-        background: var(--surface);
-        border-top: 1px solid var(--border);
-        font-size: 10px; color: var(--text-dim);
-        gap: 16px; flex-shrink: 0;
+      /* ── Pane toggle buttons ──────────── */
+      .pane-toggle-btn {
+        width: 26px; height: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        color: var(--text-dim);
+        cursor: pointer;
+        transition: all 80ms;
+        flex-shrink: 0;
       }
-      .status-item { display: flex; align-items: center; gap: 4px; white-space: nowrap }
-      .status-spacer { flex: 1 }
-      .status-accent { color: var(--accent) }
-
-      /* ── File Tree polish ─────────────────────── */
-      .ftv-icon { display: flex; align-items: center; justify-content: center }
-      .ftv-icon svg {
+      .pane-toggle-btn:hover {
+        background: var(--surface-3);
+        border-color: var(--border-hi);
+        color: var(--text);
+      }
+      .pane-toggle-btn.is-active {
+        background: var(--accent-bg);
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .pane-toggle-btn svg {
         width: 14px; height: 14px;
         fill: none; stroke: currentColor;
         stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
       }
-      .ftv-folder-icon { color: var(--accent) }
-      .ftv-script-icon { color: var(--info) }
-      .ftv-image-icon { color: #c586c0 }
-      .ftv-row { gap: 4px; padding: 3px 8px 3px 4px; min-height: 24px; border-radius: 3px; margin: 0 4px }
-      .ftv-row:hover { background: rgba(255,255,255,.05) }
-      .ftv-action-btn { padding: 1px 4px !important; font-size: 11px; border-radius: 3px !important; opacity: .7; transition: all 80ms }
-      .ftv-action-btn:hover { background: var(--accent-bg) !important; opacity: 1 }
 
-      /* ── Pixel Editor — Modern UI ────────── */
-      .tool-btn {
-        width: 30px !important; height: 30px !important; min-width: 30px !important;
-        border-radius: var(--radius) !important;
-        transition: all 100ms ease;
-        font-size: 14px;
-      }
-      .tool-btn:hover {
-        background: var(--surface-3) !important;
-        border-color: var(--border-hi) !important;
-        transform: translateY(-1px);
-      }
-      .tool-btn.is-active {
-        box-shadow: 0 0 0 1.5px var(--accent), var(--shadow-sm);
-        background: var(--accent-bg) !important;
-        border-color: var(--accent) !important;
-      }
-      .toolbox-sep { width: 22px; margin: 6px auto; background: var(--border); opacity: .5 }
-      #pixel-toolbox {
-        padding: 6px;
-        background: var(--surface-2);
-        border: 1px solid var(--border);
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-sm);
-      }
-      #pixel-editor-wrap {
-        border-radius: var(--radius-lg);
-        background: var(--bg);
-        box-shadow: inset 0 2px 8px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.2);
-      }
-      #pixel-bottom-bar {
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-sm);
-      }
-      #palette-swatches {
-        padding: 5px;
-        background: var(--surface-2);
-        border: 1px solid var(--border);
-        border-radius: var(--radius);
-        min-height: 26px;
-        box-shadow: inset 0 1px 2px rgba(0,0,0,.15);
-      }
-      .palette-swatch {
-        width: 20px; height: 20px;
-        border-color: rgba(255,255,255,.08);
-        border-radius: 3px;
-        transition: border-color 100ms, transform 100ms, box-shadow 100ms;
-      }
-      .palette-swatch:hover {
-        transform: scale(1.2); z-index: 2;
-        box-shadow: 0 2px 6px rgba(0,0,0,.3);
-      }
-      .palette-swatch.is-active {
-        box-shadow: 0 0 0 2px var(--accent), 0 2px 6px rgba(0,240,255,.2);
-        transform: scale(1.2); z-index: 2;
-      }
-      #msc-editor-wrap { border-radius: var(--radius-lg) }
-      #pixel-controls {
+      /* ── Status Bar — compact 20px ─────── */
+      #status-bar {
+        grid-area: status;
+        height: 20px; min-height: 20px;
+        display: flex; align-items: center;
+        padding: 0 8px;
         background: var(--surface);
-        border-radius: var(--radius);
-        padding: 6px;
+        border-top: 1px solid var(--border);
+        font-size: 9px; color: var(--text-dim);
+        gap: 12px; flex-shrink: 0;
       }
-      #pixel-footer {
-        padding: 4px 6px;
-        background: rgba(5,10,20,.5);
-        border-radius: var(--radius);
-      }
-      .tool-btn svg {
-        width: 16px; height: 16px;
-        fill: none; stroke: currentColor;
-        stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round;
-      }
-      .tool-btn.is-active svg { stroke: var(--accent) }
+      .status-item { display: flex; align-items: center; gap: 3px; white-space: nowrap }
+      .status-spacer { flex: 1 }
+      .status-accent { color: var(--accent) }
     </style>
   </head>
   <body>
-    <div id="mozaic-app" class="ide-layout">
+    <div id="mozaic-app">
 
-      <!-- ── Header ───────────────────────────────── -->
+      <!-- ── Header — compact 32px toolbar with icon buttons ── -->
       <header id="mozaic-header">
         <div id="header-brand">
           <span id="header-logo">&#9672;</span>
           <span id="header-title">Mozaic</span>
         </div>
         <div id="header-divider"></div>
+
+        <!-- Toggle: left sidebar (file tree) -->
+        <button id="toggle-sidebar-btn" class="pane-toggle-btn is-active" type="button" title="Toggle file explorer (Ctrl+B)">
+          <svg viewBox="0 0 16 16"><path d="M2 2h4v12H2zM6 2h8v12H6"/></svg>
+        </button>
+
         <div id="header-actions">
           <div class="header-menu-anchor">
-            <button id="new-rom-button" type="button" title="Create new ROM">+ New</button>
+            <button id="new-rom-button" type="button" class="hdr-icon-btn" title="Create new ROM">
+              <svg viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></svg>
+            </button>
             <div id="new-rom-menu" class="header-dropdown">
               <div class="header-dropdown-row">
                 <label class="header-dropdown-label">Palette:</label>
@@ -1364,39 +1344,44 @@
               </button>
             </div>
           </div>
-          <button id="open-rom-button" type="button" title="Open ROM image">Open ROM</button>
-          <button id="open-script-button" type="button" title="Import script file">&#8593; Import</button>
+          <button id="open-rom-button" type="button" class="hdr-icon-btn" title="Open ROM image">
+            <svg viewBox="0 0 16 16"><path d="M3 2h5l1 1h4v10H3z"/></svg>
+          </button>
+          <button id="open-script-button" type="button" class="hdr-icon-btn" title="Import script file">
+            <svg viewBox="0 0 16 16"><path d="M8 2v9m0 0l-3-3m3 3l3-3"/><path d="M3 13h10"/></svg>
+          </button>
           <div class="header-sep"></div>
-          <button id="save-rom-button" type="button" title="Export ROM as PNG">&#8595; Export ROM</button>
-          <button id="open-config-button" type="button" title="Edit engine config">&#9881; Config</button>
-          <button id="reload-config-button" type="button" title="Reload config">&#8635;</button>
+          <button id="save-rom-button" type="button" class="hdr-icon-btn" title="Export ROM as PNG">
+            <svg viewBox="0 0 16 16"><path d="M3 3h7l3 3v7H3z"/><path d="M5 3v3h4V3"/><path d="M5 9h6v4H5z"/></svg>
+          </button>
+          <button id="open-config-button" type="button" class="hdr-icon-btn" title="Edit engine config">
+            <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.3 3.3l1.4 1.4M11.3 11.3l1.4 1.4M3.3 12.7l1.4-1.4M11.3 4.7l1.4-1.4"/></svg>
+          </button>
+          <button id="reload-config-button" type="button" class="hdr-icon-btn" title="Reload config">
+            <svg viewBox="0 0 16 16"><path d="M3 8a5 5 0 019-3"/><path d="M12 2v3h-3"/><path d="M13 8a5 5 0 01-9 3"/><path d="M4 14v-3h3"/></svg>
+          </button>
           <div class="header-sep"></div>
-          <button id="restart-button" type="button" title="Run game" class="header-btn-primary">&#9654; Run</button>
+          <button id="restart-button" type="button" class="hdr-icon-btn header-btn-primary" title="Run game (F5)">
+            <svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14"/></svg>
+          </button>
           <div class="header-sep"></div>
           <span id="header-file-info" class="header-file-info"></span>
         </div>
+
+        <!-- Toggle: right panel -->
+        <button id="toggle-panel-btn" class="pane-toggle-btn is-active" type="button" title="Toggle editor panel (Ctrl+J)">
+          <svg viewBox="0 0 16 16"><path d="M10 2h4v12h-4zM2 2h8v12H2"/></svg>
+        </button>
       </header>
 
-      <!-- ── Workspace (split layout) ────────────── -->
+      <!-- ── Workspace ─────────────────────── -->
       <div id="mozaic-workspace">
 
-        <!-- LEFT: Game canvas ────────────────────── -->
-        <main id="canvas-area">
-          <canvas id="mozaic-canvas"></canvas>
-          <div id="compiler-console"></div>
-          <div id="input-debug"></div>
-        </main>
-
-        <!-- SPLIT HANDLE ─────────────────────────── -->
-        <div id="split-handle"></div>
-
-        <!-- RIGHT: Tabbed side panel ─────────────── -->
-        <div id="side-panel">
-
-          <!-- File tree panel -->
+        <!-- LEFT SIDEBAR: File tree ────────── -->
+        <aside id="left-sidebar">
           <div id="file-tree-panel">
             <div id="file-tree-header">
-              <span id="file-tree-title">Files</span>
+              <span id="file-tree-title">Explorer</span>
               <div class="ftv-header-actions">
                 <div class="ftv-menu-anchor">
                   <button id="ftv-add-btn" type="button" class="ftv-header-btn" title="Add file">+</button>
@@ -1463,19 +1448,44 @@
             </div>
             <div id="file-tree-container"></div>
           </div>
+        </aside>
 
-          <!-- Tab bar -->
+        <!-- CENTER: Game canvas ──────────── -->
+        <main id="canvas-area">
+          <canvas id="mozaic-canvas"></canvas>
+          <div id="compiler-console"></div>
+          <div id="input-debug"></div>
+        </main>
+
+        <!-- SPLIT HANDLE ────────────────── -->
+        <div id="split-handle"></div>
+
+        <!-- RIGHT: Tabbed editor panel ──── -->
+        <div id="side-panel">
+          <!-- Tab bar with symbolic icons -->
           <div id="tab-bar">
-            <button class="tab-btn is-active" data-tab="script" type="button">&#9998; Script</button>
-            <button class="tab-btn" data-tab="pixel" type="button">&#9638; Pixel</button>
-            <button class="tab-btn" data-tab="debug" type="button">&#9670; Debug</button>
-            <button class="tab-btn" id="toggle-docs-button" data-tab="docs" type="button">&#9776; Docs</button>
+            <button class="tab-btn is-active" data-tab="script" type="button" title="Script Editor">
+              <svg class="tab-icon" viewBox="0 0 16 16"><path d="M4 2h6l3 3v9H4z"/><path d="M10 2v3h3"/></svg>
+              <span>Script</span>
+            </button>
+            <button class="tab-btn" data-tab="pixel" type="button" title="Pixel Editor">
+              <svg class="tab-icon" viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M2 10l3-3 2 2 3-4 4 5"/></svg>
+              <span>Pixel</span>
+            </button>
+            <button class="tab-btn" data-tab="debug" type="button" title="Debug Panel">
+              <svg class="tab-icon" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5"/><path d="M8 5v3h3"/></svg>
+              <span>Debug</span>
+            </button>
+            <button class="tab-btn" id="toggle-docs-button" data-tab="docs" type="button" title="Documentation">
+              <svg class="tab-icon" viewBox="0 0 16 16"><path d="M2 3h5l1 1 1-1h5v10h-5l-1 1-1-1H2z"/></svg>
+              <span>Docs</span>
+            </button>
           </div>
 
           <!-- Tab content -->
           <div id="tab-content">
 
-            <!-- Tab: Script Editor ─────────────────── -->
+            <!-- Tab: Script Editor ─────── -->
             <section class="tab-pane is-active" id="msc-section">
               <div id="editor-tabs" role="tablist" aria-label="Open editor files"></div>
               <div class="editor-toolbar">
@@ -1497,7 +1507,7 @@
               <div id="msc-status"></div>
             </section>
 
-            <!-- Tab: Pixel Editor ──────────────────── -->
+            <!-- Tab: Pixel Editor ──────── -->
             <section class="tab-pane" id="pixel-section">
               <div class="editor-toolbar">
                 <span class="editor-toolbar-icon"><svg viewBox="0 0 16 16"><rect x="2" y="2" width="12" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="5" cy="5.5" r="1.2" fill="currentColor" opacity=".4"/><path d="M2 11l3-3 2 2 3-4 4 5" fill="none" stroke="currentColor" stroke-width="1.3"/></svg></span>
@@ -1510,17 +1520,17 @@
                 <div class="pixel-row">
                   <input id="pixel-color" type="color" value="#ff00ff" />
                   <button id="palette-add-button" type="button" title="Add to palette">+</button>
-                  <button id="palette-update-button" type="button" title="Update active palette slot with current color (applies indexed swap)">&#8635; Update</button>
+                  <button id="palette-update-button" type="button" title="Update active palette slot">&#8635;</button>
                   <select id="palette-preset-select" title="Palette presets">
                     <option value="">Preset...</option>
                   </select>
-                  <button id="palette-import-button" type="button" title="Import palette">&#8593; Import</button>
-                  <button id="palette-export-button" type="button" title="Export palette">&#8595; Export</button>
+                  <button id="palette-import-button" type="button" title="Import palette">&#8593;</button>
+                  <button id="palette-export-button" type="button" title="Export palette">&#8595;</button>
                 </div>
                 <div id="palette-swatches"></div>
               </div>
               <div class="chip-row">
-                <label><input id="stylus-only-toggle" type="checkbox" /><span>Stylus Only</span></label>
+                <label><input id="stylus-only-toggle" type="checkbox" /><span>Stylus</span></label>
                 <label><input id="pressure-size-toggle" type="radio" name="pressure-mode" checked /><span>P:Size</span></label>
                 <label><input id="pressure-dither-toggle" type="radio" name="pressure-mode" /><span>P:Dither</span></label>
               </div>
@@ -1549,7 +1559,7 @@
                 </div>
               </div>
               <div id="pixel-footer">
-                <span>Alt+Click picks layer · Right-click to color pick · Scroll to zoom</span>
+                <span>Alt+Click picks · RClick color pick · Scroll zoom</span>
                 <span id="pixel-coords">&ndash;, &ndash;</span>
               </div>
               <div id="pixel-bottom-bar">
@@ -1567,12 +1577,12 @@
               </div>
             </section>
 
-            <!-- Tab: Debug ─────────────────────────── -->
+            <!-- Tab: Debug ─────────────── -->
             <section class="tab-pane" id="pane-debug">
               <div class="section-label">Layers</div>
               <div class="chip-row">
-                <label><input id="layer-static-toggle" type="radio" name="editor-layer" checked /><span>Static World</span></label>
-                <label><input id="layer-ecs-toggle" type="radio" name="editor-layer" /><span>ECS Visualizer</span></label>
+                <label><input id="layer-static-toggle" type="radio" name="editor-layer" checked /><span>Static</span></label>
+                <label><input id="layer-ecs-toggle" type="radio" name="editor-layer" /><span>ECS</span></label>
               </div>
               <div class="section-label">Grid</div>
               <div class="chip-row">
@@ -1594,9 +1604,9 @@
               </div>
             </section>
 
-            <!-- Tab: Docs ──────────────────────────── -->
+            <!-- Tab: Docs ──────────────── -->
             <section class="tab-pane" id="docs-pane">
-              <input id="docs-search" type="text" placeholder="Search..." />
+              <input id="docs-search" type="text" placeholder="Search docs..." />
               <div id="docs-results"></div>
               <div id="docs-content">Select a document.</div>
             </section>
@@ -1605,12 +1615,15 @@
         </div><!-- #side-panel -->
 
       </div><!-- #mozaic-workspace -->
+
+      <!-- ── Status Bar ──────────────────── -->
       <div id="status-bar">
         <span class="status-item" id="status-file-info">Ready</span>
         <span class="status-spacer"></span>
         <span class="status-item" id="status-cursor-pos"></span>
         <span class="status-item">Mozaic Engine</span>
       </div>
+
     </div><!-- #mozaic-app -->
     <div id="msc-autocomplete" role="listbox" aria-label="Autocomplete suggestions"></div>
     <script type="module" src="/src/index.ts"></script>
