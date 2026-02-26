@@ -112,24 +112,24 @@
 
 /* ── Custom Scrollbars (thin, dark-blue + cyan) ────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-deep);
+  background: #070B14;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-panel-border);
-  border-radius: 3px;
+  background: #1A2D4A;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-cyan);
+  background: #00F0FF;
 }
 
 /* Firefox thin scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--bg-panel-border) var(--bg-deep);
+  scrollbar-color: #1A2D4A #070B14;
 }
 
 /* ── Tab bar — angled chamfer on active tab ────────── */

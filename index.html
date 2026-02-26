@@ -285,7 +285,7 @@
         position: relative;
         flex: 1;
         min-height: 140px;
-        background: var(--bg);
+        background: #0A1222;
         border: 1px solid var(--border);
         border-radius: var(--radius);
         overflow: hidden;
@@ -294,10 +294,10 @@
         position: absolute; top: 0; right: 0; bottom: 0; left: 36px;
         margin: 0; border: 0;
         padding: 6px 8px;
-        font: 12px/1.45 var(--font-mono);
+        font: 13px/1.5 'Fira Code', 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
         white-space: pre; overflow: auto;
       }
-      #msc-highlight { pointer-events: none; color: #ddd }
+      #msc-highlight { pointer-events: none; color: #C4D6ED }
       #msc-editor {
         resize: none;
         background: transparent;
@@ -440,7 +440,7 @@
         overflow-x: auto;
         overflow-y: hidden;
         flex-shrink: 0;
-        background: var(--bg);
+        background: #05080F;
         border-bottom: 1px solid var(--border);
         min-height: 0;
         scrollbar-width: none;
@@ -458,26 +458,27 @@
         white-space: nowrap;
         flex-shrink: 0;
         font-size: 11px;
-        color: var(--text-dim);
-        background: var(--surface-2);
+        color: #6B80A4;
+        background: #05080F;
         transition: color 80ms, background 80ms;
         user-select: none;
         max-width: 180px;
         min-width: 60px;
         position: relative;
       }
-      .editor-tab:hover { background: var(--surface-3); color: var(--text) }
+      .editor-tab:hover { background: rgba(0, 240, 255, 0.06); color: var(--text) }
       .editor-tab.is-active {
-        background: var(--surface) !important;
-        color: var(--text) !important;
-        border-top: 2px solid var(--accent);
+        background: #0A1222 !important;
+        color: #E2F1FF !important;
+        border-top: 2px solid #00F0FF;
+        clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%);
       }
       .editor-tab.is-active::after {
         content: '';
         position: absolute;
         bottom: -1px; left: 0; right: 0;
         height: 1px;
-        background: var(--surface);
+        background: #0A1222;
       }
       .editor-tab-label {
         flex: 1;
@@ -827,20 +828,24 @@
         min-height: 0;
         overflow: hidden;
         flex-shrink: 0;
+        width: 250px;
+        min-width: 250px;
+        background: #070B14;
       }
       #file-tree-header {
         display: flex;
         align-items: center;
         gap: 4px;
         padding: 4px 8px;
-        background: var(--surface-2);
+        background: #0A0F1A;
         border-bottom: 1px solid var(--border);
         user-select: none;
         flex-shrink: 0;
       }
-      #file-tree-header:hover { background: var(--surface-3) }
+      #file-tree-header:hover { background: #0E1525 }
       #file-tree-title {
-        font-size: 10px;
+        font-size: 11px;
+        font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
         text-transform: uppercase;
         letter-spacing: .06em;
         color: var(--text-dim);
@@ -990,6 +995,7 @@
         overflow-x: hidden;
         flex: 1;
         padding: 2px 0;
+        background: #070B14;
       }
 
       /* Tree items */
@@ -1008,19 +1014,21 @@
       .ftv-row {
         display: flex;
         align-items: center;
-        gap: 3px;
-        padding: 2px 6px 2px 4px;
+        gap: 4px;
+        padding: 4px 8px;
         cursor: pointer;
-        transition: background 60ms;
+        transition: background 60ms, border-color 60ms;
         white-space: nowrap;
-        font-size: 11px;
-        min-height: 22px;
+        font: 12px/1.4 'Inter', 'Segoe UI', system-ui, sans-serif;
+        min-height: 24px;
+        border-left: 2px solid transparent;
       }
       .ftv-row:hover {
-        background: rgba(255,255,255,.04);
+        background: rgba(0, 240, 255, 0.1);
       }
       .ftv-row.ftv-active {
-        background: var(--accent-bg);
+        background: rgba(0, 240, 255, 0.08);
+        border-left: 2px solid #00F0FF;
         color: var(--accent);
       }
       .ftv-chevron {
@@ -1092,10 +1100,10 @@
       }
 
       /* ── Scrollbar ────────────────────────────── */
-      ::-webkit-scrollbar { width: 4px; height: 4px }
-      ::-webkit-scrollbar-track { background: transparent }
-      ::-webkit-scrollbar-thumb { background: var(--bg-panel-border, #16243E); border-radius: 3px }
-      ::-webkit-scrollbar-thumb:hover { background: var(--accent-cyan, #00F0FF) }
+      ::-webkit-scrollbar { width: 8px; height: 8px }
+      ::-webkit-scrollbar-track { background: #070B14 }
+      ::-webkit-scrollbar-thumb { background: #1A2D4A; border-radius: 4px }
+      ::-webkit-scrollbar-thumb:hover { background: #00F0FF }
 
       /* ── Editor Toolbar ────────────────────────── */
       .editor-toolbar {
@@ -1185,10 +1193,10 @@
         left: 0; top: 0; bottom: 0;
         width: 36px;
         padding: 6px 6px 6px 2px;
-        background: rgba(5,10,20,.85);
+        background: rgba(7,11,20,.9);
         border-right: 1px solid var(--border);
         color: #2A4060;
-        font: 12px/1.45 var(--font-mono);
+        font: 13px/1.5 'Fira Code', 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
         text-align: right;
         white-space: pre;
         overflow-y: hidden;
@@ -1249,10 +1257,11 @@
         stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round;
       }
       .ftv-folder-icon { color: var(--accent) }
-      .ftv-script-icon { color: var(--info) }
+      .ftv-script-icon { color: #4A9EFF }
       .ftv-image-icon { color: #c586c0 }
-      .ftv-row { gap: 4px; padding: 3px 8px 3px 4px; min-height: 24px; border-radius: 3px; margin: 0 4px }
-      .ftv-row:hover { background: rgba(255,255,255,.05) }
+      .ftv-mzk-icon { color: #00F0FF }
+      .ftv-row { gap: 4px; padding: 4px 8px; min-height: 24px; border-radius: 0; margin: 0 }
+      .ftv-row:hover { background: rgba(0, 240, 255, 0.1) }
       .ftv-action-btn { padding: 1px 4px !important; font-size: 11px; border-radius: 3px !important; opacity: .7; transition: all 80ms }
       .ftv-action-btn:hover { background: var(--accent-bg) !important; opacity: 1 }
 
