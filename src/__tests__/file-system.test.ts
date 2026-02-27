@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   createFolder,
   createScriptFile,
@@ -16,6 +16,11 @@ import {
   removeNode,
   renameNode,
   type ProjectFiles,
+  type RecentProject,
+  loadRecentProjects,
+  pushRecentProject,
+  clearRecentProjects,
+  restoreRecentProject,
 } from "../editor/file-system.js";
 import { parseWithImports } from "../engine/import-resolver.js";
 
@@ -437,5 +442,85 @@ describe("uint8ToBase64 / base64ToUint8", () => {
     expect(node.stateBufferBase64).toBeDefined();
     const decoded = base64ToUint8(node.stateBufferBase64!);
     expect(decoded).toEqual(stateBuffer);
+  });
+});
+
+// ── Recent projects ──────────────────────────────────────────
+
+describe("recent projects", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("loadRecentProjects returns empty array when nothing stored", () => {
+    expect(loadRecentProjects()).toEqual([]);
+  });
+
+  it("pushRecentProject stores a project and loadRecentProjects retrieves it", () => {
+    const project = createDefaultProject();
+    pushRecentProject(project);
+    const recents = loadRecentProjects();
+    expect(recents.length).toBe(1);
+    expect(recents[0].name).toBe("project");
+    expect(recents[0].savedAt).toBeTruthy();
+  });
+
+  it("pushRecentProject adds newest first", () => {
+    const p1 = createDefaultProject();
+    p1.root.name = "project-a";
+    pushRecentProject(p1);
+
+    const p2 = createDefaultProject();
+    p2.root.name = "project-b";
+    pushRecentProject(p2);
+
+    const recents = loadRecentProjects();
+    expect(recents.length).toBe(2);
+    expect(recents[0].name).toBe("project-b");
+    expect(recents[1].name).toBe("project-a");
+  });
+
+  it("pushRecentProject deduplicates by name", () => {
+    const p1 = createDefaultProject();
+    pushRecentProject(p1);
+    pushRecentProject(p1);
+    const recents = loadRecentProjects();
+    expect(recents.length).toBe(1);
+  });
+
+  it("pushRecentProject limits to 8 entries", () => {
+    for (let i = 0; i < 12; i++) {
+      const p = createDefaultProject();
+      p.root.name = `project-${i}`;
+      pushRecentProject(p);
+    }
+    const recents = loadRecentProjects();
+    expect(recents.length).toBe(8);
+    expect(recents[0].name).toBe("project-11");
+  });
+
+  it("clearRecentProjects empties the list", () => {
+    pushRecentProject(createDefaultProject());
+    clearRecentProjects();
+    expect(loadRecentProjects()).toEqual([]);
+  });
+
+  it("restoreRecentProject deserializes a project", () => {
+    const original = createDefaultProject();
+    pushRecentProject(original);
+    const recents = loadRecentProjects();
+    const restored = restoreRecentProject(recents[0]);
+    expect(restored).not.toBeNull();
+    expect(restored!.root.name).toBe(original.root.name);
+    expect(restored!.projectWidth).toBe(original.projectWidth);
+  });
+
+  it("restoreRecentProject returns null for corrupt data", () => {
+    const bad: RecentProject = {
+      name: "bad",
+      savedAt: new Date().toISOString(),
+      projectJson: "not valid json{{{",
+    };
+    expect(restoreRecentProject(bad)).toBeNull();
   });
 });
