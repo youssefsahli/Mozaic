@@ -2265,7 +2265,9 @@ function createNewRom(
   runtime.fileTreeView?.render();
 
   // Wipe the old ROM cache so it doesn't interfere with the fresh project
-  try { localStorage.removeItem(LAST_ROM_STORAGE_KEY); } catch {}
+  try { localStorage.removeItem(LAST_ROM_STORAGE_KEY); } catch (e) {
+    console.warn("Mozaic: failed to clear ROM cache:", e);
+  }
 
   // Apply palette if specified
   if (paletteName && runtime.pixelEditor) {

@@ -476,7 +476,9 @@ export function pushRecentProject(project: ProjectFiles): void {
 export function clearRecentProjects(): void {
   try {
     localStorage.removeItem(RECENTS_KEY);
-  } catch {}
+  } catch (e) {
+    console.warn("Mozaic: failed to clear recent projects:", e);
+  }
 }
 
 /** Restore a RecentProject back into a live ProjectFiles object. */
