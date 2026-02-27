@@ -26,6 +26,8 @@ export interface FileNode {
   /** ImageData dimensions for image files. */
   imageWidth?: number;
   imageHeight?: number;
+  /** Base64-encoded ECS state buffer for .mzk image files. */
+  stateBufferBase64?: string;
   /** Sub-entries (only for folders). */
   children: FileNode[];
   /** Whether the folder is expanded in the UI. */
@@ -399,4 +401,25 @@ export async function dataUrlToImageData(dataUrl: string): Promise<ImageData> {
     img.onerror = () => reject(new Error("Failed to decode dataURL"));
     img.src = dataUrl;
   });
+}
+
+// ── State buffer encoding helpers ────────────────────────────
+
+/** Encode a Uint8ClampedArray to a base64 string. */
+export function uint8ToBase64(bytes: Uint8ClampedArray): string {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+/** Decode a base64 string back to a Uint8ClampedArray. */
+export function base64ToUint8(base64: string): Uint8ClampedArray {
+  const binary = atob(base64);
+  const bytes = new Uint8ClampedArray(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
 }

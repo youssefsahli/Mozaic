@@ -26,6 +26,7 @@ import {
   ENTITY_TYPE_ID,
   ENTITY_POS_X,
   ENTITY_POS_Y,
+  STATE_BUFFER_BYTES,
   readInt8,
   writeInt8,
   writeInt16,
@@ -51,6 +52,8 @@ import {
   resolveImportPath,
   findNodeByPath,
   hasImageExtension,
+  uint8ToBase64,
+  base64ToUint8,
 } from "./editor/file-system.js";
 import { FileTreeView } from "./editor/file-tree-view.js";
 import {
@@ -59,6 +62,7 @@ import {
   type BootContext,
 } from "./editor/bootstrapper.js";
 import { parseSpriteROM } from "./editor/importer.js";
+import { buildMzkDataUrl } from "./editor/exporter.js";
 
 type EditorMode = "script" | "config" | "image";
 const LAST_ROM_STORAGE_KEY = "mozaic:last-rom";
@@ -866,6 +870,13 @@ function saveActiveFileContent(runtime: RuntimeState): void {
     node.content = imageDataToDataUrl(runtime.imageData);
     node.imageWidth = runtime.imageData.width;
     node.imageHeight = runtime.imageData.height;
+    // Persist the ECS state buffer separately so it survives the
+    // PNG round-trip (Canvas 2D premultiplied-alpha can corrupt
+    // raw byte data stored in pixel RGBA channels).
+    const stateBuf = runtime.pixelEditor?.getStateBuffer();
+    if (stateBuf) {
+      node.stateBufferBase64 = uint8ToBase64(stateBuf);
+    }
   }
   saveProject(runtime.project);
 }
@@ -910,9 +921,28 @@ async function openFileNode(
     if (node.content) {
       try {
         const imgData = await dataUrlToImageData(node.content);
+
+        // Restore the ECS state buffer that was saved separately.
+        // This overwrites the first STATE_BUFFER_BYTES of pixel data
+        // which may have been corrupted by Canvas 2D premultiplied-alpha
+        // during the PNG round-trip.
+        if (node.stateBufferBase64) {
+          const savedState = base64ToUint8(node.stateBufferBase64);
+          const len = Math.min(savedState.length, imgData.data.length);
+          imgData.data.set(savedState.subarray(0, len), 0);
+        }
+
         runtime.imageData = imgData;
         runtime.baked = bake(imgData);
         initPixelEditor(runtime);
+
+        // If a separate state buffer was saved, also set it as the
+        // pixel editor's engine buffer for the State Inspector and
+        // entity brush to use.
+        if (node.stateBufferBase64 && runtime.pixelEditor) {
+          const engineBuf = base64ToUint8(node.stateBufferBase64);
+          runtime.pixelEditor.setEngineBuffer(engineBuf);
+        }
 
         // Parse the companion .msc script so the Entity Brush can
         // resolve entity type IDs (resolveEntityTypeId needs this.script).
@@ -2351,19 +2381,16 @@ function saveRom(runtime: RuntimeState): void {
     return;
   }
 
-  const exportCanvas = document.createElement("canvas");
-  exportCanvas.width = runtime.imageData.width;
-  exportCanvas.height = runtime.imageData.height;
-  const ctx = exportCanvas.getContext("2d");
-  if (!ctx) return;
+  const stateBuf = runtime.pixelEditor?.getStateBuffer();
+  const stateBuffer = stateBuf ?? new Uint8ClampedArray(STATE_BUFFER_BYTES);
+  const dataUrl = buildMzkDataUrl(runtime.imageData, stateBuffer);
 
-  ctx.putImageData(runtime.imageData, 0, 0);
   const link = document.createElement("a");
-  link.href = exportCanvas.toDataURL("image/png");
-  link.download = `mozaic-rom-${Date.now()}.png`;
+  link.href = dataUrl;
+  link.download = `mozaic-rom-${Date.now()}.mzk`;
   link.click();
 
-  runtime.ui.mscStatus.textContent = "ROM exported as PNG.";
+  runtime.ui.mscStatus.textContent = "ROM exported as MZK.";
   runtime.ui.mscStatus.style.color = "#6a9955";
 }
 
@@ -2402,10 +2429,14 @@ function persistRom(runtime: RuntimeState): void {
     if (!ctx) return;
 
     ctx.putImageData(runtime.imageData, 0, 0);
-    const payload = {
+    const stateBuf = runtime.pixelEditor?.getStateBuffer();
+    const payload: { dataUrl: string; savedAt: number; stateBufferBase64?: string } = {
       dataUrl: exportCanvas.toDataURL("image/png"),
       savedAt: Date.now(),
     };
+    if (stateBuf) {
+      payload.stateBufferBase64 = uint8ToBase64(stateBuf);
+    }
     localStorage.setItem(LAST_ROM_STORAGE_KEY, JSON.stringify(payload));
   } catch {}
 }
@@ -2415,10 +2446,18 @@ async function restoreLastRom(runtime: RuntimeState): Promise<boolean> {
     const raw = localStorage.getItem(LAST_ROM_STORAGE_KEY);
     if (!raw) return false;
 
-    const parsed = JSON.parse(raw) as { dataUrl?: string };
+    const parsed = JSON.parse(raw) as { dataUrl?: string; stateBufferBase64?: string };
     if (!parsed.dataUrl) return false;
 
     const imageData = await imageDataFromDataUrl(parsed.dataUrl);
+
+    // Restore the state buffer saved alongside the image
+    if (parsed.stateBufferBase64) {
+      const savedState = base64ToUint8(parsed.stateBufferBase64);
+      const len = Math.min(savedState.length, imageData.data.length);
+      imageData.data.set(savedState.subarray(0, len), 0);
+    }
+
     runtime.imageData = imageData;
     runtime.baked = bake(imageData);
     if (!runtime.scriptText) {
@@ -2426,6 +2465,11 @@ async function restoreLastRom(runtime: RuntimeState): Promise<boolean> {
     }
     switchEditorMode(runtime, "script");
     initPixelEditor(runtime);
+
+    if (parsed.stateBufferBase64 && runtime.pixelEditor) {
+      runtime.pixelEditor.setEngineBuffer(base64ToUint8(parsed.stateBufferBase64));
+    }
+
     restart(runtime);
     runtime.ui.mscStatus.textContent = "Restored last ROM from memory.";
     runtime.ui.mscStatus.style.color = "#6a9955";
@@ -2666,6 +2710,11 @@ async function applyPaletteColorToProjectImages(
       node.content = imageDataToDataUrl(runtime.imageData);
       node.imageWidth = runtime.imageData.width;
       node.imageHeight = runtime.imageData.height;
+      // Preserve the state buffer when updating colors
+      const stateBuf = runtime.pixelEditor?.getStateBuffer();
+      if (stateBuf) {
+        node.stateBufferBase64 = uint8ToBase64(stateBuf);
+      }
       updatedCount += 1;
       continue;
     }
@@ -3041,7 +3090,7 @@ function downloadCurrentFile(runtime: RuntimeState): void {
   showStatus(runtime, `Downloaded ${node.name}`, "var(--success)");
 }
 
-/** Download the current pixel editor image as PNG. */
+/** Download the current pixel editor image as PNG or MZK. */
 function downloadCurrentImage(runtime: RuntimeState): void {
   if (!runtime.imageData) {
     showStatus(runtime, "No image to download.", "var(--danger)");
@@ -3051,6 +3100,20 @@ function downloadCurrentImage(runtime: RuntimeState): void {
     ? findNode(runtime.project.root, runtime.project.activeFileId)
     : null;
   const fileName = node?.name ?? `sprite_${Date.now()}.png`;
+  const isMzk = fileName.endsWith(".mzk");
+
+  // For .mzk files, embed the state buffer as a barcode strip
+  if (isMzk) {
+    const stateBuf = runtime.pixelEditor?.getStateBuffer();
+    const stateBuffer = stateBuf ?? new Uint8ClampedArray(STATE_BUFFER_BYTES);
+    const dataUrl = buildMzkDataUrl(runtime.imageData, stateBuffer);
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = fileName;
+    link.click();
+    showStatus(runtime, `Downloaded ${fileName}`, "var(--success)");
+    return;
+  }
 
   const canvas = document.createElement("canvas");
   canvas.width = runtime.imageData.width;

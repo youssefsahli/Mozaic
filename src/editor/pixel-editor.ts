@@ -40,6 +40,7 @@
 
 import type { BakedAsset } from "../engine/baker.js";
 import type { MscDocument, MscEntity } from "../parser/msc.js";
+import { STATE_BUFFER_BYTES } from "../engine/memory.js";
 import type {
   CameraState,
   ToolType,
@@ -275,6 +276,18 @@ export class PixelEditor {
    */
   setEngineBuffer(buffer: Uint8ClampedArray | null): void {
     this.engineBuffer = buffer;
+  }
+
+  /**
+   * Return the current ECS state buffer.
+   * If a dedicated engine buffer is set, returns that; otherwise returns
+   * the first STATE_BUFFER_BYTES of the document imageData.
+   */
+  getStateBuffer(): Uint8ClampedArray | null {
+    if (this.engineBuffer) return this.engineBuffer;
+    if (!this.imageData) return null;
+    const len = Math.min(STATE_BUFFER_BYTES, this.imageData.data.length);
+    return new Uint8ClampedArray(this.imageData.data.buffer, 0, len);
   }
 
   /**
