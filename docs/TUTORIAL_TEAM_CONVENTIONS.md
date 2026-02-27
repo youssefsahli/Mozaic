@@ -1,20 +1,19 @@
 # Mozaic Tutorial: Team Conventions
 
-Use this guide to keep multi-contributor projects consistent and easy to maintain.
+Guidelines for keeping multi-contributor projects consistent and maintainable.
 
-## 1) Naming conventions
+## 1. Naming Conventions
 
-### Files and folders
-- Use lowercase names with underscores for scripts and assets.
-- Prefer descriptive names: `player_controller.msc` over `pc.msc`.
+### Files and Folders
+- Use lowercase with underscores: `player_controller.msc`, not `PC.msc`.
 - Group by responsibility: `scripts/`, `assets/`, `docs/`.
 
-### Entities and actions
-- Entity names: `PascalCase` (example: `Entity.Player`).
-- Action names: `Action.VerbNoun` (example: `Action.MoveLeft`).
-- Variable names: `$PascalOrCamel` but stay consistent per project.
+### Entities and Actions
+- Entity names: `PascalCase` — `Entity.Player`, `Entity.EnemySlime`.
+- Action names: `Action.VerbNoun` — `Action.MoveLeft`, `Action.Jump`, `Action.Interact`.
+- Variable names: `$camelCase` or `$PascalCase` — stay consistent within the project.
 
-## 2) Folder layout policy
+## 2. Folder Layout
 
 Recommended baseline:
 
@@ -34,56 +33,75 @@ project/
 
 Keep imports shallow when possible and avoid deep nesting unless required.
 
-## 3) Schema allocation policy
+## 3. Schema Allocation
 
-Reserve byte ranges by purpose and document them in one place.
+Reserve byte ranges by purpose and document them in one place:
 
-Suggested plan:
-- `64..127`: player/core loop vars
-- `128..191`: enemy/system vars
-- `192..255`: UI/meta vars
+| Range | Purpose |
+|-------|---------|
+| `64 – 127` | Player / core loop variables |
+| `128 – 191` | Enemy / system variables |
+| `192 – 255` | UI / meta variables |
 
 Rules:
 - Never overlap addresses between modules.
-- Add new variables by updating the team’s schema map first.
-- Keep Int16/Int24 aligned and clearly noted.
+- Update the team schema map before adding new variables.
+- Keep Int16/Int24 values aligned and clearly documented.
 
-## 4) Import and module boundaries
+## 4. Import Boundaries
 
-- Keep `main.msc` as composition root only.
+- Keep `main.msc` as the composition root.
 - Place reusable logic in focused modules.
-- Avoid cyclic imports by enforcing one-way dependencies.
+- Avoid cyclic imports — enforce one-way dependencies.
 
-Example composition:
-
-```msc
+```yaml
 Import: "movement/player"
 Import: "combat/damage"
 Import: "ui/hud"
 ```
 
-## 5) Asset-color conventions
+## 5. Component Conventions
 
-Because event triggers can depend on color regions, define shared color semantics:
-- `#FFFF00` = level collision surface
-- `#00FFFF` = hazard
-- `#FF00FF` = pickups
+When using components across the team, agree on standard configurations:
 
-Store this palette contract in team docs and avoid ad-hoc color reuse.
+```yaml
+# Standard hero setup
+Entity.Hero:
+  Kinematic: {}
+  Gravity: { force: 1 }
+  PlatformController: { speed: 2, jumpForce: 6 }
+  Health: { maxHp: 100 }
+  Camera: { zoom: 2, followSpeed: 0.1 }
+```
 
-## 6) Commit and review checklist
+See [docs/COMPONENTS.md](COMPONENTS.md) for the full component reference.
 
-Before merge:
-- File names follow project conventions.
-- Schema addresses are non-overlapping.
-- Imports resolve cleanly.
-- Affected tutorials/docs were updated if workflow changed.
-- In-editor docs entries in `public/docs/search-index.json` reflect new conventions.
+## 6. Color Conventions
 
-## 7) Onboarding mini-routine
+Because event triggers depend on color regions, define shared color semantics:
+
+| Color | Meaning |
+|-------|---------|
+| `#FFFF00` | Level collision surface |
+| `#00FFFF` | Hazard |
+| `#FF00FF` | Pickup |
+
+Document this palette contract in team docs and avoid ad-hoc color reuse.
+
+## 7. Review Checklist
+
+Before merging:
+- [ ] File names follow project conventions.
+- [ ] Schema addresses are non-overlapping.
+- [ ] Imports resolve cleanly.
+- [ ] Tutorials and docs updated if workflow changed.
+- [ ] In-editor docs in `public/docs/search-index.json` reflect any new conventions.
+
+## 8. Onboarding
 
 For each new teammate:
-1. Complete `docs/TUTORIAL.md`.
-2. Complete `docs/TUTORIAL_MULTIFILE.md`.
+1. Complete [docs/TUTORIAL.md](TUTORIAL.md).
+2. Complete [docs/TUTORIAL_MULTIFILE.md](TUTORIAL_MULTIFILE.md).
 3. Read this conventions guide.
-4. Ship one small feature using the shared schema/import policies.
+4. Browse the [component reference](COMPONENTS.md).
+5. Ship one small feature using the shared schema/import policies.

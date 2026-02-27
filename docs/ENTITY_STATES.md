@@ -1,114 +1,123 @@
 # Mozaic Entity State Reference
 
-State management in Mozaic allows entities to change their appearance and behavior dynamically based on conditions. States are defined within an entity block in your `.msc` file.
+Entities can change appearance and behavior dynamically based on conditions. States are defined within an entity block in your `.msc` file.
 
 ## 1. Defining States
 
-States are defined under the `States:` key in an entity definition. Each state has a unique name (e.g., `walking`, `jumping`) and a set of properties that override the entity's defaults when active.
+Add a `States:` key inside any entity definition. Each state has a name, a `condition`, and optional property overrides.
 
 ```yaml
 Entity.Player:
-  Visual: "hero_idle"      # Default visual
-  Kinematic: {}            # Default components
-  
+  Visual: "hero_idle"
+  Kinematic: {}
+  Gravity: { force: 1 }
+
   States:
-    # State Name
     moving:
-      # Condition to activate this state
       condition: "$vx != 0"
-      
-      # Overrides (Applied when state is active)
       Visual: "hero_run"
-      Gravity: { force: 2 }
 ```
 
 ## 2. How States Work
 
-*   **Evaluation Order:** States are evaluated from top to bottom every frame.
-*   **First Match Wins:** The engine uses the **first** state whose `condition` evaluates to `true`.
-*   **Fallback:** If no state conditions are met, the entity uses its base definition (default `Visual` and components).
+- **Evaluation order:** states are checked top to bottom every frame.
+- **First match wins:** the engine activates the first state whose condition is true.
+- **Fallback:** if no condition matches, the entity uses its base definition.
 
 ## 3. Writing Conditions
 
-Conditions are string expressions that return a boolean.
+Conditions are expressions that evaluate to true or false.
 
-**Operators:**
-*   Comparison: `==`, `!=`, `>`, `<`, `>=`, `<=`
-*   Logic: `||` (OR), `&&` (AND). Example: `$vx != 0 || $vy != 0`
+**Comparison operators:** `==`, `!=`, `>`, `<`, `>=`, `<=`
 
-**Variables:**
-You can reference two types of variables in conditions:
+**Logical operators:** `||` (OR), `&&` (AND)
 
-1.  **Local Component Variables** (prefixed with `$`)
-    *   Exposed by specific components attached to the entity.
-    *   *Example:* `$vx` (Velocity X), `$vy` (Velocity Y) are exposed by the `Kinematic` component.
-    
-    | Component | Variable | Description |
-    | :--- | :--- | :--- |
-    | **Kinematic** | `$vx`, `$vy` | Current velocity on X/Y axis |
-    | **Kinematic** | `$px`, `$py` | Current position on X/Y axis |
+```yaml
+condition: "$vx != 0 || $vy != 0"
+```
 
-2.  **Global Schema Variables** (prefixed with `State.` or `$`)
-    *   Defined in your `Schema:` block.
-    *   Shared across the entire game.
-    *   *Example:* `State.$isGamePaused`, `$playerHealth`
+### Variables
+
+#### Local context variables (prefixed with `$`)
+
+These are exposed by specific components attached to the entity:
+
+| Component | Variable | Description |
+|-----------|----------|-------------|
+| **Kinematic** | `$vx` | Current X velocity |
+| **Kinematic** | `$vy` | Current Y velocity |
+| **Kinematic** | `$px` | Current X position |
+| **Kinematic** | `$py` | Current Y position |
+| **Health** | `$hp` | Current health |
+| **Health** | `$maxHp` | Maximum health |
+| **PlatformController** | `$isGrounded` | `1` if on a surface, `0` if airborne |
+| **PlatformController** | `$vy` | Current Y velocity |
+| **Interactable** | `$triggered` | `1` if triggered this frame |
+| **AreaTrigger** | `$triggered` | `1` if an entity is inside the area |
+
+#### Global schema variables (prefixed with `State.` or `$`)
+
+Defined in your `Schema:` block and shared across the entire game:
+
+```yaml
+Schema:
+  - $isGamePaused: { addr: 64, type: Int8 }
+```
+
+Use as: `State.$isGamePaused` or `$isGamePaused`
 
 ## 4. Overriding Properties
 
 When a state is active, it can override:
-*   **Visual:** Changes the sprite/animation.
-    ```yaml
-    Visual: "hero_jump"
-    ```
-*   **Components:** Updates or adds component properties.
-    ```yaml
-    # Disable gravity while in this state
-    Gravity: { force: 0 }
-    
-    # Change movement speed
-    TopDownController: { speed: 5 }
-    ```
+
+**Visual** — change the sprite:
+
+```yaml
+Visual: "hero_jump"
+```
+
+**Components** — update or add component properties:
+
+```yaml
+Gravity: { force: 0 }
+TopDownController: { speed: 5 }
+```
 
 ## 5. Complete Example
 
-Here is a robust example of a player entity with multiple states (Idle, Moving, Jumping).
-
 ```yaml
 Schema:
-  $isGamePaused: Int8
+  - $isGamePaused: { addr: 64, type: Int8 }
 
 Entity.Hero:
   Visual: "hero_idle"
   Kinematic: {}
-  PlatformerController: { speed: 2, jumpForce: 6 }
+  PlatformController: { speed: 2, jumpForce: 6 }
   Gravity: { force: 1 }
 
   States:
-    # 1. High Priority: Paused (Global var check)
     paused:
       condition: "$isGamePaused == 1"
       Visual: "hero_idle"
-      PlatformerController: { speed: 0, jumpForce: 0 }
+      PlatformController: { speed: 0, jumpForce: 0 }
       Gravity: { force: 0 }
 
-    # 2. Jumping (Local var check via Kinematic)
     jumping:
       condition: "$vy < 0"
       Visual: "hero_jump"
 
-    # 3. Falling
     falling:
       condition: "$vy > 0"
       Visual: "hero_fall"
 
-    # 4. Moving (Horizontal velocity check)
     running:
       condition: "$vx != 0"
       Visual: "hero_run"
 ```
 
-## 6. Pro-Tips
+## 6. Tips
 
-*   **Order Matters:** Put your most important states (like `dead` or `stunned`) at the top of the list.
-*   **Debug Variables:** If a state isn't triggering, check if the component exposing the variable (like `Kinematic`) is actually attached to the entity.
-*   **Performance:** State conditions are evaluated every frame for every active entity, so keep expressions simple.
+- **Order matters** — put critical states (`dead`, `stunned`) at the top.
+- **Debug variables** — if a state isn't triggering, check that the component exposing the variable (like `Kinematic`) is attached to the entity.
+- **Keep conditions simple** — they run every frame for every active entity.
+- See [docs/COMPONENTS.md](COMPONENTS.md) for the full list of components and their exposed variables.
