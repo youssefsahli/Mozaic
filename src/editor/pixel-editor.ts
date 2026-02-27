@@ -680,10 +680,12 @@ export class PixelEditor {
       const rect = trigger.getBoundingClientRect();
       const dd = dropdown as HTMLElement;
       dd.style.top = `${rect.bottom + 2}px`;
-      // Clamp to viewport right edge
-      const left = Math.min(rect.left, window.innerWidth - 190);
-      dd.style.left = `${Math.max(0, left)}px`;
+      // Temporarily show to measure, then clamp to viewport right edge
+      dd.style.left = "0px";
       dd.classList.add("is-open");
+      const ddWidth = dd.offsetWidth || 180;
+      const left = Math.min(rect.left, window.innerWidth - ddWidth - 4);
+      dd.style.left = `${Math.max(0, left)}px`;
       trigger.classList.add("is-open");
     };
 
@@ -1005,8 +1007,7 @@ export class PixelEditor {
     // Color picker change
     refs.pixelColor.addEventListener("input", () => {
       this.brush.color = refs.pixelColor.value;
-      refs.pxActiveColorHex?.textContent !== undefined &&
-        (refs.pxActiveColorHex!.textContent = refs.pixelColor.value);
+      if (refs.pxActiveColorHex) refs.pxActiveColorHex.textContent = refs.pixelColor.value;
     });
 
     // Menu bar: Edit menu items
