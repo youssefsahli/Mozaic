@@ -126,6 +126,17 @@ export interface PixelEditorRefs {
   paletteUpdateButton: HTMLButtonElement | null;
   entityBrushButton: HTMLButtonElement | null;
   resizePixelButton: HTMLButtonElement | null;
+  // Menu bar elements
+  pxMenuImportImg: HTMLButtonElement | null;
+  pxMenuUndo: HTMLButtonElement | null;
+  pxMenuRedo: HTMLButtonElement | null;
+  pxMenuClear: HTMLButtonElement | null;
+  pxMenuCopy: HTMLButtonElement | null;
+  pxMenuCut: HTMLButtonElement | null;
+  pxMenuPaste: HTMLButtonElement | null;
+  pxMenuSelectAll: HTMLButtonElement | null;
+  pxMenuDeselect: HTMLButtonElement | null;
+  pxActiveColorHex: HTMLElement | null;
 }
 
 /** Callbacks from the pixel editor back to the main app. */
@@ -579,6 +590,7 @@ export class PixelEditor {
 
   private handleColorPicked(hex: string): void {
     this.refs.pixelColor.value = hex;
+    if (this.refs.pxActiveColorHex) this.refs.pxActiveColorHex.textContent = hex;
     addColor(this.palette, hex);
     this.brush.color = hex;
     // Set active index to the picked color
@@ -597,6 +609,7 @@ export class PixelEditor {
         this.palette.activeIndex = index;
         const color = getActiveColor(this.palette);
         this.refs.pixelColor.value = color;
+        if (this.refs.pxActiveColorHex) this.refs.pxActiveColorHex.textContent = color;
         this.brush.color = color;
         this.renderPalette();
       },
@@ -659,10 +672,78 @@ export class PixelEditor {
     this.refs.zoomLevel.textContent = `${this.camera.zoom}\u00d7`;
   }
 
+  // ── Menu bar management ───────────────────────────────────
+
+  private wireMenuBar(): void {
+    // Position and open a dropdown below its trigger
+    const openDropdown = (trigger: HTMLElement, dropdown: Element) => {
+      const rect = trigger.getBoundingClientRect();
+      const dd = dropdown as HTMLElement;
+      dd.style.top = `${rect.bottom + 2}px`;
+      // Clamp to viewport right edge
+      const left = Math.min(rect.left, window.innerWidth - 190);
+      dd.style.left = `${Math.max(0, left)}px`;
+      dd.classList.add("is-open");
+      trigger.classList.add("is-open");
+    };
+
+    // Close all dropdowns
+    const closeAll = () => {
+      document.querySelectorAll(".px-menu-dropdown.is-open").forEach((d) =>
+        d.classList.remove("is-open")
+      );
+      document.querySelectorAll(".px-menu-trigger.is-open").forEach((t) =>
+        t.classList.remove("is-open")
+      );
+    };
+
+    // Toggle a specific menu
+    document.querySelectorAll(".px-menu-trigger").forEach((trigger) => {
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const dropdown = (trigger as HTMLElement).nextElementSibling;
+        const isOpen = dropdown?.classList.contains("is-open");
+        closeAll();
+        if (!isOpen && dropdown) {
+          openDropdown(trigger as HTMLElement, dropdown);
+        }
+      });
+    });
+
+    // Hovering over another trigger while one menu is open should switch
+    document.querySelectorAll(".px-menu-trigger").forEach((trigger) => {
+      trigger.addEventListener("mouseenter", () => {
+        const anyOpen = document.querySelector(".px-menu-dropdown.is-open");
+        if (anyOpen) {
+          closeAll();
+          const dropdown = (trigger as HTMLElement).nextElementSibling;
+          if (dropdown) {
+            openDropdown(trigger as HTMLElement, dropdown);
+          }
+        }
+      });
+    });
+
+    // Close menus on outside click
+    document.addEventListener("click", (e) => {
+      if (!(e.target as HTMLElement).closest(".px-menu-anchor")) {
+        closeAll();
+      }
+    });
+
+    // Close menus when a menu item is clicked
+    document.querySelectorAll(".px-menu-item").forEach((item) => {
+      item.addEventListener("click", () => closeAll());
+    });
+  }
+
   // ── UI event wiring ───────────────────────────────────────
 
   private wireUiEvents(): void {
     const { refs } = this;
+
+    // Wire up the menu bar
+    this.wireMenuBar();
 
     // Palette add
     refs.paletteAddButton.addEventListener("click", () => {
@@ -893,6 +974,23 @@ export class PixelEditor {
         return;
       }
 
+      // Ctrl+A — select all
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        if (this.imageData) {
+          e.preventDefault();
+          this.selectAll();
+        }
+        return;
+      }
+
+      // Escape — deselect
+      if (e.key === "Escape") {
+        if (this.selection) {
+          this.deselect();
+          return;
+        }
+      }
+
       // Tool shortcuts
       switch (e.key.toLowerCase()) {
         case "b": this.setTool(0 as ToolType); break;
@@ -907,12 +1005,77 @@ export class PixelEditor {
     // Color picker change
     refs.pixelColor.addEventListener("input", () => {
       this.brush.color = refs.pixelColor.value;
+      refs.pxActiveColorHex?.textContent !== undefined &&
+        (refs.pxActiveColorHex!.textContent = refs.pixelColor.value);
     });
+
+    // Menu bar: Edit menu items
+    refs.pxMenuUndo?.addEventListener("click", () => this.undo());
+    refs.pxMenuRedo?.addEventListener("click", () => this.redo());
+    refs.pxMenuClear?.addEventListener("click", () => {
+      if (!this.imageData) return;
+      this.history.pushSnapshot(this.imageData);
+      this.imageData.data.fill(0);
+      this.baked = this.callbacks.onBake(this.imageData);
+      this.updateHistoryButtons();
+      this.renderAll();
+      this.callbacks.onPersist();
+    });
+
+    // Menu bar: Selection menu items
+    refs.pxMenuCopy?.addEventListener("click", () => {
+      if (this.selection && this.imageData) {
+        this.clipboard = copySelection(this.imageData, this.selection);
+        this.callbacks.onStatusMessage("Selection copied.", "#6a9955");
+      }
+    });
+    refs.pxMenuCut?.addEventListener("click", () => {
+      if (this.selection && this.imageData) {
+        this.clipboard = copySelection(this.imageData, this.selection);
+        this.history.pushSnapshot(this.imageData);
+        clearSelection(this.imageData, this.selection);
+        this.baked = this.callbacks.onBake(this.imageData);
+        this.callbacks.onPersist();
+        this.renderAll();
+        this.updateHistoryButtons();
+        this.callbacks.onStatusMessage("Selection cut.", "#6a9955");
+      }
+    });
+    refs.pxMenuPaste?.addEventListener("click", () => {
+      if (this.clipboard && this.imageData) {
+        this.history.pushSnapshot(this.imageData);
+        const destX = this.selection?.x ?? 0;
+        const destY = this.selection?.y ?? 0;
+        pasteClipboard(this.imageData, this.clipboard, destX, destY);
+        this.baked = this.callbacks.onBake(this.imageData);
+        this.callbacks.onPersist();
+        this.renderAll();
+        this.updateHistoryButtons();
+      }
+    });
+    refs.pxMenuSelectAll?.addEventListener("click", () => this.selectAll());
+    refs.pxMenuDeselect?.addEventListener("click", () => this.deselect());
 
     // Initial palette render
     this.renderPalette();
     this.updateToolButtonStates();
     this.updateHistoryButtons();
+  }
+
+  // ── Selection helpers ─────────────────────────────────────
+
+  private selectAll(): void {
+    if (!this.imageData) return;
+    this.selection = { x: 0, y: 0, w: this.imageData.width, h: this.imageData.height };
+    this.setTool(3 as ToolType);
+    this.renderAll();
+    this.callbacks.onStatusMessage("Selected all.", "#6a9955");
+  }
+
+  private deselect(): void {
+    this.selection = null;
+    if (this.layers) clearDraft(this.layers);
+    this.renderAll();
   }
 }
 
