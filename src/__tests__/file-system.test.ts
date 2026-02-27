@@ -388,3 +388,54 @@ describe("file type routing", () => {
     expect(mzkFile!.fileType).toBe("image");
   });
 });
+
+// ── State buffer encoding helpers ────────────────────────────
+
+import { uint8ToBase64, base64ToUint8 } from "../editor/file-system.js";
+
+describe("uint8ToBase64 / base64ToUint8", () => {
+  it("round-trips an empty buffer", () => {
+    const original = new Uint8ClampedArray(0);
+    const encoded = uint8ToBase64(original);
+    const decoded = base64ToUint8(encoded);
+    expect(decoded.length).toBe(0);
+  });
+
+  it("round-trips a small buffer with known values", () => {
+    const original = new Uint8ClampedArray([0, 1, 127, 128, 255]);
+    const encoded = uint8ToBase64(original);
+    const decoded = base64ToUint8(encoded);
+    expect(decoded).toEqual(original);
+  });
+
+  it("round-trips a 16KB state buffer byte-for-byte", () => {
+    const original = new Uint8ClampedArray(16384);
+    for (let i = 0; i < original.length; i++) {
+      original[i] = i & 0xff;
+    }
+    const encoded = uint8ToBase64(original);
+    const decoded = base64ToUint8(encoded);
+    expect(decoded.length).toBe(original.length);
+    for (let i = 0; i < original.length; i++) {
+      expect(decoded[i]).toBe(original[i]);
+    }
+  });
+
+  it("preserves zero-alpha pixel data that Canvas 2D would corrupt", () => {
+    // Simulate entity data: (Active=1, TypeID=2, PosX_high=0, PosX_low=0)
+    // Alpha=0 would cause Canvas 2D premultiplied-alpha corruption
+    const original = new Uint8ClampedArray([1, 2, 0, 0, 5, 10, 15, 0]);
+    const encoded = uint8ToBase64(original);
+    const decoded = base64ToUint8(encoded);
+    expect(decoded).toEqual(original);
+  });
+
+  it("stateBufferBase64 field can be stored on a FileNode", () => {
+    const stateBuffer = new Uint8ClampedArray([0xDE, 0xAD, 0xBE, 0xEF]);
+    const node = createImageFile("test.mzk", "data:image/png;base64,AA", 64, 64);
+    node.stateBufferBase64 = uint8ToBase64(stateBuffer);
+    expect(node.stateBufferBase64).toBeDefined();
+    const decoded = base64ToUint8(node.stateBufferBase64!);
+    expect(decoded).toEqual(stateBuffer);
+  });
+});

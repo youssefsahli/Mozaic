@@ -86,6 +86,46 @@ export function buildDataStrip(
 // ── Main export function ─────────────────────────────────────
 
 /**
+ * Build an MZK-format dataURL from an ImageData and state buffer.
+ *
+ * Returns a PNG dataURL containing the visual image with an appended
+ * barcode strip that encodes the ECS state buffer.
+ */
+export function buildMzkDataUrl(
+  imageData: ImageData,
+  stateBuffer: Uint8ClampedArray,
+): string {
+  const canvasWidth = imageData.width;
+  const canvasHeight = imageData.height;
+
+  const { extraRows, totalHeight } = calcExportDimensions(
+    canvasWidth,
+    canvasHeight,
+    stateBuffer.length,
+  );
+
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = canvasWidth;
+  exportCanvas.height = totalHeight;
+  const ctx = exportCanvas.getContext("2d");
+  if (!ctx) return "";
+
+  // Write the visual image using putImageData (bypasses premultiplied alpha)
+  ctx.putImageData(imageData, 0, 0);
+
+  // Write the data barcode strip
+  const stripData = buildDataStrip(canvasWidth, extraRows, stateBuffer);
+  const stripImage = new ImageData(
+    new Uint8ClampedArray(stripData.buffer as ArrayBuffer),
+    canvasWidth,
+    extraRows,
+  );
+  ctx.putImageData(stripImage, 0, canvasHeight);
+
+  return exportCanvas.toDataURL("image/png");
+}
+
+/**
  * Export the visual canvas and ECS state buffer as a downloadable
  * `.mzk` file (PNG image with an appended data barcode).
  *
