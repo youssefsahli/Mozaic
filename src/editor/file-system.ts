@@ -407,11 +407,8 @@ export async function dataUrlToImageData(dataUrl: string): Promise<ImageData> {
 
 /** Encode a Uint8ClampedArray to a base64 string. */
 export function uint8ToBase64(bytes: Uint8ClampedArray): string {
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
+  const chars = Array.from(bytes, (b) => String.fromCharCode(b));
+  return btoa(chars.join(""));
 }
 
 /** Decode a base64 string back to a Uint8ClampedArray. */

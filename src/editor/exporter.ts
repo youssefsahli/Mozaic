@@ -107,7 +107,8 @@ export function buildMzkDataUrl(
   const exportCanvas = document.createElement("canvas");
   exportCanvas.width = canvasWidth;
   exportCanvas.height = totalHeight;
-  const ctx = exportCanvas.getContext("2d")!;
+  const ctx = exportCanvas.getContext("2d");
+  if (!ctx) return "";
 
   // Write the visual image using putImageData (bypasses premultiplied alpha)
   ctx.putImageData(imageData, 0, 0);
