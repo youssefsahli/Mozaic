@@ -50,6 +50,18 @@ export interface ProjectFiles {
 // ── Constants ────────────────────────────────────────────────
 
 const STORAGE_KEY = "mozaic:project-files";
+const RECENTS_KEY = "mozaic:recent-projects";
+const MAX_RECENTS = 8;
+
+/** A snapshot of a project stored in the recents list. */
+export interface RecentProject {
+  /** Display name (project root folder name). */
+  name: string;
+  /** ISO timestamp when the project was saved. */
+  savedAt: string;
+  /** Full serialized ProjectFiles JSON string. */
+  projectJson: string;
+}
 
 let _nextId = 1;
 function generateId(): string {
@@ -419,4 +431,65 @@ export function base64ToUint8(base64: string): Uint8ClampedArray {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes;
+}
+
+// ── Recent projects ──────────────────────────────────────────
+
+/** Load the list of recent projects from localStorage. */
+export function loadRecentProjects(): RecentProject[] {
+  try {
+    const raw = localStorage.getItem(RECENTS_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as RecentProject[];
+  } catch {
+    return [];
+  }
+}
+
+/** Save the recents list to localStorage. */
+function saveRecentProjects(recents: RecentProject[]): void {
+  try {
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(recents));
+  } catch (e) {
+    console.warn("Mozaic: failed to persist recent projects:", e);
+  }
+}
+
+/**
+ * Push the current project onto the recents list.
+ * Keeps at most MAX_RECENTS entries, dropping the oldest.
+ */
+export function pushRecentProject(project: ProjectFiles): void {
+  const recents = loadRecentProjects();
+  const entry: RecentProject = {
+    name: project.root.name,
+    savedAt: new Date().toISOString(),
+    projectJson: JSON.stringify(project),
+  };
+  // Remove duplicate if same project name already exists
+  const filtered = recents.filter((r) => r.name !== entry.name);
+  filtered.unshift(entry);
+  saveRecentProjects(filtered.slice(0, MAX_RECENTS));
+}
+
+/** Clear all recent projects. */
+export function clearRecentProjects(): void {
+  try {
+    localStorage.removeItem(RECENTS_KEY);
+  } catch (e) {
+    console.warn("Mozaic: failed to clear recent projects:", e);
+  }
+}
+
+/** Restore a RecentProject back into a live ProjectFiles object. */
+export function restoreRecentProject(recent: RecentProject): ProjectFiles | null {
+  try {
+    const project = JSON.parse(recent.projectJson) as ProjectFiles;
+    if (project.projectWidth == null) project.projectWidth = 256;
+    if (project.projectHeight == null) project.projectHeight = 256;
+    fixImageFileTypes(project.root);
+    return project;
+  } catch {
+    return null;
+  }
 }

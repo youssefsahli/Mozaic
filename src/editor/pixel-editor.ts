@@ -208,6 +208,17 @@ export class PixelEditor {
   /** Set the document image data (called when a ROM is loaded). */
   setImageData(imageData: ImageData): void {
     this.imageData = imageData;
+
+    // Clear stale state from the previous image so data never leaks
+    // between files (e.g. engineBuffer from Image A being saved into
+    // Image B after a file-tree switch).
+    this.engineBuffer = null;
+    this.script = null;
+    this.entityDefs = {};
+    this.activeEntityType = null;
+    this.selection = null;
+    this.baked = null;
+
     this.history.clear();
     this.updateHistoryButtons();
 

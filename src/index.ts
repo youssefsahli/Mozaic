@@ -35,6 +35,7 @@ import { getPresetNames } from "./editor/palette.js";
 import {
   type FileNode,
   type ProjectFiles,
+  type RecentProject,
   createDefaultProject,
   createNewProject,
   MIN_PROJECT_DIMENSION,
@@ -54,6 +55,10 @@ import {
   hasImageExtension,
   uint8ToBase64,
   base64ToUint8,
+  loadRecentProjects,
+  pushRecentProject,
+  clearRecentProjects,
+  restoreRecentProject,
 } from "./editor/file-system.js";
 import { FileTreeView } from "./editor/file-tree-view.js";
 import {
@@ -116,6 +121,10 @@ interface UiRefs {
   newRomMenu: HTMLDivElement;
   newRomPalette: HTMLSelectElement;
   openRomButton: HTMLButtonElement;
+  openRecentsButton: HTMLButtonElement;
+  openRecentsMenu: HTMLDivElement;
+  recentsList: HTMLDivElement;
+  clearRecentsBtn: HTMLButtonElement;
   openScriptButton: HTMLButtonElement;
   openConfigButton: HTMLButtonElement;
   toggleDocsButton: HTMLButtonElement;
@@ -370,6 +379,10 @@ function getUiRefs(): UiRefs {
     newRomMenu: requiredElement<HTMLDivElement>("new-rom-menu"),
     newRomPalette: requiredElement<HTMLSelectElement>("new-rom-palette"),
     openRomButton: requiredElement<HTMLButtonElement>("open-rom-button"),
+    openRecentsButton: requiredElement<HTMLButtonElement>("open-recents-button"),
+    openRecentsMenu: requiredElement<HTMLDivElement>("open-recents-menu"),
+    recentsList: requiredElement<HTMLDivElement>("recents-list"),
+    clearRecentsBtn: requiredElement<HTMLButtonElement>("clear-recents-btn"),
     openScriptButton: requiredElement<HTMLButtonElement>("open-script-button"),
     openConfigButton: requiredElement<HTMLButtonElement>("open-config-button"),
     toggleDocsButton: requiredElement<HTMLButtonElement>("toggle-docs-button"),
@@ -1035,6 +1048,24 @@ function wireUi(runtime: RuntimeState): void {
     });
   });
   ui.openRomButton.addEventListener("click", () => romInput.click());
+
+  // Open Recents dropdown
+  ui.openRecentsButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    populateRecentsMenu(runtime);
+    ui.openRecentsMenu.classList.toggle("is-open");
+  });
+  document.addEventListener("click", () => {
+    ui.openRecentsMenu.classList.remove("is-open");
+  });
+  ui.openRecentsMenu.addEventListener("click", (e) => {
+    e.stopPropagation();
+  });
+  ui.clearRecentsBtn.addEventListener("click", () => {
+    clearRecentProjects();
+    ui.openRecentsMenu.classList.remove("is-open");
+    showStatus(runtime, "Recent projects cleared.", "var(--success)");
+  });
   ui.openScriptButton.addEventListener("click", () => {
     switchEditorMode(runtime, "script");
     scriptInput.click();
@@ -2187,6 +2218,13 @@ function createNewRom(
 ): void {
   const { newRomWidth, newRomHeight, newRomColor } = runtime.config.game;
 
+  // Save the current project into "recents" before wiping
+  saveActiveFileContent(runtime);
+  const hasFiles = collectFiles(runtime.project.root).length > 0;
+  if (hasFiles) {
+    pushRecentProject(runtime.project);
+  }
+
   // Generate image based on variant
   switch (variant) {
     case "amiga":
@@ -2205,6 +2243,7 @@ function createNewRom(
   persistScript(runtime.scriptText);
 
   // Clear old project and create fresh one
+  runtime.openFileIds = [];
   const freshProject = createDefaultProject();
   runtime.project.root = freshProject.root;
   runtime.project.activeFileId = freshProject.activeFileId;
@@ -2225,6 +2264,11 @@ function createNewRom(
   saveProject(runtime.project);
   runtime.fileTreeView?.render();
 
+  // Wipe the old ROM cache so it doesn't interfere with the fresh project
+  try { localStorage.removeItem(LAST_ROM_STORAGE_KEY); } catch (e) {
+    console.warn("Mozaic: failed to clear ROM cache:", e);
+  }
+
   // Apply palette if specified
   if (paletteName && runtime.pixelEditor) {
     runtime.pixelEditor.loadPalettePreset(paletteName);
@@ -2234,6 +2278,7 @@ function createNewRom(
   initPixelEditor(runtime);
   schedulePersistRom(runtime);
   restart(runtime);
+  renderEditorTabs(runtime);
   const variantLabel = variant === "amiga" ? "Amiga Demo" : variant === "checkerboard" ? "Checkerboard" : "Empty ROM";
   runtime.ui.mscStatus.textContent = `New ${runtime.imageData.width}×${runtime.imageData.height} ROM created (${variantLabel}).`;
   runtime.ui.mscStatus.style.color = "#6a9955";
@@ -2477,6 +2522,83 @@ async function restoreLastRom(runtime: RuntimeState): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+// ── Recent projects UI ────────────────────────────────────────
+
+function populateRecentsMenu(runtime: RuntimeState): void {
+  const list = runtime.ui.recentsList;
+  list.innerHTML = "";
+  const recents = loadRecentProjects();
+  if (recents.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "ftv-dropdown-item";
+    empty.style.opacity = "0.5";
+    empty.style.cursor = "default";
+    empty.textContent = "No recent projects";
+    list.appendChild(empty);
+    return;
+  }
+  for (const recent of recents) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ftv-dropdown-item";
+    const label = document.createElement("span");
+    label.className = "ftv-dropdown-label";
+    label.textContent = recent.name;
+    const hint = document.createElement("span");
+    hint.className = "ftv-dropdown-hint";
+    hint.textContent = new Date(recent.savedAt).toLocaleDateString();
+    btn.appendChild(label);
+    btn.appendChild(hint);
+    btn.addEventListener("click", () => {
+      runtime.ui.openRecentsMenu.classList.remove("is-open");
+      openRecentProject(runtime, recent);
+    });
+    list.appendChild(btn);
+  }
+}
+
+function openRecentProject(runtime: RuntimeState, recent: RecentProject): void {
+  const restored = restoreRecentProject(recent);
+  if (!restored) {
+    showStatus(runtime, "Failed to restore project.", "var(--danger)");
+    return;
+  }
+
+  // Save current project into recents before switching
+  saveActiveFileContent(runtime);
+  const hasFiles = collectFiles(runtime.project.root).length > 0;
+  if (hasFiles) {
+    pushRecentProject(runtime.project);
+  }
+
+  // Swap in the restored project
+  runtime.project.root = restored.root;
+  runtime.project.activeFileId = restored.activeFileId;
+  runtime.project.entryPointId = restored.entryPointId;
+  runtime.project.projectWidth = restored.projectWidth;
+  runtime.project.projectHeight = restored.projectHeight;
+  runtime.openFileIds = [];
+  saveProject(runtime.project);
+
+  runtime.fileTreeView?.setProject(runtime.project);
+  runtime.fileTreeView?.render();
+
+  // Open the active file (if any), falling back to first available
+  const activeNode = restored.activeFileId
+    ? findNode(restored.root, restored.activeFileId)
+    : null;
+  const firstFile = activeNode ?? collectFiles(restored.root)[0] ?? null;
+  if (firstFile) {
+    void openFileNode(runtime, firstFile, true);
+  } else {
+    runtime.scriptText = "";
+    runtime.imageData = null;
+    switchEditorMode(runtime, "script");
+  }
+  renderEditorTabs(runtime);
+  showStatus(runtime, `Opened recent project: ${recent.name}`, "var(--success)");
 }
 
 async function imageDataFromDataUrl(dataUrl: string): Promise<ImageData> {
