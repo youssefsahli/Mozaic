@@ -450,6 +450,17 @@ function getEditorRefs(ui: UiRefs): PixelEditorRefs {
     paletteUpdateButton: document.getElementById("palette-update-button") as HTMLButtonElement | null,
     entityBrushButton: document.getElementById("entity-brush-button") as HTMLButtonElement | null,
     resizePixelButton: ui.resizePixelButton,
+    // Menu bar elements
+    pxMenuImportImg: document.getElementById("px-menu-import-img") as HTMLButtonElement | null,
+    pxMenuUndo: document.getElementById("px-menu-undo") as HTMLButtonElement | null,
+    pxMenuRedo: document.getElementById("px-menu-redo") as HTMLButtonElement | null,
+    pxMenuClear: document.getElementById("px-menu-clear") as HTMLButtonElement | null,
+    pxMenuCopy: document.getElementById("px-menu-copy") as HTMLButtonElement | null,
+    pxMenuCut: document.getElementById("px-menu-cut") as HTMLButtonElement | null,
+    pxMenuPaste: document.getElementById("px-menu-paste") as HTMLButtonElement | null,
+    pxMenuSelectAll: document.getElementById("px-menu-select-all") as HTMLButtonElement | null,
+    pxMenuDeselect: document.getElementById("px-menu-deselect") as HTMLButtonElement | null,
+    pxActiveColorHex: document.getElementById("px-active-color-hex") as HTMLElement | null,
   };
 }
 
@@ -1048,6 +1059,23 @@ function wireUi(runtime: RuntimeState): void {
     );
   });
 
+  // Palette preset button (pixel editor menu bar → Palette → Load Preset)
+  ui.palettePresetButton.addEventListener("click", () => {
+    const names = getPresetNames();
+    const options = names.map((n) => `<option value="${n}">${n}</option>`).join("");
+    showModal(
+      "Load Palette Preset",
+      `<div class="modal-row"><label>Preset:</label><select id="modal-palette-preset" style="flex:1;padding:2px 4px;font:inherit;background:var(--surface-3);border:1px solid var(--border);color:var(--text);border-radius:var(--radius)">${options}</select></div>`,
+      () => {
+        const sel = document.getElementById("modal-palette-preset") as HTMLSelectElement;
+        if (sel?.value) {
+          runtime.pixelEditor?.loadPalettePreset(sel.value);
+          showStatus(runtime, `Loaded palette: ${sel.value}`, "var(--success)");
+        }
+      }
+    );
+  });
+
   // Ctrl+S shortcut
   window.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
@@ -1067,6 +1095,10 @@ function wireUi(runtime: RuntimeState): void {
       restart(runtime);
     }
   });
+
+  // Import Image menu item (pixel editor menu bar)
+  const pxMenuImportImg = document.getElementById("px-menu-import-img");
+  pxMenuImportImg?.addEventListener("click", () => romInput.click());
 
   romInput.addEventListener("change", async () => {
     const file = romInput.files?.[0];
