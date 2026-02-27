@@ -1,132 +1,111 @@
-# MOZAIC ENGINE: Technical Architecture & Implementation Plan
-Version: 1.2.0 (Technical Deep-Dive)
+# Mozaic Architecture
 
-This document is the implementation blueprint for the Mozaic Engine and SpriteROM compiler. It defines memory layout, bake/runtime pipelines, AST contract, and the development roadmap.
+Technical architecture of the Mozaic engine and SpriteROM runtime.
 
-## 1. Internal Memory Structure (State Buffer)
-Mozaic uses a functional state model: all runtime game state lives in a `Uint8ClampedArray` backed by RGBA pixel memory.
+## 1. Memory Layout (State Buffer)
 
-### A. 64x64 State Grid
-A 64x64 RGBA grid contains `16,384` bytes (`64 * 64 * 4`).
+All runtime state lives in a single `Uint8ClampedArray` backed by a 64×64 RGBA pixel grid (16,384 bytes).
 
-| Block Name | Byte Range | Pixel Range | Purpose |
-| --- | --- | --- | --- |
-| Header Block | `0 - 63` | `[0,0]` to `[15,0]` | Engine version, current scene ID, RNG seed |
-| Global Regs | `64 - 511` | `[16,0]` to `[63,1]` | Global variables (`$Score`, `$Time`, flags) |
-| Entity Pool | `512 - 12287` | `[0,2]` to `[63,47]` | Fixed-size slots for active objects |
-| Audio/FX State | `12288 - 16383` | `[0,48]` to `[63,63]` | Sequencer heads, camera shake vectors |
+| Region | Byte Range | Purpose |
+|--------|-----------|---------|
+| Header | `0 – 63` | Engine version, scene ID, RNG seed |
+| Globals | `64 – 511` | Schema variables (`$Score`, `$Time`, flags) |
+| Entity Pool | `512 – 12287` | Fixed-size slots for active entities |
+| Audio/FX | `12288 – 16383` | Sequencer heads, camera shake offsets |
 
-### B. Data Encoding
-- Int8: stored in `R`
-- Int16: stored in `R,G` as `value = (R << 8) | G`
-- Int24: stored in `R,G,B`
+### Data Encoding
+- **Int8** — single byte (`R` channel)
+- **Int16** — two bytes (`R,G`), value = `(R << 8) | G`
+- **Int24** — three bytes (`R,G,B`)
 
-## 2. Engine Pipelines
+## 2. Pipelines
 
-### Pipeline A: Bake (Initialization)
-Triggered once on load or when editor assets change.
-1. Asset fetch (`.mzk`, `.msc`) into memory buffers.
-2. `.msc` parsing into AST JSON.
-3. Collision extraction via Marching Squares + simplification (RDP), cached as polygons.
-4. Path extraction via color channels to Catmull-Rom/Bezier path cache.
+### Bake (Initialization)
+Runs once on load or when editor assets change.
 
-### Pipeline B: Runtime Tick (60 FPS)
-Triggered by `requestAnimationFrame`.
-1. Poll hardware input and map to actions.
-2. Physics broad phase (AABB) then narrow phase (polygon intersections).
-3. Dispatch events and evaluate AST actions.
-4. Produce next immutable state buffer.
-5. Render via WebGL and advance sequencer tick.
+1. Fetch `.mzk` / `.msc` assets into memory buffers.
+2. Parse `.msc` source into an AST via the parser.
+3. Extract collision polygons (Marching Squares + RDP simplification).
+4. Extract Bezier / Catmull-Rom path splines from color channels.
+5. Scan audio sequencer grids.
 
-## 3. AST Contract
-Runtime executes structured AST data only; it does not parse `.msc` text during gameplay.
+### Runtime Tick (60 FPS)
+Runs every frame via `requestAnimationFrame`.
 
-```json
-{
-  "type": "EventDefinition",
-  "trigger": "Collision",
-  "participants": ["Hero:#Feet", "Level:#FFFF00"],
-  "actions": [
-    {
-      "command": "State.Write",
-      "target": "$Player_Grounded",
-      "value": 1
-    }
-  ]
-}
-```
+1. **Sample** — poll keyboard/gamepad input, map to actions.
+2. **Process** — run broad-phase (AABB) and narrow-phase (polygon) collision checks.
+3. **Evaluate** — execute component ticks and script rules against the state buffer.
+4. **Write** — produce the next immutable state buffer.
+5. **Render** — push state to WebGL and advance audio sequencer.
 
-## 4. Implementation Roadmap
+### AST Contract
+The runtime executes structured AST data only — no `.msc` text is parsed during gameplay.
 
-### Phase 1: Core Memory + Loader
-- Build loader and memory read/write API (Int8/16/24, XY byte offsets).
-- Milestone: exact values read from `.mzk` bytes.
+## 3. Component System
 
-### Phase 2: `.msc` Compiler
-- Implement lexer + parser.
-- Generate structured nested AST output.
-- Milestone: valid AST generated for full script fixtures.
+Entities gain behavior through components registered in the `ComponentRegistry`. Each component is a stateless tick function that reads an entity's memory slot, performs logic, and writes back.
 
-### Phase 3: Baking Engine
-- Collision (Marching Squares + simplification).
-- Path extraction and spline conversion.
-- Audio grid scanning.
-- Milestone: debug geometry overlays match source art.
+**23 built-in components** are organized into seven libraries:
 
-### Phase 4: Pure Loop + Renderer
-- Pure tick function and deterministic state updates.
-- Integrate polygon collision solver.
-- Render from state buffer-driven transforms.
-- Zero-allocation object pools (`RingBuffer`, `ObjectPool`, `EntityFreeList`) to eliminate GC pressure.
-- Milestone: playable movement and collisions from script/state only.
+| Library | Components |
+|---------|------------|
+| Physics & Kinematics | Gravity, Kinematic, Collider, Friction |
+| Controllers | PlayerController, TopDownController, PlatformController |
+| Gameplay | Health, Lifetime, Navigator |
+| Combat | Hitbox |
+| AI & Logic | Wanderer, Chaser, Spawner |
+| Interaction | Interactable, AreaTrigger |
+| Drawing & Effects | Camera, ScreenShake, SpriteAnimator, ParticleEmitter |
+| Experimental | SineWave, Patrol, Blink |
 
-### Phase 5: Studio UI
-- Three-pane workflow (script editor, pixel editor, preview).
-- Hot-reload bake pipeline without dropping state.
-- State inspector tooling.
-- Milestone: live paint + code edit reflected instantly in preview.
+Some components expose **context variables** (e.g. `$vx`, `$vy`, `$hp`, `$triggered`) that can be used in entity state conditions.
 
-## 5. Module Reference
+Full component reference: [COMPONENTS.md](COMPONENTS.md)
+
+## 4. Module Reference
+
+### Engine
 
 | Module | Purpose |
-| --- | --- |
-| `engine/memory.ts` | State buffer layout constants + Int8/Int16/Int24 read-write helpers |
-| `engine/loader.ts` | Dual-layer asset loader (image + sidecar script, Mozaic signature detection) |
-| `engine/baker.ts` | Bake phase: Marching Squares, RDP simplification, Bezier paths, audio grid scan |
-| `engine/loop.ts` | Pure execution loop (`requestAnimationFrame`-driven, pluggable `LogicFn`) |
-| `engine/physics.ts` | AABB broad phase, ray-cast point-in-polygon, color-trigger collision detection |
-| `engine/pathfinding.ts` | Pixel-path tracing + Catmull-Rom spline generation |
-| `engine/audio.ts` | Pixel-piano-roll sequencer (16×16 / 32×32), WebAudio scheduling |
-| `engine/input.ts` | Keyboard + gamepad polling, action-map sampling |
-| `engine/pool.ts` | Zero-alloc `RingBuffer`, `ObjectPool`, and `EntityFreeList` |
-| `engine/renderer.ts` | WebGL full-screen quad renderer (NEAREST-filtered texture) |
-| `editor/pixel-editor.ts` | Orchestrator wiring camera, layers, tools, input, palette, and history |
-| `editor/camera.ts` | Virtual camera with pan/zoom, pivot-anchored zoom, and fractional pinch support |
-| `editor/input-handler.ts` | Pointer/touch/wheel event routing with pinch-to-zoom and palm rejection |
-| `editor/layers.ts` | Multi-canvas layer stack (background, document, draft, grid overlay) |
+|--------|---------|
+| `engine/components.ts` | Component registry and 23 built-in component implementations |
+| `engine/memory.ts` | State buffer layout constants and Int8/16/24 read-write helpers |
+| `engine/loader.ts` | Dual-layer asset loader (image + sidecar script, signature detection) |
+| `engine/baker.ts` | Bake phase: Marching Squares, RDP, Bezier paths, audio grid scan |
+| `engine/evaluator.ts` | MSC AST evaluation, entity state machine, component dispatch |
+| `engine/loop.ts` | Pure execution loop (`requestAnimationFrame`, pluggable `LogicFn`) |
+| `engine/physics.ts` | AABB broad phase, point-in-polygon, color-trigger collision |
+| `engine/pathfinding.ts` | Pixel-path tracing and Catmull-Rom spline generation |
+| `engine/audio.ts` | Pixel piano-roll sequencer (16×16 / 32×32), WebAudio scheduling |
+| `engine/input.ts` | Keyboard + gamepad polling and action-map sampling |
+| `engine/pool.ts` | Zero-allocation `RingBuffer`, `ObjectPool`, `EntityFreeList` |
+| `engine/renderer.ts` | WebGL renderer with sprite atlas and layer support |
+
+### Editor
+
+| Module | Purpose |
+|--------|---------|
+| `editor/pixel-editor.ts` | Orchestrator wiring camera, layers, tools, input, palette, history |
+| `editor/camera.ts` | Virtual camera with pan/zoom and pivot-anchored pinch support |
+| `editor/input-handler.ts` | Pointer/touch/wheel routing with pinch-to-zoom and palm rejection |
+| `editor/layers.ts` | Multi-canvas layer stack (background, document, draft, grid) |
 | `editor/tools.ts` | Tool strategies: draw, erase, fill, select, pipette, entity brush |
-| `editor/palette.ts` | Indexed color management with preset library and import/export |
+| `editor/palette.ts` | Indexed color management with preset library |
 | `editor/history.ts` | Undo/redo stack with snapshot compression |
-| `editor/grid-overlay.ts` | Pixel grid, collision polygon, path, and state inspector overlays |
-| `editor/file-system.ts` | Virtual file tree with project I/O and multi-file workflows |
-| `editor/types.ts` | Shared TypeScript type definitions for editor modules |
+| `editor/grid-overlay.ts` | Pixel grid, collision polygon, and path overlays |
+| `editor/file-system.ts` | Virtual file tree with project I/O |
+| `editor/types.ts` | Shared TypeScript type definitions |
+
+### Parser
+
+| Module | Purpose |
+|--------|---------|
 | `parser/lexer.ts` | MSC tokenizer — line-by-line YAML-like token stream |
-| `parser/ast.ts` | Token-stream → `MscDocument` AST builder |
+| `parser/ast.ts` | Token stream → `MscDocument` AST builder |
 | `parser/msc.ts` | Public `parseMsc(source)` façade |
 
-## 6. In-Editor Documentation Cross-Links
+## 5. In-Editor Documentation
 
-The Docs tab mirrors this architecture guide through searchable chapter entries in `public/docs/search-index.json`.
+The **Docs** tab mirrors this guide through searchable entries in `public/docs/search-index.json`.
 
-### A. Core Chapters
-- `Architecture Overview` (`id: arch-overview`) — high-level runtime model and state regions.
-- `Bake Pipeline` (`id: arch-bake`) — one-time extraction and cache stages.
-- `Runtime Tick` (`id: arch-runtime`) — frame-by-frame execution pipeline.
-- `MSC Script Syntax` (`id: msc-syntax`) and `Schema and Events` (`id: msc-schema-events`) — script structure and trigger/action model.
-
-### B. Components Chapters
-- `Components Chapter` (`id: chapter-components`) — conceptual breakdown by Editor, Engine, Parser, and integration layers.
-- `Components List` (`id: components-list`) — concrete module-by-module reference map for quick lookup.
-
-### C. Maintenance Rule
-When adding or changing modules in this architecture document, update both components entries in `public/docs/search-index.json` so in-editor documentation stays aligned.
+When adding or changing modules or components, update the corresponding entries in `search-index.json` so in-editor documentation stays aligned.

@@ -1,91 +1,82 @@
 # Mozaic Tutorial: Multi-File Workflow
 
-This tutorial shows how to structure a small project with multiple script files and image assets using the file tree.
+How to organize a project with multiple script files and image assets using the file tree.
 
-## 1) Create project files
+## 1. Create Project Files
 
 In the file tree panel:
 
-1. Create a folder named assets.
-2. Create a folder named scripts.
-3. Add at least one image file under assets (for example hero.png).
-4. Add script files under scripts:
-   - main.msc
-   - movement.msc
-   - combat.msc
+1. Create an `assets` folder for images.
+2. Create a `scripts` folder for MSC files.
+3. Add at least one image (e.g. `hero.png`) under `assets`.
+4. Add script files under `scripts`: `main.msc`, `movement.msc`, `combat.msc`.
 
-Tip: keep files focused by domain (movement logic vs combat logic).
+Keep files focused — one responsibility per module.
 
-## 2) Author shared script modules
+## 2. Write Feature Modules
 
-In scripts/movement.msc:
+**scripts/movement.msc:**
 
-```msc
+```yaml
 Schema:
   - $PlayerX: { addr: 64, type: Int16 }
   - $PlayerY: { addr: 66, type: Int16 }
 ```
 
-In scripts/combat.msc:
+**scripts/combat.msc:**
 
-```msc
+```yaml
 Schema:
   - $Health: { addr: 68, type: Int8 }
 ```
 
 Keep address ranges non-overlapping to avoid state collisions.
 
-## 3) Compose from main.msc
+## 3. Compose from main.msc
 
-In scripts/main.msc:
+**scripts/main.msc:**
 
-```msc
+```yaml
 Import: "movement"
 Import: "combat"
 
 Entity.Hero:
   Visual: "hero.png"
+  Kinematic: {}
+  PlayerController: { speed: 2 }
+  Health: { maxHp: 100 }
   Input:
-    - KeyA -> Action.MoveLeft
-    - KeyD -> Action.MoveRight
+    - Key_A -> Action.Left
+    - Key_D -> Action.Right
 ```
 
-Import resolution is path-relative to the current script file.
+Import resolution is path-relative to the current script file:
+- Sibling: `Import: "movement"`
+- Nested: `Import: "logic/movement"`
+- Parent: `Import: "../shared/base"`
 
-Examples:
-- sibling: Import: "movement"
-- nested: Import: "logic/movement"
-- parent: Import: "../shared/base"
-
-## 4) Open and switch files safely
+## 4. Switch Files Safely
 
 - Click files in the tree to open them in the right editor mode.
-- Script files open in Script tab.
-- Image files open in Pixel tab.
-- Current active file changes only through the open-file flow, so switching files preserves current edits.
+- Script files (`.msc`) open in the **Script** tab.
+- Image files (`.png`) open in the **Pixel** tab.
+- Switching files preserves unsaved edits in each tab.
 
-## 5) Edit image assets independently
+## 5. Edit Image Assets
 
-1. Open assets/hero.png from tree.
+1. Open `assets/hero.png` from the tree.
 2. Paint and save your changes.
-3. Open another image file and confirm changes are independent.
+3. Open another image — each file edits independently.
 
-If two images look identical unexpectedly, verify you are opening different file nodes and not duplicate names in different folders.
+## 6. Validate Imports
 
-## 6) Validate imports
+After editing:
 
-After editing main.msc:
+1. Click **Run**.
+2. Check for parser or import errors in the status output.
+3. Fix missing paths by verifying folder and file names match.
 
-1. Click Run.
-2. Check for parser/import errors in status output.
-3. Fix missing import paths by matching folder and file names.
-
-Recommended naming:
-- one responsibility per module
-- lower-case file names
-- stable schema addresses documented in comments or design notes
-
-## 7) Suggested structure
+## 7. Suggested Structure
 
 ```text
 project/
@@ -98,7 +89,8 @@ project/
     combat.msc
 ```
 
-## 8) Next steps
+## 8. Next Steps
 
-- Pair this with [docs/TUTORIAL.md](docs/TUTORIAL.md) for first-project basics.
-- Use [public/docs/search-index.json](public/docs/search-index.json) to add team-specific tutorial chapters to the in-editor Docs tab.
+- First-project basics: [docs/TUTORIAL.md](TUTORIAL.md)
+- Component reference: [docs/COMPONENTS.md](COMPONENTS.md)
+- Team conventions: [docs/TUTORIAL_TEAM_CONVENTIONS.md](TUTORIAL_TEAM_CONVENTIONS.md)
