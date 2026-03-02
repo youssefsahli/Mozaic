@@ -7,6 +7,8 @@
  *   3. Identifies audio sequencer grids (16x16 or 32x32).
  */
 
+import { rgbToHex } from "../shared/color-utils.js";
+
 export interface Point {
   x: number;
   y: number;
@@ -325,12 +327,6 @@ function normalizeHex(hex: string): string {
   const clean = hex.toLowerCase();
   if (/^#[0-9a-f]{6}$/.test(clean)) return clean;
   return "#000000";
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  return `#${r.toString(16).padStart(2, "0")}${g
-    .toString(16)
-    .padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
 }
 
 /**

@@ -19,7 +19,7 @@
 import {
   STATE_BUFFER_BYTES,
   CHANNELS_PER_PIXEL,
-} from "../engine/memory";
+} from "../engine/memory.js";
 
 // ── Constants ────────────────────────────────────────────────
 

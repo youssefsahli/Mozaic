@@ -8,7 +8,10 @@
 import type { Point, BakedAsset } from "../engine/baker.js";
 import type { MscSchema } from "../parser/msc.js";
 import type { CameraState } from "./types.js";
-import { readInt8, readInt16 } from "../engine/memory.js";
+import { readInt8, readInt16, MEMORY_BLOCKS, ENTITY_SLOT_SIZE } from "../engine/memory.js";
+
+/** Distance threshold (in document pixels) for click-to-select overlay items. */
+const SELECTION_THRESHOLD = 3.2;
 
 export interface OverlayOptions {
   inlineGrid: boolean;
@@ -123,7 +126,7 @@ function renderEcsDebugOverlay(
   ctx.fillStyle = "magenta";
   ctx.font = "10px monospace";
 
-  for (let ptr = 512; ptr < 12288; ptr += 16) {
+  for (let ptr = MEMORY_BLOCKS.entityPool.startByte; ptr < MEMORY_BLOCKS.entityPool.endByte; ptr += ENTITY_SLOT_SIZE) {
     const activeFlag = readInt8(stateBuffer, ptr + 0);
     if (activeFlag === 0) continue;
 
@@ -272,7 +275,7 @@ export function selectDebugLayer(
 
   if (options.showPaths) {
     baked.bezierPaths.forEach((path, index) => {
-      const distance = distanceToPolyline(path.length > 0 ? point : point, path, false);
+      const distance = distanceToPolyline(point, path, false);
       if (distance < bestDistance) {
         bestDistance = distance;
         bestType = "path";
@@ -281,8 +284,7 @@ export function selectDebugLayer(
     });
   }
 
-  const threshold = 3.2;
-  if (bestType && bestDistance <= threshold) {
+  if (bestType && bestDistance <= SELECTION_THRESHOLD) {
     return { type: bestType, index: bestIndex };
   }
   return null;
