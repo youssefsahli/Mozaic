@@ -7,6 +7,7 @@
  */
 
 import type { Point } from "./baker.js";
+import { hexToRgb } from "../shared/color-utils.js";
 
 export interface PathScan {
   startColor: string;
@@ -24,18 +25,6 @@ function pixelIs(
 ): boolean {
   const base = idx * 4;
   return data[base] === r && data[base + 1] === g && data[base + 2] === b;
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  const clean = hex.replace("#", "");
-  const full = clean.length === 3
-    ? clean.split("").map((c) => c + c).join("")
-    : clean;
-  return [
-    parseInt(full.slice(0, 2), 16),
-    parseInt(full.slice(2, 4), 16),
-    parseInt(full.slice(4, 6), 16),
-  ];
 }
 
 /**

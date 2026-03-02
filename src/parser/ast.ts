@@ -81,7 +81,7 @@ export type MscLayer =
   | { Terrain: { source: string; repeat?: boolean; } }
   | { UI: { source: string; } }
   | "Entities"
-  | { Entities: any };
+  | { Entities: Record<string, never> };
 
 export interface MscDocument {
   source?: string;

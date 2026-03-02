@@ -26,6 +26,7 @@
 
 import type { PaletteColor } from "./types.js";
 import { PALETTE_PRESETS } from "./palette-presets.js";
+import { hexToRgb, rgbToHex } from "../shared/color-utils.js";
 
 export interface PaletteState {
   colors: PaletteColor[];
@@ -277,16 +278,3 @@ export function renderSwatches(
 }
 
 // ── Helpers ────────────────────────────────────────────────────
-
-function hexToRgb(hex: string): [number, number, number] {
-  const c = hex.replace("#", "");
-  return [
-    parseInt(c.slice(0, 2), 16),
-    parseInt(c.slice(2, 4), 16),
-    parseInt(c.slice(4, 6), 16),
-  ];
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
-}

@@ -16,8 +16,8 @@
 import {
   STATE_BUFFER_BYTES,
   CHANNELS_PER_PIXEL,
-} from "../engine/memory";
-import { HEADER_PIXELS } from "./exporter";
+} from "../engine/memory.js";
+import { HEADER_PIXELS } from "./exporter.js";
 
 // ── Constants ────────────────────────────────────────────────
 

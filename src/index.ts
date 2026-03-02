@@ -68,6 +68,7 @@ import {
 } from "./editor/bootstrapper.js";
 import { parseSpriteROM } from "./editor/importer.js";
 import { buildMzkDataUrl } from "./editor/exporter.js";
+import { hexToRgb } from "./shared/color-utils.js";
 
 type EditorMode = "script" | "config" | "image";
 const LAST_ROM_STORAGE_KEY = "mozaic:last-rom";
@@ -1285,7 +1286,8 @@ function wireUi(runtime: RuntimeState): void {
       "tabSize", "MozTabSize"
     ];
     properties.forEach(prop => {
-      div.style[prop as any] = style[prop as any];
+      const value = style.getPropertyValue(prop);
+      if (value) div.style.setProperty(prop, value);
     });
     div.style.position = "absolute";
     div.style.visibility = "hidden";
@@ -2618,15 +2620,6 @@ async function imageDataFromDataUrl(dataUrl: string): Promise<ImageData> {
 
   ctx.drawImage(image, 0, 0);
   return ctx.getImageData(0, 0, canvas.width, canvas.height);
-}
-
-function hexToRgb(value: string): [number, number, number] {
-  const clean = value.replace("#", "");
-  return [
-    parseInt(clean.slice(0, 2), 16),
-    parseInt(clean.slice(2, 4), 16),
-    parseInt(clean.slice(4, 6), 16),
-  ];
 }
 
 function setEditorText(runtime: RuntimeState, text: string): void {
