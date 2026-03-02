@@ -21,5 +21,5 @@ export function hexToRgb(hex: string): [number, number, number] {
 
 /** Convert an RGB triplet back to a lowercase `#rrggbb` string. */
 export function rgbToHex(r: number, g: number, b: number): string {
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${b.toString(16).padStart(2, "0")}`;
+  return "#" + [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("");
 }
