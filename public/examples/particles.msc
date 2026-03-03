@@ -1,0 +1,45 @@
+# ── Particles Example ───────────────────────────
+# Demonstrates visual effects: particle emitter,
+# screen shake, sprite animation, and blink.
+#
+# Components used: Kinematic, ParticleEmitter, SineWave,
+#   Gravity, Lifetime, Blink, SpriteAnimator, Patrol
+#
+# This example runs automatically — just click Run.
+
+Schema:
+  - $FX: { addr: 64, type: Int16 }
+
+Sprites:
+  $Grid: 16
+  emitter: [0, 0]
+  spark: [1, 0, 2]
+  spinner: [0, 1, 4]
+
+Entity.Emitter:
+  Visual: "emitter"
+  Kinematic: {}
+  ParticleEmitter: { rate: 2, lifetime: 40, typeId: 0 }
+  SineWave: { frequency: 0.03, amplitude: 3, axis: x }
+
+Entity.Spark:
+  Visual: "spark"
+  Kinematic: {}
+  Gravity: { force: 0.5 }
+  Lifetime: { frames: 40 }
+  Blink: { interval: 6 }
+
+Entity.Spinner:
+  Visual: "spinner"
+  Kinematic: {}
+  SpriteAnimator: { frames: 8, count: 4 }
+  Patrol: { speed: 1, axis: x }
+
+Instances:
+  - { entity: "Emitter", x: 32, y: 10 }
+  - { entity: "Spinner", x: 10, y: 48 }
+  - { entity: "Spinner", x: 50, y: 48 }
+
+Events:
+  Collision(Spark:#Body, Level:#FF0000):
+    - State.$FX = State.$FX + 1

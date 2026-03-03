@@ -1,0 +1,47 @@
+# ── Platformer Example ──────────────────────────
+# A side-scrolling scene with gravity, a player-controlled hero,
+# collectable coins, and a score counter.
+#
+# Components used: Kinematic, Gravity, PlatformController,
+#   Collider, Health, SineWave, Lifetime
+#
+# Controls: A / D to move, Space to jump (arrow keys also work)
+
+Schema:
+  - $Score: { addr: 64, type: Int16 }
+
+Sprites:
+  $Grid: 16
+  hero_idle: [0, 0]
+  hero_run: [1, 0, 3]
+  coin: [0, 1]
+  platform: [4, 0]
+
+Entity.Hero:
+  Visual: "hero_idle"
+  Kinematic: {}
+  Gravity: { force: 1 }
+  PlatformController: { speed: 2, jumpForce: 5 }
+  Collider: {}
+  Health: { maxHp: 3 }
+  Input:
+    - Key_Space -> Action.Jump
+    - Key_A     -> Action.Left
+    - Key_D     -> Action.Right
+    - Key_ArrowLeft  -> Action.Left
+    - Key_ArrowRight -> Action.Right
+    - Key_ArrowUp    -> Action.Jump
+
+Entity.Coin:
+  Visual: "coin"
+  SineWave: { frequency: 0.05, amplitude: 2, axis: y }
+  Lifetime: { frames: 600 }
+
+Instances:
+  - { entity: "Hero", x: 8, y: 40 }
+  - { entity: "Coin", x: 32, y: 20 }
+  - { entity: "Coin", x: 48, y: 20 }
+
+Events:
+  Collision(Hero:#Feet, Level:#00B400):
+    - State.$Score = State.$Score + 1

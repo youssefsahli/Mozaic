@@ -85,6 +85,7 @@ Click **Save** to export the current ROM as a `.png` file. Reload it later with 
 
 ## 7. Next Steps
 
+- **Example ROMs** — load a pre-built Platformer, Top-Down, or Particles example from the New ROM menu: [docs/USAGE_EXAMPLES.md](USAGE_EXAMPLES.md)
 - **Entity States** — make entities change behavior dynamically: [docs/ENTITY_STATES.md](ENTITY_STATES.md)
 - **Component Reference** — full list of components with props and examples: [docs/COMPONENTS.md](COMPONENTS.md)
 - **Multi-File Projects** — organize larger projects: [docs/TUTORIAL_MULTIFILE.md](TUTORIAL_MULTIFILE.md)

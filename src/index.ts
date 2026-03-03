@@ -71,6 +71,7 @@ import {
 import { parseSpriteROM } from "./editor/importer.js";
 import { buildMzkDataUrl } from "./editor/exporter.js";
 import { hexToRgb } from "./shared/color-utils.js";
+import { fetchExampleScript, isExampleVariant, defaultScript, ROM_VARIANT_LABELS, type RomVariant } from "./editor/example-roms.js";
 
 type EditorMode = "script" | "config" | "image";
 const LAST_ROM_STORAGE_KEY = "mozaic:last-rom";
@@ -1053,7 +1054,7 @@ function wireUi(runtime: RuntimeState): void {
       const variant = btn.dataset.newRom;
       const paletteName = ui.newRomPalette.value;
       ui.newRomMenu.classList.remove("is-open");
-      createNewRom(runtime, variant as "empty" | "amiga" | "checkerboard", paletteName || undefined);
+      createNewRom(runtime, variant as RomVariant, paletteName || undefined);
     });
   });
   ui.openRomButton.addEventListener("click", () => romInput.click());
@@ -2249,7 +2250,7 @@ async function playProject(runtime: RuntimeState): Promise<void> {
 
 function createNewRom(
   runtime: RuntimeState,
-  variant: "empty" | "amiga" | "checkerboard" = "empty",
+  variant: RomVariant = "empty",
   paletteName?: string
 ): void {
   const { newRomWidth, newRomHeight, newRomColor } = runtime.config.game;
@@ -2268,6 +2269,15 @@ function createNewRom(
       break;
     case "checkerboard":
       runtime.imageData = createCheckerboardRom(newRomWidth, newRomHeight);
+      break;
+    case "platformer":
+      runtime.imageData = createPlatformerRom();
+      break;
+    case "top-down":
+      runtime.imageData = createTopDownRom();
+      break;
+    case "particles":
+      runtime.imageData = createParticlesRom();
       break;
     default:
       runtime.imageData = createBlankImageData(newRomWidth, newRomHeight, newRomColor);
@@ -2296,10 +2306,9 @@ function createNewRom(
   );
   addChild(runtime.project.root, imgNode);
 
-  // Add a default .msc script referencing the new .mzk
+  // Add a .msc script referencing the new .mzk (example variants get richer scripts)
   const scriptName = mzkName.replace(/\.mzk$/, ".msc");
-  const scriptContent =
-    `Source: "${mzkName}"\n\nSchema:\n  - $Score: { addr: 64, type: Int16 }\n`;
+  const scriptContent = defaultScript(mzkName);
   const scriptNode = createScriptFile(scriptName, scriptContent);
   addChild(runtime.project.root, scriptNode);
   runtime.project.entryPointId = scriptNode.id;
@@ -2321,9 +2330,28 @@ function createNewRom(
   switchEditorMode(runtime, "script");
   initPixelEditor(runtime);
   schedulePersistRom(runtime);
+
+  // If this is an example variant, fetch the rich script and hot-swap it
+  if (isExampleVariant(variant)) {
+    fetchExampleScript(variant, mzkName).then((script) => {
+      if (script) {
+        scriptNode.content = script;
+        runtime.scriptText = script;
+        persistScript(script);
+        saveProject(runtime.project);
+        // If the script tab is visible, refresh its content
+        if (runtime.editorMode === "script") {
+          const editorEl = document.querySelector<HTMLTextAreaElement>("#msc-editor");
+          if (editorEl) editorEl.value = script;
+        }
+        restart(runtime);
+      }
+    });
+  }
+
   restart(runtime);
   renderEditorTabs(runtime);
-  const variantLabel = variant === "amiga" ? "Amiga Demo" : variant === "checkerboard" ? "Checkerboard" : "Empty ROM";
+  const variantLabel = ROM_VARIANT_LABELS[variant] ?? variant;
   runtime.ui.mscStatus.textContent = `New ${runtime.imageData.width}×${runtime.imageData.height} ROM created (${variantLabel}).`;
   runtime.ui.mscStatus.style.color = "#6a9955";
 }
@@ -3113,6 +3141,105 @@ function createAmigaStyleRom(): ImageData {
   set(cx + 1, cy + 1, 85, 187, 153);
   set(cx, cy + 2, 85, 187, 153);
 
+  return new ImageData(data, w, h);
+}
+
+/* ── Example ROM image generators ────────────────────────────── */
+
+function createPlatformerRom(): ImageData {
+  const w = 64, h = 64;
+  const data = new Uint8ClampedArray(w * h * 4);
+  function set(x: number, y: number, r: number, g: number, b: number): void {
+    if (x < 0 || x >= w || y < 0 || y >= h) return;
+    const i = (y * w + x) * 4;
+    data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 255;
+  }
+  function fill(fx: number, fy: number, fw: number, fh: number, r: number, g: number, b: number): void {
+    for (let dy = 0; dy < fh; dy++)
+      for (let dx = 0; dx < fw; dx++) set(fx + dx, fy + dy, r, g, b);
+  }
+  // Sky gradient
+  for (let y = 0; y < h; y++) {
+    const t = y / h;
+    for (let x = 0; x < w; x++) set(x, y, Math.round(30 + t * 10), Math.round(20 + t * 10), Math.round(50 + t * 15));
+  }
+  // Ground platform (green #00B400)
+  fill(0, 54, 64, 10, 0, 180, 0);
+  // Floating platforms
+  fill(10, 40, 14, 3, 0, 180, 0);
+  fill(36, 32, 14, 3, 0, 180, 0);
+  // Hero sprite area (cyan square in first grid cell)
+  fill(0, 0, 8, 14, 0, 200, 220);
+  fill(2, 0, 4, 3, 0, 160, 200);
+  // Coin sprite area (yellow in second row)
+  fill(1, 17, 6, 6, 255, 220, 0);
+  fill(2, 18, 4, 4, 255, 200, 0);
+  return new ImageData(data, w, h);
+}
+
+function createTopDownRom(): ImageData {
+  const w = 64, h = 64;
+  const data = new Uint8ClampedArray(w * h * 4);
+  function set(x: number, y: number, r: number, g: number, b: number): void {
+    if (x < 0 || x >= w || y < 0 || y >= h) return;
+    const i = (y * w + x) * 4;
+    data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 255;
+  }
+  function fill(fx: number, fy: number, fw: number, fh: number, r: number, g: number, b: number): void {
+    for (let dy = 0; dy < fh; dy++)
+      for (let dx = 0; dx < fw; dx++) set(fx + dx, fy + dy, r, g, b);
+  }
+  // Floor tiles (subtle checker pattern)
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const v = ((x + y) % 2 === 0) ? 28 : 24;
+      set(x, y, v, v + 4, v);
+    }
+  // Walls (brown border)
+  fill(0, 0, 64, 4, 80, 50, 20);
+  fill(0, 60, 64, 4, 80, 50, 20);
+  fill(0, 0, 4, 64, 80, 50, 20);
+  fill(60, 0, 4, 64, 80, 50, 20);
+  // Player sprite area (blue in first grid cell)
+  fill(1, 1, 6, 6, 60, 120, 220);
+  // NPC sprite area (green in second row)
+  fill(1, 17, 6, 6, 80, 200, 80);
+  // Chest sprite area (gold/yellow #FFC800)
+  fill(48, 1, 8, 8, 255, 200, 0);
+  return new ImageData(data, w, h);
+}
+
+function createParticlesRom(): ImageData {
+  const w = 64, h = 64;
+  const data = new Uint8ClampedArray(w * h * 4);
+  function set(x: number, y: number, r: number, g: number, b: number): void {
+    if (x < 0 || x >= w || y < 0 || y >= h) return;
+    const i = (y * w + x) * 4;
+    data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 255;
+  }
+  function fill(fx: number, fy: number, fw: number, fh: number, r: number, g: number, b: number): void {
+    for (let dy = 0; dy < fh; dy++)
+      for (let dx = 0; dx < fw; dx++) set(fx + dx, fy + dy, r, g, b);
+  }
+  // Dark background
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) set(x, y, 10, 8, 18);
+  // Emitter sprite (orange glow in first grid cell)
+  fill(2, 2, 12, 12, 255, 140, 30);
+  fill(4, 4, 8, 8, 255, 180, 60);
+  // Spark sprite (bright dots in second cell, two frames)
+  set(18, 6, 255, 80, 80);
+  set(19, 7, 255, 200, 60);
+  set(20, 6, 255, 255, 120);
+  set(34, 6, 100, 200, 255);
+  set(35, 7, 120, 220, 255);
+  // Spinner sprite (four frames in second row)
+  fill(1, 17, 6, 6, 120, 80, 200);
+  fill(17, 17, 6, 6, 200, 80, 120);
+  fill(33, 17, 6, 6, 80, 200, 120);
+  fill(49, 17, 6, 6, 200, 200, 80);
+  // Red collision zone at bottom
+  fill(0, 58, 64, 6, 255, 0, 0);
   return new ImageData(data, w, h);
 }
 

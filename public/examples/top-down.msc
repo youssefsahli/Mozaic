@@ -1,0 +1,53 @@
+# ── Top-Down Example ────────────────────────────
+# A four-directional scene with a wandering NPC,
+# an area trigger, and friction-based movement.
+#
+# Components used: Kinematic, TopDownController, Friction,
+#   Collider, Wanderer, AreaTrigger
+#
+# Controls: W / A / S / D to move (arrow keys also work)
+
+Schema:
+  - $Keys: { addr: 64, type: Int16 }
+
+Sprites:
+  $Grid: 16
+  player_idle: [0, 0]
+  player_walk: [1, 0, 2]
+  npc_idle: [0, 1]
+  chest: [3, 0]
+
+Entity.Player:
+  Visual: "player_idle"
+  Kinematic: {}
+  TopDownController: { speed: 2 }
+  Friction: { factor: 0.85 }
+  Collider: {}
+  Input:
+    - Key_W -> Action.MoveUp
+    - Key_S -> Action.MoveDown
+    - Key_A -> Action.MoveLeft
+    - Key_D -> Action.MoveRight
+    - Key_ArrowUp    -> Action.MoveUp
+    - Key_ArrowDown  -> Action.MoveDown
+    - Key_ArrowLeft  -> Action.MoveLeft
+    - Key_ArrowRight -> Action.MoveRight
+
+Entity.NPC:
+  Visual: "npc_idle"
+  Kinematic: {}
+  Wanderer: { speed: 1, interval: 90 }
+  Friction: { factor: 0.9 }
+
+Entity.Chest:
+  Visual: "chest"
+  AreaTrigger: { width: 16, height: 16, targetType: 1 }
+
+Instances:
+  - { entity: "Player", x: 10, y: 10 }
+  - { entity: "NPC", x: 40, y: 40 }
+  - { entity: "Chest", x: 48, y: 12 }
+
+Events:
+  Collision(Player:#Body, Chest:#FFC800):
+    - State.$Keys = State.$Keys + 1
