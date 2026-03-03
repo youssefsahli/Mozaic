@@ -13,9 +13,41 @@ import { readInt8, readInt16, MEMORY_BLOCKS, ENTITY_SLOT_SIZE } from "../engine/
 /** Distance threshold (in document pixels) for click-to-select overlay items. */
 const SELECTION_THRESHOLD = 3.2;
 
-/** Color used for sprite grid overlay rectangles and labels. */
-const SPRITE_OVERLAY_COLOR = "rgba(0,240,255,0.7)";
-const SPRITE_OVERLAY_LABEL_COLOR = "rgba(0,240,255,0.85)";
+/** Default colors for sprite grid overlay rectangles and labels. */
+const DEFAULT_SPRITE_COLOR = "rgba(0,240,255,0.7)";
+const DEFAULT_SPRITE_LABEL_COLOR = "rgba(0,240,255,0.85)";
+const DEFAULT_SPRITE_LABEL_BG = "rgba(0,0,0,0.55)";
+
+/** Configuration for the sprite overlay appearance and behaviour. */
+export interface SpriteOverlayConfig {
+  /** Whether the sprite overlay is enabled. */
+  enabled: boolean;
+  /** Stroke colour for dotted bounding rectangles. */
+  color: string;
+  /** Fill colour for animation name labels. */
+  labelColor: string;
+  /** Background colour for label pill. */
+  labelBg: string;
+  /** Base label font size in pixels (scaled with camera zoom). */
+  labelFontSize: number;
+  /** Whether the dash pattern animates (marching ants effect). */
+  animateDash: boolean;
+  /** Length of each dash segment (in screen pixels, scaled). */
+  dashLength: number;
+  /** Gap between dash segments (in screen pixels, scaled). */
+  dashGap: number;
+}
+
+export const DEFAULT_SPRITE_OVERLAY_CONFIG: SpriteOverlayConfig = {
+  enabled: true,
+  color: DEFAULT_SPRITE_COLOR,
+  labelColor: DEFAULT_SPRITE_LABEL_COLOR,
+  labelBg: DEFAULT_SPRITE_LABEL_BG,
+  labelFontSize: 5,
+  animateDash: true,
+  dashLength: 3,
+  dashGap: 3,
+};
 
 /** A grid-based sprite definition to overlay on the editor canvas. */
 export interface SpriteOverlayEntry {
@@ -38,6 +70,9 @@ export interface OverlayOptions {
   showSprites: boolean;
   spriteGrid: number;
   spriteEntries: SpriteOverlayEntry[];
+  spriteOverlayConfig: SpriteOverlayConfig;
+  /** Monotonic timestamp (ms) for animated effects. */
+  animationTime: number;
   selectedCollisionIndex: number | null;
   selectedPathIndex: number | null;
 }
@@ -84,7 +119,7 @@ export function renderOverlay(
   }
 
   if (options.showSprites && options.spriteGrid > 0 && options.spriteEntries.length > 0) {
-    renderSpriteGridOverlay(ctx, options.spriteGrid, options.spriteEntries);
+    renderSpriteGridOverlay(ctx, options.spriteGrid, options.spriteEntries, options.spriteOverlayConfig, options.animationTime);
   }
 
   ctx.restore();
@@ -167,11 +202,16 @@ function renderEcsDebugOverlay(
 function renderSpriteGridOverlay(
   ctx: CanvasRenderingContext2D,
   gridSize: number,
-  entries: SpriteOverlayEntry[]
+  entries: SpriteOverlayEntry[],
+  config: SpriteOverlayConfig,
+  animationTime: number
 ): void {
   const scaleA = ctx.getTransform().a || 1;
   const invScale = 1 / scaleA;
-  const fontSize = Math.max(5, 6 * invScale);
+  const fontSize = Math.max(4, config.labelFontSize * invScale);
+  const dashLen = config.dashLength * invScale;
+  const dashGap = config.dashGap * invScale;
+  const dashOffset = config.animateDash ? (animationTime / 60) * invScale : 0;
 
   for (const entry of entries) {
     const x = entry.col * gridSize;
@@ -179,21 +219,36 @@ function renderSpriteGridOverlay(
     const w = entry.frames * gridSize;
     const h = gridSize;
 
-    // Dotted rectangle
+    // Dotted rectangle with optional marching-ants animation
     ctx.save();
-    ctx.strokeStyle = SPRITE_OVERLAY_COLOR;
+    ctx.strokeStyle = config.color;
     ctx.lineWidth = 1 * invScale;
-    ctx.setLineDash([3 * invScale, 3 * invScale]);
+    ctx.setLineDash([dashLen, dashGap]);
+    ctx.lineDashOffset = dashOffset;
     ctx.strokeRect(x, y, w, h);
     ctx.setLineDash([]);
     ctx.restore();
 
-    // Animation name label
+    // Animation name label with background pill
     ctx.save();
     ctx.font = `${fontSize}px monospace`;
-    ctx.fillStyle = SPRITE_OVERLAY_LABEL_COLOR;
     const label = entry.frames > 1 ? `${entry.name} (${entry.frames}f)` : entry.name;
-    ctx.fillText(label, x + 1 * invScale, y - 1.5 * invScale);
+    const textMetrics = ctx.measureText(label);
+    const pad = 1.5 * invScale;
+    const labelX = x + pad;
+    const labelY = y - pad;
+
+    // Draw background pill behind label text
+    ctx.fillStyle = config.labelBg;
+    ctx.fillRect(
+      labelX - pad * 0.5,
+      labelY - fontSize,
+      textMetrics.width + pad,
+      fontSize + pad * 0.5
+    );
+
+    ctx.fillStyle = config.labelColor;
+    ctx.fillText(label, labelX, labelY);
     ctx.restore();
   }
 }

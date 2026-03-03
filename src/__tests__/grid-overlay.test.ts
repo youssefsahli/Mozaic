@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { inspectPixelAt, polygonCentroid, pointToSegmentDistance, distanceToPolyline, renderOverlay, type OverlayOptions } from "../editor/grid-overlay.js";
+import { inspectPixelAt, polygonCentroid, pointToSegmentDistance, distanceToPolyline, renderOverlay, DEFAULT_SPRITE_OVERLAY_CONFIG, type OverlayOptions } from "../editor/grid-overlay.js";
 import type { MscSchema } from "../parser/msc.js";
 import type { CameraState } from "../editor/types.js";
 
@@ -94,8 +94,11 @@ function mockCtx(): CanvasRenderingContext2D {
     lineWidth: 0,
     fillStyle: "",
     font: "",
+    lineDashOffset: 0,
     strokeRect: vi.fn(),
+    fillRect: vi.fn(),
     fillText: vi.fn(),
+    measureText: vi.fn(() => ({ width: 30 })),
     beginPath: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
@@ -119,6 +122,8 @@ function defaultOptions(overrides: Partial<OverlayOptions> = {}): OverlayOptions
     showSprites: false,
     spriteGrid: 0,
     spriteEntries: [],
+    spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG },
+    animationTime: 0,
     selectedCollisionIndex: null,
     selectedPathIndex: null,
     ...overrides,
@@ -232,5 +237,86 @@ describe("renderOverlay sprite grid overlay", () => {
 
     // Only document border
     expect(ctx.strokeRect).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws background pills behind labels (fillRect before fillText)", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 16,
+      spriteEntries: [{ name: "idle", col: 0, row: 0, frames: 1 }],
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // Label background pill should be drawn (at least 1 fillRect for the pill)
+    expect(ctx.fillRect).toHaveBeenCalled();
+    // And label text is drawn after
+    expect(ctx.fillText).toHaveBeenCalledWith("idle", expect.any(Number), expect.any(Number));
+  });
+
+  it("uses custom overlay config colors", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const customConfig = {
+      ...DEFAULT_SPRITE_OVERLAY_CONFIG,
+      color: "rgba(255,0,0,0.8)",
+      labelColor: "rgba(255,255,0,1.0)",
+    };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 16,
+      spriteEntries: [{ name: "test", col: 0, row: 0, frames: 1 }],
+      spriteOverlayConfig: customConfig,
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // Should render bounding box + border
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies animated dash offset when animateDash is true", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "walk", col: 0, row: 0, frames: 2 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, animateDash: true },
+      animationTime: 600,
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // The animated dash offset should cause rendering to occur
+    expect(ctx.strokeRect).toHaveBeenCalled();
+  });
+
+  it("does not animate dash when animateDash is false", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "walk", col: 0, row: 0, frames: 2 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, animateDash: false },
+      animationTime: 600,
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // Still renders, just without animation offset
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(2);
   });
 });

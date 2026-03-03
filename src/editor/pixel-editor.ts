@@ -81,7 +81,7 @@ import {
   type PaletteState,
 } from "./palette.js";
 import { HistoryManager } from "./history.js";
-import { renderOverlay, selectDebugLayer, inspectPixelAt, type OverlayOptions, type SpriteOverlayEntry } from "./grid-overlay.js";
+import { renderOverlay, selectDebugLayer, inspectPixelAt, DEFAULT_SPRITE_OVERLAY_CONFIG, type OverlayOptions, type SpriteOverlayEntry, type SpriteOverlayConfig } from "./grid-overlay.js";
 
 // ── Public interfaces ─────────────────────────────────────────
 
@@ -183,6 +183,10 @@ export class PixelEditor {
   private engineBuffer: Uint8ClampedArray | null = null;
   /** Active MSC script for the State Inspector tooltip. */
   private script: MscDocument | null = null;
+  /** Sprite overlay appearance configuration. */
+  private spriteOverlayConfig: SpriteOverlayConfig = { ...DEFAULT_SPRITE_OVERLAY_CONFIG };
+  /** Animation frame handle for marching-ants dash effect. */
+  private overlayAnimFrame: number | null = null;
 
   constructor(refs: PixelEditorRefs, callbacks: PixelEditorCallbacks) {
     this.refs = refs;
@@ -312,6 +316,13 @@ export class PixelEditor {
     if (this.activeEntityType && !this.entityDefs[this.activeEntityType]) {
       this.activeEntityType = Object.keys(this.entityDefs)[0] ?? null;
     }
+    this.updateOverlayAnimation();
+  }
+
+  /** Update the sprite overlay configuration from mozaic.config.json. */
+  setSpriteOverlayConfig(config: SpriteOverlayConfig): void {
+    this.spriteOverlayConfig = config;
+    this.updateOverlayAnimation();
   }
 
   /** Re-render everything. */
@@ -519,6 +530,37 @@ export class PixelEditor {
     );
   }
 
+  /**
+   * Start or stop the overlay animation loop depending on whether animated
+   * sprites are currently visible. When running, the overlay is re-rendered
+   * every frame to advance the marching-ants dash offset.
+   */
+  private updateOverlayAnimation(): void {
+    const needsAnim = this.spriteOverlayConfig.enabled
+      && this.spriteOverlayConfig.animateDash
+      && this.hasSpriteEntries();
+
+    if (needsAnim && this.overlayAnimFrame === null) {
+      const tick = () => {
+        this.renderGridOverlay();
+        this.overlayAnimFrame = requestAnimationFrame(tick);
+      };
+      this.overlayAnimFrame = requestAnimationFrame(tick);
+    } else if (!needsAnim && this.overlayAnimFrame !== null) {
+      cancelAnimationFrame(this.overlayAnimFrame);
+      this.overlayAnimFrame = null;
+      this.renderGridOverlay();
+    }
+  }
+
+  private hasSpriteEntries(): boolean {
+    if (!this.script?.sprites) return false;
+    for (const [, def] of this.script.sprites) {
+      if (def.kind === "grid") return true;
+    }
+    return false;
+  }
+
   /** Redraw the selection rectangle on the draft canvas at current camera coordinates. */
   private renderSelectionOverlay(): void {
     if (!this.layers || !this.selection) return;
@@ -599,9 +641,11 @@ export class PixelEditor {
       showPoints: refs.debugPointsToggle.checked,
       showIds: refs.debugIdsToggle.checked,
       showEcs: refs.layerEcsToggle.checked,
-      showSprites: spriteEntries.length > 0,
+      showSprites: this.spriteOverlayConfig.enabled && spriteEntries.length > 0,
       spriteGrid: this.script?.spriteGrid ?? 0,
       spriteEntries,
+      spriteOverlayConfig: this.spriteOverlayConfig,
+      animationTime: performance.now(),
       selectedCollisionIndex: this.selectedCollisionIndex,
       selectedPathIndex: this.selectedPathIndex,
     };

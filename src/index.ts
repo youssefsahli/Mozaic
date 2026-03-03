@@ -19,6 +19,7 @@ import { createDefaultRegistry } from "./engine/components.js";
 import { parseMsc, type MscDocument } from "./parser/msc.js";
 import { parseWithImports } from "./engine/import-resolver.js";
 import { PixelEditor, type PixelEditorRefs } from "./editor/pixel-editor.js";
+import { DEFAULT_SPRITE_OVERLAY_CONFIG, type SpriteOverlayConfig } from "./editor/grid-overlay.js";
 import {
   MEMORY_BLOCKS,
   ENTITY_SLOT_SIZE,
@@ -89,6 +90,7 @@ interface MozaicConfig {
     showScriptEditor: boolean;
     showPixelEditor: boolean;
   };
+  spriteOverlay: SpriteOverlayConfig;
 }
 
 const DEFAULT_CONFIG: MozaicConfig = {
@@ -104,6 +106,7 @@ const DEFAULT_CONFIG: MozaicConfig = {
     showScriptEditor: true,
     showPixelEditor: true,
   },
+  spriteOverlay: { ...DEFAULT_SPRITE_OVERLAY_CONFIG },
 };
 
 const MSC_KEYWORDS = [
@@ -2391,6 +2394,8 @@ function applyConfigFromEditor(runtime: RuntimeState): boolean {
 function mergeConfig(raw: Partial<MozaicConfig>): MozaicConfig {
   const gameRaw: Partial<MozaicConfig["game"]> = raw.game ?? {};
   const editorRaw: Partial<MozaicConfig["editor"]> = raw.editor ?? {};
+  const overlayRaw: Partial<SpriteOverlayConfig> = raw.spriteOverlay ?? {};
+  const dfltOverlay = DEFAULT_SPRITE_OVERLAY_CONFIG;
 
   return {
     game: {
@@ -2417,6 +2422,40 @@ function mergeConfig(raw: Partial<MozaicConfig>): MozaicConfig {
         typeof editorRaw.showPixelEditor === "boolean"
           ? editorRaw.showPixelEditor
           : DEFAULT_CONFIG.editor.showPixelEditor,
+    },
+    spriteOverlay: {
+      enabled:
+        typeof overlayRaw.enabled === "boolean"
+          ? overlayRaw.enabled
+          : dfltOverlay.enabled,
+      color:
+        typeof overlayRaw.color === "string"
+          ? overlayRaw.color
+          : dfltOverlay.color,
+      labelColor:
+        typeof overlayRaw.labelColor === "string"
+          ? overlayRaw.labelColor
+          : dfltOverlay.labelColor,
+      labelBg:
+        typeof overlayRaw.labelBg === "string"
+          ? overlayRaw.labelBg
+          : dfltOverlay.labelBg,
+      labelFontSize:
+        typeof overlayRaw.labelFontSize === "number" && Number.isFinite(overlayRaw.labelFontSize)
+          ? Math.max(2, Math.min(24, overlayRaw.labelFontSize))
+          : dfltOverlay.labelFontSize,
+      animateDash:
+        typeof overlayRaw.animateDash === "boolean"
+          ? overlayRaw.animateDash
+          : dfltOverlay.animateDash,
+      dashLength:
+        typeof overlayRaw.dashLength === "number" && Number.isFinite(overlayRaw.dashLength)
+          ? Math.max(1, Math.min(20, overlayRaw.dashLength))
+          : dfltOverlay.dashLength,
+      dashGap:
+        typeof overlayRaw.dashGap === "number" && Number.isFinite(overlayRaw.dashGap)
+          ? Math.max(1, Math.min(20, overlayRaw.dashGap))
+          : dfltOverlay.dashGap,
     },
   };
 }
@@ -2459,6 +2498,9 @@ function applyConfig(runtime: RuntimeState): void {
   if (!runtime.scriptText) {
     runtime.scriptText = config.editor.defaultScript;
   }
+
+  // Pass sprite overlay config to the pixel editor
+  runtime.pixelEditor?.setSpriteOverlayConfig(config.spriteOverlay);
 }
 
 function saveRom(runtime: RuntimeState): void {
