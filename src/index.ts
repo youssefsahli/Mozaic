@@ -71,7 +71,7 @@ import {
 import { parseSpriteROM } from "./editor/importer.js";
 import { buildMzkDataUrl } from "./editor/exporter.js";
 import { hexToRgb } from "./shared/color-utils.js";
-import { exampleScriptForVariant, ROM_VARIANT_LABELS, type RomVariant } from "./editor/example-roms.js";
+import { fetchExampleScript, defaultScript, isExampleVariant, ROM_VARIANT_LABELS, type RomVariant } from "./editor/example-roms.js";
 
 type EditorMode = "script" | "config" | "image";
 const LAST_ROM_STORAGE_KEY = "mozaic:last-rom";
@@ -2248,11 +2248,11 @@ async function playProject(runtime: RuntimeState): Promise<void> {
   resizeGameCanvas(runtime.ui);
 }
 
-function createNewRom(
+async function createNewRom(
   runtime: RuntimeState,
   variant: RomVariant = "empty",
   paletteName?: string
-): void {
+): Promise<void> {
   const { newRomWidth, newRomHeight, newRomColor } = runtime.config.game;
 
   // Save the current project into "recents" before wiping
@@ -2306,9 +2306,14 @@ function createNewRom(
   );
   addChild(runtime.project.root, imgNode);
 
-  // Add a .msc script referencing the new .mzk (example variants get richer scripts)
+  // Add a .msc script referencing the new .mzk (example variants fetch from public/examples/)
   const scriptName = mzkName.replace(/\.mzk$/, ".msc");
-  const scriptContent = exampleScriptForVariant(variant, mzkName);
+  let scriptContent: string;
+  if (isExampleVariant(variant)) {
+    scriptContent = await fetchExampleScript(variant, mzkName) ?? defaultScript(mzkName);
+  } else {
+    scriptContent = defaultScript(mzkName);
+  }
   const scriptNode = createScriptFile(scriptName, scriptContent);
   addChild(runtime.project.root, scriptNode);
   runtime.project.entryPointId = scriptNode.id;

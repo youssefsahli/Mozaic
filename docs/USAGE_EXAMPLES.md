@@ -4,6 +4,17 @@ Ready-to-run example ROMs are available directly from the editor.
 Click **New ROM** in the header and choose one of the **Example** entries
 to create a project pre-loaded with art and a working `.msc` script.
 
+Example scripts live in [`public/examples/`](../public/examples/) and are
+fetched at runtime, so you can add or edit them without touching the
+source code.
+
+| File | Description |
+|------|-------------|
+| [`platformer.msc`](../public/examples/platformer.msc) | Side-scrolling scene with gravity, jump, and collision scoring |
+| [`top-down.msc`](../public/examples/top-down.msc) | Four-directional RPG movement with a wandering NPC |
+| [`particles.msc`](../public/examples/particles.msc) | Visual effects showcase with emitters and animation |
+| [`index.json`](../public/examples/index.json) | Manifest consumed by the editor to populate the menu |
+
 ---
 
 ## Platformer Example
@@ -156,6 +167,29 @@ Any ROM variant is a starting point. The workflow is always:
 3. **Script** tab → declare schema, entities, components, and events.
 4. **Run** → iterate until it plays the way you want.
 5. **Save** → export as `.png` / `.mzk` to share.
+
+### Adding a New Example to the Editor
+
+1. Create a `.msc` file in `public/examples/` (e.g. `puzzle.msc`).
+   The file should **not** contain a `Source:` line — it is prepended
+   automatically when loaded.
+2. Add an entry to `public/examples/index.json`:
+   ```json
+   {
+     "id": "puzzle",
+     "title": "Puzzle Example",
+     "hint": "Logic",
+     "file": "puzzle.msc",
+     "description": "A simple block-push puzzle."
+   }
+   ```
+3. Register the variant in `src/editor/example-roms.ts`:
+   - Add `"puzzle"` to the `RomVariant` type.
+   - Add a label in `ROM_VARIANT_LABELS`.
+   - Add it to the `EXAMPLE_VARIANTS` array.
+4. Add a button to `index.html` inside `#new-rom-menu`.
+5. (Optional) Add a ROM image generator in `src/index.ts` and a case in
+   the `createNewRom` switch.
 
 See [TUTORIAL.md](TUTORIAL.md) for a hands-on first-ROM walkthrough and
 [COMPONENTS.md](COMPONENTS.md) for the full component reference.

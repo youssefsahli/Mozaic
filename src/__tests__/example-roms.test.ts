@@ -1,56 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-  exampleScriptForVariant,
+  fetchExampleScript,
+  defaultScript,
+  isExampleVariant,
+  fetchExampleIndex,
   ROM_VARIANT_LABELS,
+  EXAMPLE_VARIANTS,
   type RomVariant,
 } from "../editor/example-roms.js";
 
+// ── Mock global fetch ───────────────────────────────────────
+const mockFetch = vi.fn();
+beforeEach(() => {
+  vi.stubGlobal("fetch", mockFetch);
+  mockFetch.mockReset();
+});
+
 describe("example-roms", () => {
-  // ── exampleScriptForVariant ──────────────────────────────
-
-  it("returns a Source line referencing the given mzk name", () => {
-    const variants: RomVariant[] = ["empty", "platformer", "top-down", "particles"];
-    for (const v of variants) {
-      const script = exampleScriptForVariant(v, "test.mzk");
-      expect(script).toContain('Source: "test.mzk"');
-    }
-  });
-
-  it("platformer script contains expected components", () => {
-    const script = exampleScriptForVariant("platformer", "level.mzk");
-    expect(script).toContain("PlatformController:");
-    expect(script).toContain("Gravity:");
-    expect(script).toContain("Entity.Hero:");
-    expect(script).toContain("Entity.Coin:");
-    expect(script).toContain("Schema:");
-  });
-
-  it("top-down script contains expected components", () => {
-    const script = exampleScriptForVariant("top-down", "map.mzk");
-    expect(script).toContain("TopDownController:");
-    expect(script).toContain("Wanderer:");
-    expect(script).toContain("AreaTrigger:");
-    expect(script).toContain("Entity.Player:");
-    expect(script).toContain("Entity.NPC:");
-  });
-
-  it("particles script contains expected components", () => {
-    const script = exampleScriptForVariant("particles", "fx.mzk");
-    expect(script).toContain("ParticleEmitter:");
-    expect(script).toContain("SpriteAnimator:");
-    expect(script).toContain("Blink:");
-    expect(script).toContain("Entity.Emitter:");
-    expect(script).toContain("Entity.Spark:");
-  });
-
-  it("non-example variants return the default starter script", () => {
-    for (const v of ["empty", "amiga", "checkerboard"] as RomVariant[]) {
-      const script = exampleScriptForVariant(v, "sprite.mzk");
-      expect(script).toContain('Source: "sprite.mzk"');
-      expect(script).toContain("$Score");
-    }
-  });
-
   // ── ROM_VARIANT_LABELS ────────────────────────────────────
 
   it("provides a label for every variant", () => {
@@ -61,5 +27,76 @@ describe("example-roms", () => {
     for (const v of expected) {
       expect(ROM_VARIANT_LABELS[v]).toBeTruthy();
     }
+  });
+
+  // ── isExampleVariant ──────────────────────────────────────
+
+  it("identifies example variants", () => {
+    expect(isExampleVariant("platformer")).toBe(true);
+    expect(isExampleVariant("top-down")).toBe(true);
+    expect(isExampleVariant("particles")).toBe(true);
+    expect(isExampleVariant("empty")).toBe(false);
+    expect(isExampleVariant("amiga")).toBe(false);
+  });
+
+  // ── EXAMPLE_VARIANTS ─────────────────────────────────────
+
+  it("lists three example variants", () => {
+    expect(EXAMPLE_VARIANTS).toHaveLength(3);
+    expect(EXAMPLE_VARIANTS).toContain("platformer");
+    expect(EXAMPLE_VARIANTS).toContain("top-down");
+    expect(EXAMPLE_VARIANTS).toContain("particles");
+  });
+
+  // ── defaultScript ─────────────────────────────────────────
+
+  it("returns a script with Source line and Schema", () => {
+    const s = defaultScript("sprite.mzk");
+    expect(s).toContain('Source: "sprite.mzk"');
+    expect(s).toContain("$Score");
+  });
+
+  // ── fetchExampleScript ────────────────────────────────────
+
+  it("fetches and prepends Source line", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      text: async () => "# example\nSchema:\n  - $X: { addr: 64, type: Int16 }\n",
+    });
+    const result = await fetchExampleScript("platformer", "level.mzk");
+    expect(mockFetch).toHaveBeenCalledWith("examples/platformer.msc");
+    expect(result).toContain('Source: "level.mzk"');
+    expect(result).toContain("# example");
+  });
+
+  it("returns null on fetch failure", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false });
+    const result = await fetchExampleScript("platformer", "level.mzk");
+    expect(result).toBeNull();
+  });
+
+  it("returns null on network error", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("offline"));
+    const result = await fetchExampleScript("top-down", "map.mzk");
+    expect(result).toBeNull();
+  });
+
+  // ── fetchExampleIndex ─────────────────────────────────────
+
+  it("fetches the example manifest", async () => {
+    const manifest = [{ id: "platformer", title: "Platformer", hint: "Side-scroll", file: "platformer.msc", description: "desc" }];
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => manifest,
+    });
+    const result = await fetchExampleIndex();
+    expect(mockFetch).toHaveBeenCalledWith("examples/index.json");
+    expect(result).toEqual(manifest);
+  });
+
+  it("returns empty array on fetch failure", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false });
+    const result = await fetchExampleIndex();
+    expect(result).toEqual([]);
   });
 });

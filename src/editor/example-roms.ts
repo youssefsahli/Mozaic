@@ -1,8 +1,8 @@
 /**
- * Example ROM script templates.
+ * Example ROM helpers.
  *
- * Each function returns a ready-to-use .msc script string that
- * demonstrates a particular gameplay pattern.
+ * Example .msc scripts live in public/examples/ and are fetched at
+ * runtime so they can be maintained as standalone files.
  */
 
 /** All supported ROM variant keys. */
@@ -24,119 +24,71 @@ export const ROM_VARIANT_LABELS: Record<RomVariant, string> = {
   particles: "Particles Example",
 };
 
+/** Variants that have a matching file in public/examples/. */
+export const EXAMPLE_VARIANTS: readonly RomVariant[] = [
+  "platformer",
+  "top-down",
+  "particles",
+];
+
+/** Descriptor for one example entry in the manifest. */
+export interface ExampleEntry {
+  id: string;
+  title: string;
+  hint: string;
+  file: string;
+  description: string;
+}
+
+/** Base URL for examples (relative to site root). */
+const EXAMPLES_BASE = "examples";
+
 /**
- * Return the example .msc script content for the given variant.
- * Non-example variants return the generic starter script.
+ * Fetch the examples manifest (`public/examples/index.json`).
+ * Returns an empty array on network/parse failure.
  */
-export function exampleScriptForVariant(
-  variant: RomVariant,
-  mzkName: string,
-): string {
-  switch (variant) {
-    case "platformer":
-      return `Source: "${mzkName}"
-
-# ── Platformer Example ──────────────────────────
-# A small side-scrolling scene with gravity, a
-# player-controlled hero, and a score counter.
-
-Schema:
-  - $Score: { addr: 64, type: Int16 }
-
-Entity.Hero:
-  Visual: "hero.png"
-  Kinematic: {}
-  Gravity: { force: 1 }
-  PlatformController: { speed: 2, jumpForce: 5 }
-  Collider: {}
-  Health: { maxHp: 3 }
-  Input:
-    - Key_Space -> Action.Jump
-    - Key_A     -> Action.Left
-    - Key_D     -> Action.Right
-
-Entity.Coin:
-  Visual: "coin.png"
-  SineWave: { frequency: 0.05, amplitude: 2, axis: y }
-  Lifetime: { frames: 600 }
-
-Events:
-  Collision(Hero:#Feet, Level:#00FF00):
-    - State.$Score = State.$Score + 1
-`;
-
-    case "top-down":
-      return `Source: "${mzkName}"
-
-# ── Top-Down Example ────────────────────────────
-# A four-directional scene with a wandering NPC,
-# an area trigger, and friction-based movement.
-
-Schema:
-  - $Keys: { addr: 64, type: Int16 }
-
-Entity.Player:
-  Visual: "player.png"
-  Kinematic: {}
-  TopDownController: { speed: 2 }
-  Friction: { factor: 0.85 }
-  Collider: {}
-  Input:
-    - Key_W -> Action.MoveUp
-    - Key_S -> Action.MoveDown
-    - Key_A -> Action.MoveLeft
-    - Key_D -> Action.MoveRight
-
-Entity.NPC:
-  Visual: "npc.png"
-  Kinematic: {}
-  Wanderer: { speed: 1, interval: 90 }
-  Friction: { factor: 0.9 }
-
-Entity.Chest:
-  Visual: "chest.png"
-  AreaTrigger: { width: 16, height: 16, targetType: 1 }
-
-Events:
-  Collision(Player:#Body, Chest:#FFFF00):
-    - State.$Keys = State.$Keys + 1
-`;
-
-    case "particles":
-      return `Source: "${mzkName}"
-
-# ── Particles Example ───────────────────────────
-# Demonstrates visual effects: particle emitter,
-# screen shake, sprite animation, and blink.
-
-Schema:
-  - $FX: { addr: 64, type: Int16 }
-
-Entity.Emitter:
-  Visual: "emitter.png"
-  Kinematic: {}
-  ParticleEmitter: { rate: 2, lifetime: 40, typeId: 0 }
-  SineWave: { frequency: 0.03, amplitude: 3, axis: x }
-
-Entity.Spark:
-  Visual: "spark.png"
-  Kinematic: {}
-  Gravity: { force: 0.5 }
-  Lifetime: { frames: 40 }
-  Blink: { interval: 6 }
-
-Entity.Spinner:
-  Visual: "spinner.png"
-  Kinematic: {}
-  SpriteAnimator: { frames: 8, count: 4 }
-  Patrol: { speed: 1, axis: x }
-
-Events:
-  Collision(Spark:#Body, Level:#FF0000):
-    - State.$FX = State.$FX + 1
-`;
-
-    default:
-      return `Source: "${mzkName}"\n\nSchema:\n  - $Score: { addr: 64, type: Int16 }\n`;
+export async function fetchExampleIndex(): Promise<ExampleEntry[]> {
+  try {
+    const res = await fetch(`${EXAMPLES_BASE}/index.json`);
+    if (!res.ok) return [];
+    return (await res.json()) as ExampleEntry[];
+  } catch {
+    return [];
   }
 }
+
+/**
+ * Fetch the .msc script for a given example variant.
+ *
+ * The fetched text has a `Source:` line prepended that references the
+ * supplied `mzkName`, so the script is ready to use in a project.
+ *
+ * Returns `null` if the fetch fails.
+ */
+export async function fetchExampleScript(
+  variant: RomVariant,
+  mzkName: string,
+): Promise<string | null> {
+  const filename = `${variant}.msc`;
+  try {
+    const res = await fetch(`${EXAMPLES_BASE}/${filename}`);
+    if (!res.ok) return null;
+    const body = await res.text();
+    return `Source: "${mzkName}"\n\n${body}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Return a minimal default .msc script for non-example variants.
+ */
+export function defaultScript(mzkName: string): string {
+  return `Source: "${mzkName}"\n\nSchema:\n  - $Score: { addr: 64, type: Int16 }\n`;
+}
+
+/** Return true if the variant has an example file to fetch. */
+export function isExampleVariant(variant: RomVariant): boolean {
+  return (EXAMPLE_VARIANTS as readonly string[]).includes(variant);
+}
+

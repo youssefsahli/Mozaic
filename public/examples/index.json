@@ -1,0 +1,23 @@
+[
+  {
+    "id": "platformer",
+    "title": "Platformer Example",
+    "hint": "Side-scroll",
+    "file": "platformer.msc",
+    "description": "Side-scrolling scene with gravity, jump, and collision scoring."
+  },
+  {
+    "id": "top-down",
+    "title": "Top-Down Example",
+    "hint": "RPG",
+    "file": "top-down.msc",
+    "description": "Four-directional movement with a wandering NPC and area trigger."
+  },
+  {
+    "id": "particles",
+    "title": "Particles Example",
+    "hint": "Effects",
+    "file": "particles.msc",
+    "description": "Visual effects showcase with emitters, animation, and blink."
+  }
+]
