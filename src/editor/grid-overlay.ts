@@ -15,8 +15,9 @@ const SELECTION_THRESHOLD = 3.2;
 
 /** Default colors for sprite grid overlay rectangles and labels. */
 const DEFAULT_SPRITE_COLOR = "rgba(0,240,255,0.7)";
-const DEFAULT_SPRITE_LABEL_COLOR = "rgba(0,240,255,0.85)";
+const DEFAULT_SPRITE_LABEL_COLOR = "rgba(200,230,255,0.80)";
 const DEFAULT_SPRITE_LABEL_BG = "rgba(0,0,0,0.55)";
+const DEFAULT_SEPARATOR_COLOR = "rgba(0,240,255,0.22)";
 
 /** Valid range for labelFontSize (pixels). */
 export const MIN_LABEL_FONT_SIZE = 2;
@@ -44,6 +45,10 @@ export interface SpriteOverlayConfig {
   dashLength: number;
   /** Gap between dash segments (in screen pixels, scaled). */
   dashGap: number;
+  /** Whether to draw slim dotted separators between grid cells inside multi-frame sprites. */
+  gridSeparators: boolean;
+  /** Colour for the grid cell separator lines. */
+  separatorColor: string;
 }
 
 export const DEFAULT_SPRITE_OVERLAY_CONFIG: SpriteOverlayConfig = {
@@ -51,10 +56,12 @@ export const DEFAULT_SPRITE_OVERLAY_CONFIG: SpriteOverlayConfig = {
   color: DEFAULT_SPRITE_COLOR,
   labelColor: DEFAULT_SPRITE_LABEL_COLOR,
   labelBg: DEFAULT_SPRITE_LABEL_BG,
-  labelFontSize: 5,
+  labelFontSize: 4,
   animateDash: true,
   dashLength: 3,
   dashGap: 3,
+  gridSeparators: true,
+  separatorColor: DEFAULT_SEPARATOR_COLOR,
 };
 
 /** A grid-based sprite definition to overlay on the editor canvas. */
@@ -236,6 +243,23 @@ function renderSpriteGridOverlay(
     ctx.strokeRect(x, y, w, h);
     ctx.setLineDash([]);
     ctx.restore();
+
+    // Draw slim dotted separator lines between grid cells inside multi-frame sprites
+    if (config.gridSeparators && entry.frames > 1) {
+      ctx.save();
+      ctx.strokeStyle = config.separatorColor;
+      ctx.lineWidth = 0.5 * invScale;
+      ctx.setLineDash([dashLen * 0.5, dashGap * 0.5]);
+      ctx.beginPath();
+      for (let f = 1; f < entry.frames; f++) {
+        const sx = x + f * gridSize;
+        ctx.moveTo(sx, y);
+        ctx.lineTo(sx, y + h);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
 
     // Animation name label with background pill
     ctx.save();

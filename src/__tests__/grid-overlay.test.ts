@@ -319,4 +319,67 @@ describe("renderOverlay sprite grid overlay", () => {
     // Still renders, just without animation offset
     expect(ctx.strokeRect).toHaveBeenCalledTimes(2);
   });
+
+  it("draws grid cell separator lines for multi-frame sprites", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "run", col: 1, row: 0, frames: 3 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, gridSeparators: true },
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // moveTo/lineTo called for 2 separator lines (frames 1→2 and 2→3)
+    expect(ctx.moveTo).toHaveBeenCalledTimes(2);
+    expect(ctx.lineTo).toHaveBeenCalledTimes(2);
+    // First separator at x = 8 + 1*8 = 16
+    expect(ctx.moveTo).toHaveBeenCalledWith(16, 0);
+    expect(ctx.lineTo).toHaveBeenCalledWith(16, 8);
+    // Second separator at x = 8 + 2*8 = 24
+    expect(ctx.moveTo).toHaveBeenCalledWith(24, 0);
+    expect(ctx.lineTo).toHaveBeenCalledWith(24, 8);
+  });
+
+  it("does not draw separators for single-frame sprites", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "idle", col: 0, row: 0, frames: 1 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, gridSeparators: true },
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // No separator lines for single-frame sprite (moveTo only from grid lines / border)
+    expect(ctx.moveTo).not.toHaveBeenCalled();
+    expect(ctx.lineTo).not.toHaveBeenCalled();
+  });
+
+  it("does not draw separators when gridSeparators is false", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "run", col: 0, row: 0, frames: 3 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, gridSeparators: false },
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // No separator lines drawn
+    expect(ctx.moveTo).not.toHaveBeenCalled();
+    expect(ctx.lineTo).not.toHaveBeenCalled();
+  });
 });

@@ -2456,6 +2456,14 @@ function mergeConfig(raw: Partial<MozaicConfig>): MozaicConfig {
         typeof overlayRaw.dashGap === "number" && Number.isFinite(overlayRaw.dashGap)
           ? Math.max(MIN_DASH, Math.min(MAX_DASH, overlayRaw.dashGap))
           : dfltOverlay.dashGap,
+      gridSeparators:
+        typeof overlayRaw.gridSeparators === "boolean"
+          ? overlayRaw.gridSeparators
+          : dfltOverlay.gridSeparators,
+      separatorColor:
+        typeof overlayRaw.separatorColor === "string"
+          ? overlayRaw.separatorColor
+          : dfltOverlay.separatorColor,
     },
   };
 }
@@ -3162,6 +3170,9 @@ function emptyScript(): MscDocument {
 }
 
 function switchTab(runtime: RuntimeState, tabId: string): void {
+  // Save current file content before switching tabs to prevent data loss
+  saveActiveFileContent(runtime);
+
   runtime.activeTab = tabId;
 
   document.querySelectorAll<HTMLButtonElement>("#tab-bar .tab-btn").forEach((btn) => {
