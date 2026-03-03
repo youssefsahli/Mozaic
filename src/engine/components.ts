@@ -824,7 +824,173 @@ export const blinkComponent: ComponentFn = (buffer, entityPtr, props) => {
 
 
 
-// ── Default Registry ──────────────────────────────────────────
+// ── Roguelike Components ──────────────────────────────────────
+
+/**
+ * TurnBased — processes movement only when an input action fires.
+ * Props: budget (max actions per turn, default 1)
+ * State: Byte 11 (action counter, resets each turn)
+ * Exposes: $turnReady (1 when waiting for input, 0 during cooldown)
+ */
+export const turnBasedComponent: ComponentFn = (buffer, entityPtr, props, input) => {
+  const budget = (props.budget as number) ?? 1;
+  const counterByte = entityPtr + ENTITY_DATA_START;
+  let counter = readInt8(buffer, counterByte);
+
+  const hasInput =
+    input.active.has("Action.MoveLeft") ||
+    input.active.has("Action.MoveRight") ||
+    input.active.has("Action.MoveUp") ||
+    input.active.has("Action.MoveDown") ||
+    input.active.has("Action.Interact");
+
+  if (hasInput && counter < budget) {
+    counter++;
+    writeInt8(buffer, counterByte, counter);
+  }
+
+  // Zero out velocity when budget is exhausted (freeze until reset)
+  if (counter >= budget && !hasInput) {
+    writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, 0);
+    writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, 0);
+    writeInt8(buffer, counterByte, 0); // reset for next turn
+  }
+};
+
+export const turnBasedEngineComponent: EngineComponent = {
+  name: "TurnBased",
+  tick: turnBasedComponent,
+  getContext: (buffer, ptr, props) => ({
+    $turnReady: readInt8(buffer, ptr + ENTITY_DATA_START) < ((props.budget as number) ?? 1) ? 1 : 0,
+  }),
+};
+
+/**
+ * GridMovement — snaps entity position to a tile grid on each step.
+ * Props: gridSize (pixels per tile, default 16)
+ * Works with TurnBased for turn-by-turn tile movement.
+ */
+export const gridMovementComponent: ComponentFn = (buffer, entityPtr, props, input) => {
+  const gridSize = (props.gridSize as number) ?? 16;
+
+  let dx = 0;
+  let dy = 0;
+  if (input.active.has("Action.MoveLeft"))  dx = -1;
+  if (input.active.has("Action.MoveRight")) dx = 1;
+  if (input.active.has("Action.MoveUp"))    dy = -1;
+  if (input.active.has("Action.MoveDown"))  dy = 1;
+
+  if (dx !== 0 || dy !== 0) {
+    const px = readInt16(buffer, entityPtr + ENTITY_POS_X);
+    const py = readInt16(buffer, entityPtr + ENTITY_POS_Y);
+    writeInt16(buffer, entityPtr + ENTITY_POS_X, px + dx * gridSize);
+    writeInt16(buffer, entityPtr + ENTITY_POS_Y, py + dy * gridSize);
+  }
+
+  // Zero velocity — movement is discrete, not continuous
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, 0);
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, 0);
+};
+
+/**
+ * FieldOfView — marks an entity as visible/hidden based on distance
+ * to a target entity type (the "viewer").
+ * Props: range (tiles, default 5), viewerType (entity type ID, default 1)
+ * State: Byte 12 (visible flag)
+ * Exposes: $visible (1 if within range, 0 otherwise)
+ */
+export const fieldOfViewComponent: ComponentFn = (buffer, entityPtr, props) => {
+  const range = (props.range as number) ?? 5;
+  const viewerType = (props.viewerType as number) ?? 1;
+  const visibleByte = entityPtr + ENTITY_DATA_START + 1; // byte 12
+
+  const myX = readInt16(buffer, entityPtr + ENTITY_POS_X);
+  const myY = readInt16(buffer, entityPtr + ENTITY_POS_Y);
+
+  let visible = 0;
+
+  // Scan entity pool for the viewer
+  for (
+    let ptr = MEMORY_BLOCKS.entityPool.startByte;
+    ptr < MEMORY_BLOCKS.entityPool.endByte;
+    ptr += ENTITY_SLOT_SIZE
+  ) {
+    if (ptr === entityPtr) continue;
+    if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
+    if (readInt8(buffer, ptr + ENTITY_TYPE_ID) !== viewerType) continue;
+
+    const vx = readInt16(buffer, ptr + ENTITY_POS_X);
+    const vy = readInt16(buffer, ptr + ENTITY_POS_Y);
+    const dist = Math.abs(myX - vx) + Math.abs(myY - vy); // Manhattan distance
+    if (dist <= range * 16) {
+      visible = 1;
+      break;
+    }
+  }
+
+  writeInt8(buffer, visibleByte, visible);
+};
+
+export const fieldOfViewEngineComponent: EngineComponent = {
+  name: "FieldOfView",
+  tick: fieldOfViewComponent,
+  getContext: (buffer, ptr) => ({
+    $visible: readInt8(buffer, ptr + ENTITY_DATA_START + 1),
+  }),
+};
+
+/**
+ * Inventory — gives an entity item slots stored in state memory.
+ * Props: slots (number of item slots, default 4, max 4)
+ * State: Bytes 12-15 (up to 4 item type IDs, 0 = empty)
+ * Exposes: $slot0..$slot3 (item type ID in each slot)
+ */
+export const inventoryComponent: ComponentFn = (buffer, entityPtr, props, input) => {
+  const slots = Math.min((props.slots as number) ?? 4, 4);
+
+  // On interact action, pick up nearby items
+  if (input.active.has("Action.Interact")) {
+    const myX = readInt16(buffer, entityPtr + ENTITY_POS_X);
+    const myY = readInt16(buffer, entityPtr + ENTITY_POS_Y);
+    const pickupRange = 16;
+
+    for (
+      let ptr = MEMORY_BLOCKS.entityPool.startByte;
+      ptr < MEMORY_BLOCKS.entityPool.endByte;
+      ptr += ENTITY_SLOT_SIZE
+    ) {
+      if (ptr === entityPtr) continue;
+      if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
+
+      const ix = readInt16(buffer, ptr + ENTITY_POS_X);
+      const iy = readInt16(buffer, ptr + ENTITY_POS_Y);
+      if (Math.abs(myX - ix) + Math.abs(myY - iy) > pickupRange) continue;
+
+      const itemType = readInt8(buffer, ptr + ENTITY_TYPE_ID);
+
+      // Find first empty slot
+      for (let s = 0; s < slots; s++) {
+        const slotByte = entityPtr + ENTITY_DATA_START + 1 + s;
+        if (readInt8(buffer, slotByte) === 0) {
+          writeInt8(buffer, slotByte, itemType);
+          writeInt8(buffer, ptr + ENTITY_ACTIVE, 0); // despawn item
+          break;
+        }
+      }
+    }
+  }
+};
+
+export const inventoryEngineComponent: EngineComponent = {
+  name: "Inventory",
+  tick: inventoryComponent,
+  getContext: (buffer, ptr) => ({
+    $slot0: readInt8(buffer, ptr + ENTITY_DATA_START + 1),
+    $slot1: readInt8(buffer, ptr + ENTITY_DATA_START + 2),
+    $slot2: readInt8(buffer, ptr + ENTITY_DATA_START + 3),
+    $slot3: readInt8(buffer, ptr + ENTITY_DATA_START + 4),
+  }),
+};
 
 /** Create a ComponentRegistry pre-loaded with all built-in components. */
 export function createDefaultRegistry(): ComponentRegistry {
@@ -862,6 +1028,12 @@ export function createDefaultRegistry(): ComponentRegistry {
   registry.register("SineWave", sineWaveComponent);
   registry.register("Patrol", patrolComponent);
   registry.register("Blink", blinkComponent);
+
+  // Roguelike
+  registry.register("TurnBased", turnBasedEngineComponent);
+  registry.register("GridMovement", gridMovementComponent);
+  registry.register("FieldOfView", fieldOfViewEngineComponent);
+  registry.register("Inventory", inventoryEngineComponent);
 
   // Drawing & Effects
   registry.register("ScreenShake", screenShakeComponent);

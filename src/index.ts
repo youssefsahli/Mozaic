@@ -164,6 +164,8 @@ interface UiRefs {
   editorUsedColors: HTMLDivElement;
   compilerConsole: HTMLDivElement;
   inputDebug: HTMLDivElement;
+  themeToggleBtn: HTMLButtonElement;
+  uiScaleSelect: HTMLSelectElement;
 }
 
 interface DocEntry {
@@ -422,6 +424,8 @@ function getUiRefs(): UiRefs {
     editorUsedColors: requiredElement<HTMLDivElement>("editor-used-colors"),
     compilerConsole: requiredElement<HTMLDivElement>("compiler-console"),
     inputDebug: requiredElement<HTMLDivElement>("input-debug"),
+    themeToggleBtn: requiredElement<HTMLButtonElement>("theme-toggle-btn"),
+    uiScaleSelect: requiredElement<HTMLSelectElement>("ui-scale-select"),
   };
 }
 
@@ -1083,6 +1087,32 @@ function wireUi(runtime: RuntimeState): void {
   ui.restartButton.addEventListener("click", () => {
     void bootWithContext(runtime);
   });
+
+  // Theme toggle
+  {
+    const THEME_KEY = "mozaic:theme";
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "light") document.documentElement.classList.add("light-theme");
+    ui.themeToggleBtn.addEventListener("click", () => {
+      const isLight = document.documentElement.classList.toggle("light-theme");
+      localStorage.setItem(THEME_KEY, isLight ? "light" : "dark");
+    });
+  }
+
+  // UI scaling
+  {
+    const SCALE_KEY = "mozaic:ui-scale";
+    const savedScale = localStorage.getItem(SCALE_KEY);
+    if (savedScale) {
+      document.documentElement.style.fontSize = `${parseFloat(savedScale) * 11}px`;
+      ui.uiScaleSelect.value = savedScale;
+    }
+    ui.uiScaleSelect.addEventListener("change", () => {
+      const scale = parseFloat(ui.uiScaleSelect.value);
+      document.documentElement.style.fontSize = `${scale * 11}px`;
+      localStorage.setItem(SCALE_KEY, ui.uiScaleSelect.value);
+    });
+  }
 
   // Save file button
   ui.saveFileButton.addEventListener("click", () => {

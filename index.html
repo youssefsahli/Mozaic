@@ -34,7 +34,26 @@
         --shadow-md:  0 2px 8px rgba(0,0,0,.5);
       }
 
-      /* ── Reset ────────────────────────────────── */
+      /* ── Light Theme ────────────────────────── */
+      :root.light-theme {
+        --bg:         #F5F7FA;
+        --surface:    #FFFFFF;
+        --surface-2:  #EEF1F5;
+        --surface-3:  #E2E6EC;
+        --border:     #D0D5DD;
+        --border-hi:  #B8BFCB;
+        --text:       #2C3E50;
+        --text-dim:   #6B7B8D;
+        --accent:     #0088CC;
+        --accent-bg:  rgba(0,136,204,.10);
+        --accent-hover: #00AAEE;
+        --danger:     #E53E3E;
+        --success:    #2F855A;
+        --warning:    #D69E2E;
+        --info:       #3182CE;
+        --shadow-sm:  0 1px 2px rgba(0,0,0,.08);
+        --shadow-md:  0 2px 8px rgba(0,0,0,.12);
+      }
       *, *::before, *::after { margin:0; padding:0; box-sizing:border-box }
 
       body {
@@ -1219,6 +1238,7 @@
       .ftv-folder-icon { color: var(--accent) }
       .ftv-script-icon { color: var(--info) }
       .ftv-image-icon { color: #c586c0 }
+      .ftv-mzk-icon { color: var(--success) }
       .ftv-label {
         flex: 1;
         overflow: hidden;
@@ -1410,6 +1430,22 @@
         border-color: var(--accent-hover) !important;
       }
       .header-btn-primary svg { stroke: var(--bg) }
+      .hdr-select {
+        height: 22px;
+        font: 10px/1 var(--font-mono);
+        background: var(--surface-2);
+        color: var(--text-dim);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 0 4px;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .hdr-select:hover {
+        background: var(--surface-3);
+        border-color: var(--border-hi);
+        color: var(--text);
+      }
       .header-file-info {
         font-size: 10px;
         color: var(--text-dim);
@@ -1545,6 +1581,16 @@
           <button id="reload-config-button" type="button" class="hdr-icon-btn" title="Reload config">
             <svg viewBox="0 0 16 16"><path d="M3 8a5 5 0 019-3"/><path d="M12 2v3h-3"/><path d="M13 8a5 5 0 01-9 3"/><path d="M4 14v-3h3"/></svg>
           </button>
+          <div class="header-sep"></div>
+          <button id="theme-toggle-btn" type="button" class="hdr-icon-btn" title="Toggle light/dark theme">
+            <svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.5"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.6 3.6l1 1M11.4 11.4l1 1M3.6 12.4l1-1M11.4 4.6l1-1"/></svg>
+          </button>
+          <select id="ui-scale-select" class="hdr-select" title="UI scale">
+            <option value="0.85">85%</option>
+            <option value="1" selected>100%</option>
+            <option value="1.15">115%</option>
+            <option value="1.3">130%</option>
+          </select>
           <div class="header-sep"></div>
           <button id="restart-button" type="button" class="hdr-icon-btn header-btn-primary" title="Run game (F5)">
             <svg viewBox="0 0 16 16"><polygon points="4,2 14,8 4,14"/></svg>
