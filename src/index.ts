@@ -19,7 +19,7 @@ import { createDefaultRegistry } from "./engine/components.js";
 import { parseMsc, type MscDocument } from "./parser/msc.js";
 import { parseWithImports } from "./engine/import-resolver.js";
 import { PixelEditor, type PixelEditorRefs } from "./editor/pixel-editor.js";
-import { DEFAULT_SPRITE_OVERLAY_CONFIG, type SpriteOverlayConfig } from "./editor/grid-overlay.js";
+import { DEFAULT_SPRITE_OVERLAY_CONFIG, MIN_LABEL_FONT_SIZE, MAX_LABEL_FONT_SIZE, MIN_DASH, MAX_DASH, type SpriteOverlayConfig } from "./editor/grid-overlay.js";
 import {
   MEMORY_BLOCKS,
   ENTITY_SLOT_SIZE,
@@ -2442,7 +2442,7 @@ function mergeConfig(raw: Partial<MozaicConfig>): MozaicConfig {
           : dfltOverlay.labelBg,
       labelFontSize:
         typeof overlayRaw.labelFontSize === "number" && Number.isFinite(overlayRaw.labelFontSize)
-          ? Math.max(2, Math.min(24, overlayRaw.labelFontSize))
+          ? Math.max(MIN_LABEL_FONT_SIZE, Math.min(MAX_LABEL_FONT_SIZE, overlayRaw.labelFontSize))
           : dfltOverlay.labelFontSize,
       animateDash:
         typeof overlayRaw.animateDash === "boolean"
@@ -2450,11 +2450,11 @@ function mergeConfig(raw: Partial<MozaicConfig>): MozaicConfig {
           : dfltOverlay.animateDash,
       dashLength:
         typeof overlayRaw.dashLength === "number" && Number.isFinite(overlayRaw.dashLength)
-          ? Math.max(1, Math.min(20, overlayRaw.dashLength))
+          ? Math.max(MIN_DASH, Math.min(MAX_DASH, overlayRaw.dashLength))
           : dfltOverlay.dashLength,
       dashGap:
         typeof overlayRaw.dashGap === "number" && Number.isFinite(overlayRaw.dashGap)
-          ? Math.max(1, Math.min(20, overlayRaw.dashGap))
+          ? Math.max(MIN_DASH, Math.min(MAX_DASH, overlayRaw.dashGap))
           : dfltOverlay.dashGap,
     },
   };

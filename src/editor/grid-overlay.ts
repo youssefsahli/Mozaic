@@ -18,6 +18,14 @@ const DEFAULT_SPRITE_COLOR = "rgba(0,240,255,0.7)";
 const DEFAULT_SPRITE_LABEL_COLOR = "rgba(0,240,255,0.85)";
 const DEFAULT_SPRITE_LABEL_BG = "rgba(0,0,0,0.55)";
 
+/** Valid range for labelFontSize (pixels). */
+export const MIN_LABEL_FONT_SIZE = 2;
+export const MAX_LABEL_FONT_SIZE = 24;
+
+/** Valid range for dashLength and dashGap (pixels). */
+export const MIN_DASH = 1;
+export const MAX_DASH = 20;
+
 /** Configuration for the sprite overlay appearance and behaviour. */
 export interface SpriteOverlayConfig {
   /** Whether the sprite overlay is enabled. */
@@ -208,7 +216,7 @@ function renderSpriteGridOverlay(
 ): void {
   const scaleA = ctx.getTransform().a || 1;
   const invScale = 1 / scaleA;
-  const fontSize = Math.max(4, config.labelFontSize * invScale);
+  const fontSize = Math.max(MIN_LABEL_FONT_SIZE, config.labelFontSize * invScale);
   const dashLen = config.dashLength * invScale;
   const dashGap = config.dashGap * invScale;
   const dashOffset = config.animateDash ? (animationTime / 60) * invScale : 0;
