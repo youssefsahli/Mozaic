@@ -317,6 +317,7 @@ export class PixelEditor {
       this.activeEntityType = Object.keys(this.entityDefs)[0] ?? null;
     }
     this.updateOverlayAnimation();
+    this.renderGridOverlay();
   }
 
   /** Update the sprite overlay configuration from mozaic.config.json. */
@@ -642,7 +643,7 @@ export class PixelEditor {
       showIds: refs.debugIdsToggle.checked,
       showEcs: refs.layerEcsToggle.checked,
       showSprites: this.spriteOverlayConfig.enabled && spriteEntries.length > 0,
-      spriteGrid: this.script?.spriteGrid ?? 0,
+      spriteGrid: this.script?.spriteGrid || 8,
       spriteEntries,
       spriteOverlayConfig: this.spriteOverlayConfig,
       animationTime: performance.now(),
