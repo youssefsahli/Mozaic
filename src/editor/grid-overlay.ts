@@ -13,6 +13,10 @@ import { readInt8, readInt16, MEMORY_BLOCKS, ENTITY_SLOT_SIZE } from "../engine/
 /** Distance threshold (in document pixels) for click-to-select overlay items. */
 const SELECTION_THRESHOLD = 3.2;
 
+/** Color used for sprite grid overlay rectangles and labels. */
+const SPRITE_OVERLAY_COLOR = "rgba(0,240,255,0.7)";
+const SPRITE_OVERLAY_LABEL_COLOR = "rgba(0,240,255,0.85)";
+
 /** A grid-based sprite definition to overlay on the editor canvas. */
 export interface SpriteOverlayEntry {
   name: string;
@@ -177,7 +181,7 @@ function renderSpriteGridOverlay(
 
     // Dotted rectangle
     ctx.save();
-    ctx.strokeStyle = "rgba(0,240,255,0.7)";
+    ctx.strokeStyle = SPRITE_OVERLAY_COLOR;
     ctx.lineWidth = 1 * invScale;
     ctx.setLineDash([3 * invScale, 3 * invScale]);
     ctx.strokeRect(x, y, w, h);
@@ -187,7 +191,7 @@ function renderSpriteGridOverlay(
     // Animation name label
     ctx.save();
     ctx.font = `${fontSize}px monospace`;
-    ctx.fillStyle = "rgba(0,240,255,0.85)";
+    ctx.fillStyle = SPRITE_OVERLAY_LABEL_COLOR;
     const label = entry.frames > 1 ? `${entry.name} (${entry.frames}f)` : entry.name;
     ctx.fillText(label, x + 1 * invScale, y - 1.5 * invScale);
     ctx.restore();

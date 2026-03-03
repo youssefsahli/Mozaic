@@ -849,8 +849,8 @@ export const turnBasedComponent: ComponentFn = (buffer, entityPtr, props, input)
     writeInt8(buffer, counterByte, counter);
   }
 
-  // Zero out velocity when budget is exhausted (freeze until reset)
-  if (counter >= budget && !hasInput) {
+  // When budget is exhausted, freeze velocity and reset for next turn
+  if (counter >= budget) {
     writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, 0);
     writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, 0);
     writeInt8(buffer, counterByte, 0); // reset for next turn
