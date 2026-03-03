@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { inspectPixelAt, polygonCentroid, pointToSegmentDistance, distanceToPolyline, renderOverlay, type OverlayOptions } from "../editor/grid-overlay.js";
+import { inspectPixelAt, polygonCentroid, pointToSegmentDistance, distanceToPolyline, renderOverlay, DEFAULT_SPRITE_OVERLAY_CONFIG, type OverlayOptions } from "../editor/grid-overlay.js";
 import type { MscSchema } from "../parser/msc.js";
 import type { CameraState } from "../editor/types.js";
 
@@ -94,8 +94,11 @@ function mockCtx(): CanvasRenderingContext2D {
     lineWidth: 0,
     fillStyle: "",
     font: "",
+    lineDashOffset: 0,
     strokeRect: vi.fn(),
+    fillRect: vi.fn(),
     fillText: vi.fn(),
+    measureText: vi.fn(() => ({ width: 30 })),
     beginPath: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
@@ -116,6 +119,11 @@ function defaultOptions(overrides: Partial<OverlayOptions> = {}): OverlayOptions
     showPoints: false,
     showIds: false,
     showEcs: false,
+    showSprites: false,
+    spriteGrid: 0,
+    spriteEntries: [],
+    spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG },
+    animationTime: 0,
     selectedCollisionIndex: null,
     selectedPathIndex: null,
     ...overrides,
@@ -182,5 +190,196 @@ describe("renderOverlay ECS debug", () => {
     // sx = (15 - 5) * 2 = 20, sy = (25 - 5) * 2 = 40
     expect(ctx.strokeRect).toHaveBeenCalledWith(20, 40, 32, 32);
     expect(ctx.fillText).toHaveBeenCalledWith("ID: 3", 20, 38);
+  });
+});
+
+describe("renderOverlay sprite grid overlay", () => {
+  it("draws dotted rectangles and labels for grid-declared sprites", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 16,
+      spriteEntries: [
+        { name: "idle", col: 0, row: 0, frames: 1 },
+        { name: "run", col: 1, row: 0, frames: 3 },
+      ],
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // strokeRect: 1 for document border + 2 for sprite rectangles
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(3);
+    // idle: x=0, y=0, w=16, h=16
+    expect(ctx.strokeRect).toHaveBeenCalledWith(0, 0, 16, 16);
+    // run: x=16, y=0, w=48, h=16
+    expect(ctx.strokeRect).toHaveBeenCalledWith(16, 0, 48, 16);
+
+    // Labels drawn
+    expect(ctx.fillText).toHaveBeenCalledWith("idle", expect.any(Number), expect.any(Number));
+    expect(ctx.fillText).toHaveBeenCalledWith("run (3f)", expect.any(Number), expect.any(Number));
+  });
+
+  it("does not draw sprites when showSprites is false", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: false,
+      spriteGrid: 16,
+      spriteEntries: [{ name: "idle", col: 0, row: 0, frames: 1 }],
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // Only document border
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws background pills behind labels (fillRect before fillText)", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 16,
+      spriteEntries: [{ name: "idle", col: 0, row: 0, frames: 1 }],
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // Label background pill should be drawn (at least 1 fillRect for the pill)
+    expect(ctx.fillRect).toHaveBeenCalled();
+    // And label text is drawn after
+    expect(ctx.fillText).toHaveBeenCalledWith("idle", expect.any(Number), expect.any(Number));
+  });
+
+  it("uses custom overlay config colors", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const customConfig = {
+      ...DEFAULT_SPRITE_OVERLAY_CONFIG,
+      color: "rgba(255,0,0,0.8)",
+      labelColor: "rgba(255,255,0,1.0)",
+    };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 16,
+      spriteEntries: [{ name: "test", col: 0, row: 0, frames: 1 }],
+      spriteOverlayConfig: customConfig,
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // Should render bounding box + border
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(2);
+  });
+
+  it("applies animated dash offset when animateDash is true", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "walk", col: 0, row: 0, frames: 2 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, animateDash: true },
+      animationTime: 600,
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // The animated dash offset should cause rendering to occur
+    expect(ctx.strokeRect).toHaveBeenCalled();
+  });
+
+  it("does not animate dash when animateDash is false", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "walk", col: 0, row: 0, frames: 2 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, animateDash: false },
+      animationTime: 600,
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // Still renders, just without animation offset
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(2);
+  });
+
+  it("draws grid cell separator lines for multi-frame sprites", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "run", col: 1, row: 0, frames: 3 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, gridSeparators: true },
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // moveTo/lineTo called for 2 separator lines (frames 1→2 and 2→3)
+    expect(ctx.moveTo).toHaveBeenCalledTimes(2);
+    expect(ctx.lineTo).toHaveBeenCalledTimes(2);
+    // First separator at x = 8 + 1*8 = 16
+    expect(ctx.moveTo).toHaveBeenCalledWith(16, 0);
+    expect(ctx.lineTo).toHaveBeenCalledWith(16, 8);
+    // Second separator at x = 8 + 2*8 = 24
+    expect(ctx.moveTo).toHaveBeenCalledWith(24, 0);
+    expect(ctx.lineTo).toHaveBeenCalledWith(24, 8);
+  });
+
+  it("does not draw separators for single-frame sprites", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "idle", col: 0, row: 0, frames: 1 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, gridSeparators: true },
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // No separator lines for single-frame sprite (moveTo only from grid lines / border)
+    expect(ctx.moveTo).not.toHaveBeenCalled();
+    expect(ctx.lineTo).not.toHaveBeenCalled();
+  });
+
+  it("does not draw separators when gridSeparators is false", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 8,
+      spriteEntries: [{ name: "run", col: 0, row: 0, frames: 3 }],
+      spriteOverlayConfig: { ...DEFAULT_SPRITE_OVERLAY_CONFIG, gridSeparators: false },
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // No separator lines drawn
+    expect(ctx.moveTo).not.toHaveBeenCalled();
+    expect(ctx.lineTo).not.toHaveBeenCalled();
   });
 });

@@ -19,6 +19,7 @@ import { createDefaultRegistry } from "./engine/components.js";
 import { parseMsc, type MscDocument } from "./parser/msc.js";
 import { parseWithImports } from "./engine/import-resolver.js";
 import { PixelEditor, type PixelEditorRefs } from "./editor/pixel-editor.js";
+import { DEFAULT_SPRITE_OVERLAY_CONFIG, MIN_LABEL_FONT_SIZE, MAX_LABEL_FONT_SIZE, MIN_DASH, MAX_DASH, type SpriteOverlayConfig } from "./editor/grid-overlay.js";
 import {
   MEMORY_BLOCKS,
   ENTITY_SLOT_SIZE,
@@ -36,6 +37,7 @@ import {
   type FileNode,
   type ProjectFiles,
   type RecentProject,
+  type FileType,
   createDefaultProject,
   createNewProject,
   MIN_PROJECT_DIMENSION,
@@ -89,6 +91,7 @@ interface MozaicConfig {
     showScriptEditor: boolean;
     showPixelEditor: boolean;
   };
+  spriteOverlay: SpriteOverlayConfig;
 }
 
 const DEFAULT_CONFIG: MozaicConfig = {
@@ -104,6 +107,7 @@ const DEFAULT_CONFIG: MozaicConfig = {
     showScriptEditor: true,
     showPixelEditor: true,
   },
+  spriteOverlay: { ...DEFAULT_SPRITE_OVERLAY_CONFIG },
 };
 
 const MSC_KEYWORDS = [
@@ -164,6 +168,8 @@ interface UiRefs {
   editorUsedColors: HTMLDivElement;
   compilerConsole: HTMLDivElement;
   inputDebug: HTMLDivElement;
+  themeToggleBtn: HTMLButtonElement;
+  uiScaleSelect: HTMLSelectElement;
 }
 
 interface DocEntry {
@@ -422,6 +428,8 @@ function getUiRefs(): UiRefs {
     editorUsedColors: requiredElement<HTMLDivElement>("editor-used-colors"),
     compilerConsole: requiredElement<HTMLDivElement>("compiler-console"),
     inputDebug: requiredElement<HTMLDivElement>("input-debug"),
+    themeToggleBtn: requiredElement<HTMLButtonElement>("theme-toggle-btn"),
+    uiScaleSelect: requiredElement<HTMLSelectElement>("ui-scale-select"),
   };
 }
 
@@ -1083,6 +1091,32 @@ function wireUi(runtime: RuntimeState): void {
   ui.restartButton.addEventListener("click", () => {
     void bootWithContext(runtime);
   });
+
+  // Theme toggle
+  {
+    const THEME_KEY = "mozaic:theme";
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "light") document.documentElement.classList.add("light-theme");
+    ui.themeToggleBtn.addEventListener("click", () => {
+      const isLight = document.documentElement.classList.toggle("light-theme");
+      localStorage.setItem(THEME_KEY, isLight ? "light" : "dark");
+    });
+  }
+
+  // UI scaling
+  {
+    const SCALE_KEY = "mozaic:ui-scale";
+    const savedScale = localStorage.getItem(SCALE_KEY);
+    if (savedScale) {
+      document.documentElement.style.fontSize = `${parseFloat(savedScale) * 11}px`;
+      ui.uiScaleSelect.value = savedScale;
+    }
+    ui.uiScaleSelect.addEventListener("change", () => {
+      const scale = parseFloat(ui.uiScaleSelect.value);
+      document.documentElement.style.fontSize = `${scale * 11}px`;
+      localStorage.setItem(SCALE_KEY, ui.uiScaleSelect.value);
+    });
+  }
 
   // Save file button
   ui.saveFileButton.addEventListener("click", () => {
@@ -2244,24 +2278,32 @@ function createNewRom(
   runtime.scriptText = runtime.config.editor.defaultScript;
   persistScript(runtime.scriptText);
 
-  // Clear old project and create fresh one
+  // Clear old project — start with an empty root so the only files
+  // in the tree are the ones we create below (no stale main.msc).
   runtime.openFileIds = [];
-  const freshProject = createDefaultProject();
-  runtime.project.root = freshProject.root;
-  runtime.project.activeFileId = freshProject.activeFileId;
-  runtime.project.entryPointId = freshProject.entryPointId;
-  runtime.project.projectWidth = freshProject.projectWidth;
-  runtime.project.projectHeight = freshProject.projectHeight;
+  runtime.project.root = createFolder("project", true);
+  runtime.project.activeFileId = null;
+  runtime.project.entryPointId = null;
 
   // Add the new image file to project
   const dataUrl = imageDataToDataUrl(runtime.imageData);
+  const mzkName = `sprite_${Date.now().toString(36)}.mzk`;
   const imgNode = createImageFile(
-    `sprite_${Date.now().toString(36)}.png`,
+    mzkName,
     dataUrl,
     runtime.imageData.width,
     runtime.imageData.height
   );
   addChild(runtime.project.root, imgNode);
+
+  // Add a default .msc script referencing the new .mzk
+  const scriptName = mzkName.replace(/\.mzk$/, ".msc");
+  const scriptContent =
+    `Source: "${mzkName}"\n\nSchema:\n  - $Score: { addr: 64, type: Int16 }\n`;
+  const scriptNode = createScriptFile(scriptName, scriptContent);
+  addChild(runtime.project.root, scriptNode);
+  runtime.project.entryPointId = scriptNode.id;
+
   runtime.project.activeFileId = imgNode.id;
   saveProject(runtime.project);
   runtime.fileTreeView?.render();
@@ -2351,6 +2393,8 @@ function applyConfigFromEditor(runtime: RuntimeState): boolean {
 function mergeConfig(raw: Partial<MozaicConfig>): MozaicConfig {
   const gameRaw: Partial<MozaicConfig["game"]> = raw.game ?? {};
   const editorRaw: Partial<MozaicConfig["editor"]> = raw.editor ?? {};
+  const overlayRaw: Partial<SpriteOverlayConfig> = raw.spriteOverlay ?? {};
+  const dfltOverlay = DEFAULT_SPRITE_OVERLAY_CONFIG;
 
   return {
     game: {
@@ -2377,6 +2421,48 @@ function mergeConfig(raw: Partial<MozaicConfig>): MozaicConfig {
         typeof editorRaw.showPixelEditor === "boolean"
           ? editorRaw.showPixelEditor
           : DEFAULT_CONFIG.editor.showPixelEditor,
+    },
+    spriteOverlay: {
+      enabled:
+        typeof overlayRaw.enabled === "boolean"
+          ? overlayRaw.enabled
+          : dfltOverlay.enabled,
+      color:
+        typeof overlayRaw.color === "string"
+          ? overlayRaw.color
+          : dfltOverlay.color,
+      labelColor:
+        typeof overlayRaw.labelColor === "string"
+          ? overlayRaw.labelColor
+          : dfltOverlay.labelColor,
+      labelBg:
+        typeof overlayRaw.labelBg === "string"
+          ? overlayRaw.labelBg
+          : dfltOverlay.labelBg,
+      labelFontSize:
+        typeof overlayRaw.labelFontSize === "number" && Number.isFinite(overlayRaw.labelFontSize)
+          ? Math.max(MIN_LABEL_FONT_SIZE, Math.min(MAX_LABEL_FONT_SIZE, overlayRaw.labelFontSize))
+          : dfltOverlay.labelFontSize,
+      animateDash:
+        typeof overlayRaw.animateDash === "boolean"
+          ? overlayRaw.animateDash
+          : dfltOverlay.animateDash,
+      dashLength:
+        typeof overlayRaw.dashLength === "number" && Number.isFinite(overlayRaw.dashLength)
+          ? Math.max(MIN_DASH, Math.min(MAX_DASH, overlayRaw.dashLength))
+          : dfltOverlay.dashLength,
+      dashGap:
+        typeof overlayRaw.dashGap === "number" && Number.isFinite(overlayRaw.dashGap)
+          ? Math.max(MIN_DASH, Math.min(MAX_DASH, overlayRaw.dashGap))
+          : dfltOverlay.dashGap,
+      gridSeparators:
+        typeof overlayRaw.gridSeparators === "boolean"
+          ? overlayRaw.gridSeparators
+          : dfltOverlay.gridSeparators,
+      separatorColor:
+        typeof overlayRaw.separatorColor === "string"
+          ? overlayRaw.separatorColor
+          : dfltOverlay.separatorColor,
     },
   };
 }
@@ -2419,6 +2505,9 @@ function applyConfig(runtime: RuntimeState): void {
   if (!runtime.scriptText) {
     runtime.scriptText = config.editor.defaultScript;
   }
+
+  // Pass sprite overlay config to the pixel editor
+  runtime.pixelEditor?.setSpriteOverlayConfig(config.spriteOverlay);
 }
 
 function saveRom(runtime: RuntimeState): void {
@@ -3079,7 +3168,57 @@ function emptyScript(): MscDocument {
   return { imports: [], schema: {}, entities: {}, events: [], sprites: new Map(), spriteGrid: 0 };
 }
 
+/**
+ * When switching to the "script" or "pixel" tab, check whether the currently
+ * active file matches the expected type.  If not, find and open a matching
+ * file (preferring the entry-point for scripts).
+ *
+ * Returns "redirect" when openFileNode was called (caller should return),
+ * or "ok" when the tab can proceed normally.
+ */
+function resolveFileForTab(
+  runtime: RuntimeState,
+  tabId: string
+): "ok" | "redirect" {
+  const expectedType: FileType | null =
+    tabId === "script" ? "script" : tabId === "pixel" ? "image" : null;
+  if (!expectedType) return "ok";
+
+  const activeNode = runtime.project.activeFileId
+    ? findNode(runtime.project.root, runtime.project.activeFileId)
+    : null;
+  if (activeNode?.fileType === expectedType) return "ok";
+
+  // Try entry-point first for scripts
+  if (expectedType === "script" && runtime.project.entryPointId) {
+    const ep = findNode(runtime.project.root, runtime.project.entryPointId);
+    if (ep?.fileType === "script") {
+      void openFileNode(runtime, ep);
+      return "redirect";
+    }
+  }
+
+  const files = collectFiles(runtime.project.root, expectedType);
+  if (files.length > 0) {
+    void openFileNode(runtime, files[0]);
+    return "redirect";
+  }
+
+  const label = expectedType === "script" ? "script" : "image";
+  showStatus(runtime, `No ${label} file in project — create one first.`, "var(--warning)");
+  return "ok";
+}
+
 function switchTab(runtime: RuntimeState, tabId: string): void {
+  // Save current file content before switching tabs to prevent data loss
+  saveActiveFileContent(runtime);
+
+  // When switching to script or pixel, ensure a matching file is active.
+  // If the current file doesn't match the tab's expected type, auto-open
+  // an appropriate file so the user always edits the right thing.
+  const resolved = resolveFileForTab(runtime, tabId);
+  if (resolved === "redirect") return; // openFileNode will handle the switch
+
   runtime.activeTab = tabId;
 
   document.querySelectorAll<HTMLButtonElement>("#tab-bar .tab-btn").forEach((btn) => {

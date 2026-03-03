@@ -13,6 +13,65 @@ import { readInt8, readInt16, MEMORY_BLOCKS, ENTITY_SLOT_SIZE } from "../engine/
 /** Distance threshold (in document pixels) for click-to-select overlay items. */
 const SELECTION_THRESHOLD = 3.2;
 
+/** Default colors for sprite grid overlay rectangles and labels. */
+const DEFAULT_SPRITE_COLOR = "rgba(0,240,255,0.7)";
+const DEFAULT_SPRITE_LABEL_COLOR = "rgba(200,230,255,0.80)";
+const DEFAULT_SPRITE_LABEL_BG = "rgba(0,0,0,0.55)";
+const DEFAULT_SEPARATOR_COLOR = "rgba(0,240,255,0.22)";
+
+/** Valid range for labelFontSize (pixels). */
+export const MIN_LABEL_FONT_SIZE = 2;
+export const MAX_LABEL_FONT_SIZE = 24;
+
+/** Valid range for dashLength and dashGap (pixels). */
+export const MIN_DASH = 1;
+export const MAX_DASH = 20;
+
+/** Configuration for the sprite overlay appearance and behaviour. */
+export interface SpriteOverlayConfig {
+  /** Whether the sprite overlay is enabled. */
+  enabled: boolean;
+  /** Stroke colour for dotted bounding rectangles. */
+  color: string;
+  /** Fill colour for animation name labels. */
+  labelColor: string;
+  /** Background colour for label pill. */
+  labelBg: string;
+  /** Base label font size in pixels (scaled with camera zoom). */
+  labelFontSize: number;
+  /** Whether the dash pattern animates (marching ants effect). */
+  animateDash: boolean;
+  /** Length of each dash segment (in screen pixels, scaled). */
+  dashLength: number;
+  /** Gap between dash segments (in screen pixels, scaled). */
+  dashGap: number;
+  /** Whether to draw slim dotted separators between grid cells inside multi-frame sprites. */
+  gridSeparators: boolean;
+  /** Colour for the grid cell separator lines. */
+  separatorColor: string;
+}
+
+export const DEFAULT_SPRITE_OVERLAY_CONFIG: SpriteOverlayConfig = {
+  enabled: true,
+  color: DEFAULT_SPRITE_COLOR,
+  labelColor: DEFAULT_SPRITE_LABEL_COLOR,
+  labelBg: DEFAULT_SPRITE_LABEL_BG,
+  labelFontSize: 4,
+  animateDash: true,
+  dashLength: 3,
+  dashGap: 3,
+  gridSeparators: true,
+  separatorColor: DEFAULT_SEPARATOR_COLOR,
+};
+
+/** A grid-based sprite definition to overlay on the editor canvas. */
+export interface SpriteOverlayEntry {
+  name: string;
+  col: number;
+  row: number;
+  frames: number;
+}
+
 export interface OverlayOptions {
   inlineGrid: boolean;
   customGrid: boolean;
@@ -23,6 +82,12 @@ export interface OverlayOptions {
   showPoints: boolean;
   showIds: boolean;
   showEcs: boolean;
+  showSprites: boolean;
+  spriteGrid: number;
+  spriteEntries: SpriteOverlayEntry[];
+  spriteOverlayConfig: SpriteOverlayConfig;
+  /** Monotonic timestamp (ms) for animated effects. */
+  animationTime: number;
   selectedCollisionIndex: number | null;
   selectedPathIndex: number | null;
 }
@@ -66,6 +131,10 @@ export function renderOverlay(
 
   if (options.showEcs && stateBuffer) {
     renderEcsDebugOverlay(ctx, cam, stateBuffer);
+  }
+
+  if (options.showSprites && options.spriteGrid > 0 && options.spriteEntries.length > 0) {
+    renderSpriteGridOverlay(ctx, options.spriteGrid, options.spriteEntries, options.spriteOverlayConfig, options.animationTime);
   }
 
   ctx.restore();
@@ -142,6 +211,78 @@ function renderEcsDebugOverlay(
   }
 
   ctx.restore();
+}
+
+/** Draw dotted rectangles for grid-declared sprites with animation names. */
+function renderSpriteGridOverlay(
+  ctx: CanvasRenderingContext2D,
+  gridSize: number,
+  entries: SpriteOverlayEntry[],
+  config: SpriteOverlayConfig,
+  animationTime: number
+): void {
+  const scaleA = ctx.getTransform().a || 1;
+  const invScale = 1 / scaleA;
+  const fontSize = Math.max(MIN_LABEL_FONT_SIZE, config.labelFontSize * invScale);
+  const dashLen = config.dashLength * invScale;
+  const dashGap = config.dashGap * invScale;
+  const dashOffset = config.animateDash ? (animationTime / 60) * invScale : 0;
+
+  for (const entry of entries) {
+    const x = entry.col * gridSize;
+    const y = entry.row * gridSize;
+    const w = entry.frames * gridSize;
+    const h = gridSize;
+
+    // Dotted rectangle with optional marching-ants animation
+    ctx.save();
+    ctx.strokeStyle = config.color;
+    ctx.lineWidth = 1 * invScale;
+    ctx.setLineDash([dashLen, dashGap]);
+    ctx.lineDashOffset = dashOffset;
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Draw slim dotted separator lines between grid cells inside multi-frame sprites
+    if (config.gridSeparators && entry.frames > 1) {
+      ctx.save();
+      ctx.strokeStyle = config.separatorColor;
+      ctx.lineWidth = 0.5 * invScale;
+      ctx.setLineDash([dashLen * 0.5, dashGap * 0.5]);
+      ctx.beginPath();
+      for (let f = 1; f < entry.frames; f++) {
+        const sx = x + f * gridSize;
+        ctx.moveTo(sx, y);
+        ctx.lineTo(sx, y + h);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    // Animation name label with background pill
+    ctx.save();
+    ctx.font = `${fontSize}px monospace`;
+    const label = entry.frames > 1 ? `${entry.name} (${entry.frames}f)` : entry.name;
+    const textMetrics = ctx.measureText(label);
+    const pad = 1.5 * invScale;
+    const labelX = x + pad;
+    const labelY = y - pad;
+
+    // Draw background pill behind label text
+    ctx.fillStyle = config.labelBg;
+    ctx.fillRect(
+      labelX - pad * 0.5,
+      labelY - fontSize,
+      textMetrics.width + pad,
+      fontSize + pad * 0.5
+    );
+
+    ctx.fillStyle = config.labelColor;
+    ctx.fillText(label, labelX, labelY);
+    ctx.restore();
+  }
 }
 
 function drawGridLines(
