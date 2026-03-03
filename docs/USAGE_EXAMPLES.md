@@ -43,6 +43,9 @@ Entity.Hero:
     - Key_Space -> Action.Jump
     - Key_A     -> Action.Left
     - Key_D     -> Action.Right
+    - Key_ArrowLeft  -> Action.Left
+    - Key_ArrowRight -> Action.Right
+    - Key_ArrowUp    -> Action.Jump
 
 Entity.Coin:
   Visual: "coin.png"
@@ -56,7 +59,7 @@ Events:
 
 ### What to Try
 
-1. Click **Run** and use **A / D / Space** to move.
+1. Click **Run** and use **A / D / Space** (or arrow keys) to move.
 2. Open the **Debug** tab and enable **Collision** overlays.
 3. Change `jumpForce` to `8` and restart — notice the higher jump.
 
@@ -88,6 +91,10 @@ Entity.Player:
     - Key_S -> Action.MoveDown
     - Key_A -> Action.MoveLeft
     - Key_D -> Action.MoveRight
+    - Key_ArrowUp    -> Action.MoveUp
+    - Key_ArrowDown  -> Action.MoveDown
+    - Key_ArrowLeft  -> Action.MoveLeft
+    - Key_ArrowRight -> Action.MoveRight
 
 Entity.NPC:
   Visual: "npc.png"
@@ -106,7 +113,7 @@ Events:
 
 ### What to Try
 
-1. Move with **W / A / S / D** and watch the NPC wander.
+1. Move with **W / A / S / D** (or arrow keys) and watch the NPC wander.
 2. Walk into the chest to increment `$Keys`.
 3. Lower `Friction.factor` to `0.5` for an ice-rink feel.
 

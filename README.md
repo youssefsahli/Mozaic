@@ -115,6 +115,19 @@ src/
   __tests__/            Unit tests (Vitest)
 ```
 
+## Example ROMs
+
+The **New ROM** menu includes ready-made examples under the **Examples** section:
+
+| Example | Description | Key Components |
+|---------|-------------|----------------|
+| **Platformer** | Side-scrolling scene with gravity and jumping | Kinematic, Gravity, PlatformController, Collider, Health |
+| **Top-Down** | Four-directional movement with NPC and area trigger | Kinematic, TopDownController, Friction, Wanderer, AreaTrigger |
+| **Particles** | Visual effects with emitters, animation, and blinking | ParticleEmitter, SpriteAnimator, Blink, Patrol |
+
+Each example generates both pixel art and a companion MSC script so you can run it immediately.
+See [docs/USAGE_EXAMPLES.md](docs/USAGE_EXAMPLES.md) for full script listings and how to extend each example.
+
 ## Documentation
 
 | Document | Description |

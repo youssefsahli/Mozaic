@@ -5,7 +5,7 @@
 # Components used: Kinematic, TopDownController, Friction,
 #   Collider, Wanderer, AreaTrigger
 #
-# Controls: W / A / S / D to move
+# Controls: W / A / S / D to move (arrow keys also work)
 
 Schema:
   - $Keys: { addr: 64, type: Int16 }
@@ -21,6 +21,10 @@ Entity.Player:
     - Key_S -> Action.MoveDown
     - Key_A -> Action.MoveLeft
     - Key_D -> Action.MoveRight
+    - Key_ArrowUp    -> Action.MoveUp
+    - Key_ArrowDown  -> Action.MoveDown
+    - Key_ArrowLeft  -> Action.MoveLeft
+    - Key_ArrowRight -> Action.MoveRight
 
 Entity.NPC:
   Visual: "npc.png"
