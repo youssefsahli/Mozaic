@@ -81,7 +81,7 @@ import {
   type PaletteState,
 } from "./palette.js";
 import { HistoryManager } from "./history.js";
-import { renderOverlay, selectDebugLayer, inspectPixelAt, type OverlayOptions } from "./grid-overlay.js";
+import { renderOverlay, selectDebugLayer, inspectPixelAt, type OverlayOptions, type SpriteOverlayEntry } from "./grid-overlay.js";
 
 // ── Public interfaces ─────────────────────────────────────────
 
@@ -578,6 +578,17 @@ export class PixelEditor {
 
   private buildOverlayOptions(): OverlayOptions {
     const { refs } = this;
+
+    // Collect grid-based sprite entries from the active script
+    const spriteEntries: SpriteOverlayEntry[] = [];
+    if (this.script?.sprites) {
+      for (const [name, def] of this.script.sprites) {
+        if (def.kind === "grid") {
+          spriteEntries.push({ name, col: def.col, row: def.row, frames: def.frames });
+        }
+      }
+    }
+
     return {
       inlineGrid: refs.gridInlineToggle.checked,
       customGrid: refs.gridCustomToggle.checked,
@@ -588,6 +599,9 @@ export class PixelEditor {
       showPoints: refs.debugPointsToggle.checked,
       showIds: refs.debugIdsToggle.checked,
       showEcs: refs.layerEcsToggle.checked,
+      showSprites: spriteEntries.length > 0,
+      spriteGrid: this.script?.spriteGrid ?? 0,
+      spriteEntries,
       selectedCollisionIndex: this.selectedCollisionIndex,
       selectedPathIndex: this.selectedPathIndex,
     };

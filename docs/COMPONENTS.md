@@ -408,6 +408,88 @@ Blink: { interval: 20 }
 
 ---
 
+## Roguelike
+
+These components enable turn-based, tile-snapped gameplay suitable for roguelikes and dungeon crawlers.
+
+### TurnBased
+
+Processes entity actions only when input fires, then freezes until the next turn. Combine with GridMovement for classic roguelike controls.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `budget` | number | `1` | Max actions per turn before the entity pauses |
+
+**Exposed context variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `$turnReady` | `1` if the entity can still act this turn, `0` when budget is exhausted |
+
+```yaml
+TurnBased: { budget: 1 }
+```
+
+---
+
+### GridMovement
+
+Snaps entity movement to a tile grid. Each input step moves exactly one tile in the pressed direction.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `gridSize` | number | `16` | Pixels per tile |
+
+```yaml
+GridMovement: { gridSize: 16 }
+```
+
+---
+
+### FieldOfView
+
+Marks the entity as visible or hidden based on Manhattan distance to a viewer entity type. Useful for fog-of-war effects.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `range` | number | `5` | Visibility range in tiles |
+| `viewerType` | number | `1` | Entity type ID of the viewer |
+
+**Exposed context variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `$visible` | `1` if within range of the viewer, `0` otherwise |
+
+```yaml
+FieldOfView: { range: 6, viewerType: 1 }
+```
+
+---
+
+### Inventory
+
+Gives an entity up to 4 item slots. When the Interact action fires, nearby entities are picked up into the first empty slot.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `slots` | number | `4` | Number of item slots (max 4) |
+
+**Exposed context variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `$slot0` | Item type ID in slot 0 (0 = empty) |
+| `$slot1` | Item type ID in slot 1 |
+| `$slot2` | Item type ID in slot 2 |
+| `$slot3` | Item type ID in slot 3 |
+
+```yaml
+Inventory: { slots: 4 }
+```
+
+---
+
 ## Quick Reference Table
 
 | Component | Category | Key Props | Context Variables |
@@ -435,3 +517,7 @@ Blink: { interval: 20 }
 | **SineWave** | Experimental | `frequency`, `amplitude`, `axis` | — |
 | **Patrol** | Experimental | `speed`, `axis` | — |
 | **Blink** | Experimental | `interval` | — |
+| **TurnBased** | Roguelike | `budget` | `$turnReady` |
+| **GridMovement** | Roguelike | `gridSize` | — |
+| **FieldOfView** | Roguelike | `range`, `viewerType` | `$visible` |
+| **Inventory** | Roguelike | `slots` | `$slot0`..`$slot3` |

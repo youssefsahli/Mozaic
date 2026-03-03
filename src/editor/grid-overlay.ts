@@ -13,6 +13,14 @@ import { readInt8, readInt16, MEMORY_BLOCKS, ENTITY_SLOT_SIZE } from "../engine/
 /** Distance threshold (in document pixels) for click-to-select overlay items. */
 const SELECTION_THRESHOLD = 3.2;
 
+/** A grid-based sprite definition to overlay on the editor canvas. */
+export interface SpriteOverlayEntry {
+  name: string;
+  col: number;
+  row: number;
+  frames: number;
+}
+
 export interface OverlayOptions {
   inlineGrid: boolean;
   customGrid: boolean;
@@ -23,6 +31,9 @@ export interface OverlayOptions {
   showPoints: boolean;
   showIds: boolean;
   showEcs: boolean;
+  showSprites: boolean;
+  spriteGrid: number;
+  spriteEntries: SpriteOverlayEntry[];
   selectedCollisionIndex: number | null;
   selectedPathIndex: number | null;
 }
@@ -66,6 +77,10 @@ export function renderOverlay(
 
   if (options.showEcs && stateBuffer) {
     renderEcsDebugOverlay(ctx, cam, stateBuffer);
+  }
+
+  if (options.showSprites && options.spriteGrid > 0 && options.spriteEntries.length > 0) {
+    renderSpriteGridOverlay(ctx, options.spriteGrid, options.spriteEntries);
   }
 
   ctx.restore();
@@ -142,6 +157,41 @@ function renderEcsDebugOverlay(
   }
 
   ctx.restore();
+}
+
+/** Draw dotted rectangles for grid-declared sprites with animation names. */
+function renderSpriteGridOverlay(
+  ctx: CanvasRenderingContext2D,
+  gridSize: number,
+  entries: SpriteOverlayEntry[]
+): void {
+  const scaleA = ctx.getTransform().a || 1;
+  const invScale = 1 / scaleA;
+  const fontSize = Math.max(5, 6 * invScale);
+
+  for (const entry of entries) {
+    const x = entry.col * gridSize;
+    const y = entry.row * gridSize;
+    const w = entry.frames * gridSize;
+    const h = gridSize;
+
+    // Dotted rectangle
+    ctx.save();
+    ctx.strokeStyle = "rgba(0,240,255,0.7)";
+    ctx.lineWidth = 1 * invScale;
+    ctx.setLineDash([3 * invScale, 3 * invScale]);
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([]);
+    ctx.restore();
+
+    // Animation name label
+    ctx.save();
+    ctx.font = `${fontSize}px monospace`;
+    ctx.fillStyle = "rgba(0,240,255,0.85)";
+    const label = entry.frames > 1 ? `${entry.name} (${entry.frames}f)` : entry.name;
+    ctx.fillText(label, x + 1 * invScale, y - 1.5 * invScale);
+    ctx.restore();
+  }
 }
 
 function drawGridLines(

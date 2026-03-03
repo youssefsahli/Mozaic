@@ -2285,13 +2285,23 @@ function createNewRom(
 
   // Add the new image file to project
   const dataUrl = imageDataToDataUrl(runtime.imageData);
+  const mzkName = `sprite_${Date.now().toString(36)}.mzk`;
   const imgNode = createImageFile(
-    `sprite_${Date.now().toString(36)}.png`,
+    mzkName,
     dataUrl,
     runtime.imageData.width,
     runtime.imageData.height
   );
   addChild(runtime.project.root, imgNode);
+
+  // Add a default .msc script referencing the new .mzk
+  const scriptName = mzkName.replace(/\.mzk$/, ".msc");
+  const scriptContent =
+    `Source: "${mzkName}"\n\nSchema:\n  - $Score: { addr: 64, type: Int16 }\n`;
+  const scriptNode = createScriptFile(scriptName, scriptContent);
+  addChild(runtime.project.root, scriptNode);
+  runtime.project.entryPointId = scriptNode.id;
+
   runtime.project.activeFileId = imgNode.id;
   saveProject(runtime.project);
   runtime.fileTreeView?.render();

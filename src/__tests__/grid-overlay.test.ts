@@ -116,6 +116,9 @@ function defaultOptions(overrides: Partial<OverlayOptions> = {}): OverlayOptions
     showPoints: false,
     showIds: false,
     showEcs: false,
+    showSprites: false,
+    spriteGrid: 0,
+    spriteEntries: [],
     selectedCollisionIndex: null,
     selectedPathIndex: null,
     ...overrides,
@@ -182,5 +185,52 @@ describe("renderOverlay ECS debug", () => {
     // sx = (15 - 5) * 2 = 20, sy = (25 - 5) * 2 = 40
     expect(ctx.strokeRect).toHaveBeenCalledWith(20, 40, 32, 32);
     expect(ctx.fillText).toHaveBeenCalledWith("ID: 3", 20, 38);
+  });
+});
+
+describe("renderOverlay sprite grid overlay", () => {
+  it("draws dotted rectangles and labels for grid-declared sprites", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: true,
+      spriteGrid: 16,
+      spriteEntries: [
+        { name: "idle", col: 0, row: 0, frames: 1 },
+        { name: "run", col: 1, row: 0, frames: 3 },
+      ],
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // strokeRect: 1 for document border + 2 for sprite rectangles
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(3);
+    // idle: x=0, y=0, w=16, h=16
+    expect(ctx.strokeRect).toHaveBeenCalledWith(0, 0, 16, 16);
+    // run: x=16, y=0, w=48, h=16
+    expect(ctx.strokeRect).toHaveBeenCalledWith(16, 0, 48, 16);
+
+    // Labels drawn
+    expect(ctx.fillText).toHaveBeenCalledWith("idle", expect.any(Number), expect.any(Number));
+    expect(ctx.fillText).toHaveBeenCalledWith("run (3f)", expect.any(Number), expect.any(Number));
+  });
+
+  it("does not draw sprites when showSprites is false", () => {
+    const ctx = mockCtx();
+    (ctx as any).setLineDash = vi.fn();
+    const cam: CameraState = { x: 0, y: 0, zoom: 1 };
+
+    const opts = defaultOptions({
+      showSprites: false,
+      spriteGrid: 16,
+      spriteEntries: [{ name: "idle", col: 0, row: 0, frames: 1 }],
+    });
+
+    renderOverlay(ctx, cam, 64, 64, null, opts);
+
+    // Only document border
+    expect(ctx.strokeRect).toHaveBeenCalledTimes(1);
   });
 });
