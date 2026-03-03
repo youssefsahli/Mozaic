@@ -37,6 +37,7 @@ import {
   type FileNode,
   type ProjectFiles,
   type RecentProject,
+  type FileType,
   createDefaultProject,
   createNewProject,
   MIN_PROJECT_DIMENSION,
@@ -2277,14 +2278,12 @@ function createNewRom(
   runtime.scriptText = runtime.config.editor.defaultScript;
   persistScript(runtime.scriptText);
 
-  // Clear old project and create fresh one
+  // Clear old project — start with an empty root so the only files
+  // in the tree are the ones we create below (no stale main.msc).
   runtime.openFileIds = [];
-  const freshProject = createDefaultProject();
-  runtime.project.root = freshProject.root;
-  runtime.project.activeFileId = freshProject.activeFileId;
-  runtime.project.entryPointId = freshProject.entryPointId;
-  runtime.project.projectWidth = freshProject.projectWidth;
-  runtime.project.projectHeight = freshProject.projectHeight;
+  runtime.project.root = createFolder("project", true);
+  runtime.project.activeFileId = null;
+  runtime.project.entryPointId = null;
 
   // Add the new image file to project
   const dataUrl = imageDataToDataUrl(runtime.imageData);
@@ -3169,9 +3168,56 @@ function emptyScript(): MscDocument {
   return { imports: [], schema: {}, entities: {}, events: [], sprites: new Map(), spriteGrid: 0 };
 }
 
+/**
+ * When switching to the "script" or "pixel" tab, check whether the currently
+ * active file matches the expected type.  If not, find and open a matching
+ * file (preferring the entry-point for scripts).
+ *
+ * Returns "redirect" when openFileNode was called (caller should return),
+ * or "ok" when the tab can proceed normally.
+ */
+function resolveFileForTab(
+  runtime: RuntimeState,
+  tabId: string
+): "ok" | "redirect" {
+  const expectedType: FileType | null =
+    tabId === "script" ? "script" : tabId === "pixel" ? "image" : null;
+  if (!expectedType) return "ok";
+
+  const activeNode = runtime.project.activeFileId
+    ? findNode(runtime.project.root, runtime.project.activeFileId)
+    : null;
+  if (activeNode?.fileType === expectedType) return "ok";
+
+  // Try entry-point first for scripts
+  if (expectedType === "script" && runtime.project.entryPointId) {
+    const ep = findNode(runtime.project.root, runtime.project.entryPointId);
+    if (ep?.fileType === "script") {
+      void openFileNode(runtime, ep);
+      return "redirect";
+    }
+  }
+
+  const files = collectFiles(runtime.project.root, expectedType);
+  if (files.length > 0) {
+    void openFileNode(runtime, files[0]);
+    return "redirect";
+  }
+
+  const label = expectedType === "script" ? "script" : "image";
+  showStatus(runtime, `No ${label} file in project — create one first.`, "var(--warning)");
+  return "ok";
+}
+
 function switchTab(runtime: RuntimeState, tabId: string): void {
   // Save current file content before switching tabs to prevent data loss
   saveActiveFileContent(runtime);
+
+  // When switching to script or pixel, ensure a matching file is active.
+  // If the current file doesn't match the tab's expected type, auto-open
+  // an appropriate file so the user always edits the right thing.
+  const resolved = resolveFileForTab(runtime, tabId);
+  if (resolved === "redirect") return; // openFileNode will handle the switch
 
   runtime.activeTab = tabId;
 
