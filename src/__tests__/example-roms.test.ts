@@ -59,14 +59,14 @@ describe("example-roms", () => {
   // ── fetchExampleScript ────────────────────────────────────
 
   it("fetches and prepends Source line", async () => {
+    const body = "# example\nSchema:\n  - $X: { addr: 64, type: Int16 }\n";
     mockFetch.mockResolvedValueOnce({
       ok: true,
-      text: async () => "# example\nSchema:\n  - $X: { addr: 64, type: Int16 }\n",
+      text: async () => body,
     });
     const result = await fetchExampleScript("platformer", "level.mzk");
     expect(mockFetch).toHaveBeenCalledWith("examples/platformer.msc");
-    expect(result).toContain('Source: "level.mzk"');
-    expect(result).toContain("# example");
+    expect(result).toBe(`Source: "level.mzk"\n\n${body}`);
   });
 
   it("returns null on fetch failure", async () => {

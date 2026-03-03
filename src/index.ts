@@ -2346,6 +2346,10 @@ function createNewRom(
         }
         restart(runtime);
       }
+    }).catch((err) => {
+      console.warn("Mozaic: failed to fetch example script:", err);
+      runtime.ui.mscStatus.textContent = `Example script failed to load — using default script.`;
+      runtime.ui.mscStatus.style.color = "#d4a017";
     });
   }
 
