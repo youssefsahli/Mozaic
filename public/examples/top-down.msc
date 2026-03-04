@@ -1,0 +1,41 @@
+# ── Top-Down Example ────────────────────────────
+# A four-directional scene with a wandering NPC,
+# an area trigger, and friction-based movement.
+#
+# Components used: Kinematic, TopDownController, Friction,
+#   Collider, Wanderer, AreaTrigger
+#
+# Controls: W / A / S / D to move (arrow keys also work)
+
+Schema:
+  - $Keys: { addr: 64, type: Int16 }
+
+Entity.Player:
+  Visual: "player.png"
+  Kinematic: {}
+  TopDownController: { speed: 2 }
+  Friction: { factor: 0.85 }
+  Collider: {}
+  Input:
+    - Key_W -> Action.MoveUp
+    - Key_S -> Action.MoveDown
+    - Key_A -> Action.MoveLeft
+    - Key_D -> Action.MoveRight
+    - Key_ArrowUp    -> Action.MoveUp
+    - Key_ArrowDown  -> Action.MoveDown
+    - Key_ArrowLeft  -> Action.MoveLeft
+    - Key_ArrowRight -> Action.MoveRight
+
+Entity.NPC:
+  Visual: "npc.png"
+  Kinematic: {}
+  Wanderer: { speed: 1, interval: 90 }
+  Friction: { factor: 0.9 }
+
+Entity.Chest:
+  Visual: "chest.png"
+  AreaTrigger: { width: 16, height: 16, targetType: 1 }
+
+Events:
+  Collision(Player:#Body, Chest:#FFFF00):
+    - State.$Keys = State.$Keys + 1

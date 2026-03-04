@@ -100,5 +100,11 @@
     "title": "Entity State Reference",
     "category": "Reference",
     "content": "# Entity State Reference\nEntities can change appearance and behavior dynamically based on conditions.\n\n## Defining States\nStates are defined under the States: key in an entity definition.\n\n## How States Work\n- Evaluation Order: Top to bottom\n- First Match Wins\n- Fallback: Uses base definition if no condition is met\n\n## Writing Conditions\n- Operators: ==, !=, >, <, >=, <=, ||, &&\n\n## Context Variables\n- Kinematic: $vx, $vy, $px, $py\n- Health: $hp, $maxHp\n- PlatformController: $isGrounded, $vy\n- Interactable: $triggered\n- AreaTrigger: $triggered\n- Global: State.$varName or $varName\n\n## Overriding Properties\n- Visual: Changes sprite\n- Components: Updates properties (Gravity, Speed)\n\n## Full Reference\nSee docs/ENTITY_STATES.md for complete details and examples."
+  },
+  {
+    "id": "usage-examples",
+    "title": "Usage Examples",
+    "category": "Examples",
+    "content": "# Usage Examples\nReady-to-run example ROMs accessible from the New ROM menu in the editor.\n\n## Platformer Example\nSide-scrolling scene with Gravity, PlatformController, Collider, Health, SineWave, Lifetime. Use A/D/Space to move. Demonstrates collision events and score tracking.\n\n## Top-Down Example\nFour-directional RPG-style scene with TopDownController, Friction, Wanderer, AreaTrigger. Use W/A/S/D to move. Shows NPC wandering and area-trigger interactions.\n\n## Particles Example\nVisual effects showcase with ParticleEmitter, SineWave, Gravity, Lifetime, Blink, SpriteAnimator, Patrol. Demonstrates particle systems, animation, and effect composition.\n\n## How to Use\n1. Click New ROM in the header\n2. Choose an Example entry from the dropdown\n3. Click Run to see it in action\n4. Modify the script and art to experiment\n\n## Full Guide\nSee docs/USAGE_EXAMPLES.md for complete walkthroughs with annotated scripts."
   }
 ]
