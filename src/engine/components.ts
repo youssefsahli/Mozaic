@@ -992,6 +992,75 @@ export const inventoryEngineComponent: EngineComponent = {
   }),
 };
 
+// ── Library 6: Persistence ────────────────────────────────────
+
+/** localStorage key prefix for Mozaic save slots. */
+const SAVE_SLOT_PREFIX = "mozaic:save:";
+
+/**
+ * SaveState — serialises the globals memory block to localStorage when
+ * the specified action fires.
+ *
+ * Props:
+ *   slot    — save-slot name (default "default")
+ *   trigger — input action that triggers the save (default "Action.Save")
+ *   addr    — start byte to save (default: globals start = 64)
+ *   len     — number of bytes to save (default: 448, the full globals block)
+ */
+export const saveStateComponent: ComponentFn = (buffer, _entityPtr, props, input) => {
+  const slotKey = SAVE_SLOT_PREFIX + ((props.slot as string) ?? "default");
+  const trigger = (props.trigger as string) ?? "Action.Save";
+  if (!input.active.has(trigger)) return;
+
+  const startAddr = Math.max(0, (props.addr as number) ?? MEMORY_BLOCKS.globals.startByte);
+  const len = Math.max(1, (props.len as number) ?? (MEMORY_BLOCKS.globals.endByte - MEMORY_BLOCKS.globals.startByte + 1));
+  const slice = Array.from(buffer.subarray(startAddr, startAddr + len));
+  try {
+    localStorage.setItem(slotKey, JSON.stringify(slice));
+  } catch {
+    /* storage full or unavailable */
+  }
+};
+
+/**
+ * LoadState — reads a previously saved globals block from localStorage.
+ *
+ * The load can happen automatically on the first tick (`autoLoad: 1`) and/or
+ * when the specified action fires.
+ *
+ * Props:
+ *   slot      — save-slot name (default "default")
+ *   trigger   — input action that triggers a manual load (default "Action.Load")
+ *   autoLoad  — if 1, also load on the very first tick (default 0)
+ *   addr      — start byte to restore (default: globals start = 64)
+ */
+export const loadStateComponent: ComponentFn = (buffer, _entityPtr, props, input, _baked, state) => {
+  const slotKey = SAVE_SLOT_PREFIX + ((props.slot as string) ?? "default");
+  const trigger = (props.trigger as string) ?? "Action.Load";
+  const autoLoad = (props.autoLoad as number) ?? 0;
+
+  const shouldLoad =
+    input.active.has(trigger) ||
+    (autoLoad === 1 && state.tickCount === 1);
+
+  if (!shouldLoad) return;
+
+  const startAddr = Math.max(0, (props.addr as number) ?? MEMORY_BLOCKS.globals.startByte);
+  try {
+    const raw = localStorage.getItem(slotKey);
+    if (!raw) return;
+    const data = JSON.parse(raw) as number[];
+    for (let i = 0; i < data.length; i++) {
+      const byteAddr = startAddr + i;
+      if (byteAddr < buffer.length) {
+        buffer[byteAddr] = data[i] & 0xff;
+      }
+    }
+  } catch {
+    /* parse error or unavailable */
+  }
+};
+
 /** Create a ComponentRegistry pre-loaded with all built-in components. */
 export function createDefaultRegistry(): ComponentRegistry {
   const registry = new ComponentRegistry();
@@ -1042,6 +1111,10 @@ export function createDefaultRegistry(): ComponentRegistry {
 
   // Camera
   registry.register("Camera", cameraEngineComponent);
+
+  // Persistence
+  registry.register("SaveState", saveStateComponent);
+  registry.register("LoadState", loadStateComponent);
 
   return registry;
 }

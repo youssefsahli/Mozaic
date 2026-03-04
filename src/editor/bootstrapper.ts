@@ -26,6 +26,11 @@ import {
   findNodeByPath,
   dataUrlToImageData,
 } from "./file-system.js";
+import {
+  hasShapeSprites,
+  createShapeAtlas,
+  extendImageDataWithShapes,
+} from "../engine/shape-atlas.js";
 
 // ── Console helpers ─────────────────────────────────────────
 
@@ -192,12 +197,33 @@ export async function bootProject(
   );
 
   // ── 3. Fetch the live memory state ───────────────────────
+  const gridSize = script.spriteGrid || 16;
+  const shapeSpritesPresent = hasShapeSprites(script.sprites);
+
   if (!imageData) {
-    if (!ctx.editorImageData) {
+    if (shapeSpritesPresent) {
+      // Generate a synthetic atlas from shape sprites (no mzk required)
+      const { imageData: synthetic, updatedSprites } = createShapeAtlas(script.sprites, gridSize);
+      imageData = synthetic;
+      // Rebind sprites so compileSpriteAtlas uses absolute coords
+      (script as { sprites: typeof script.sprites }).sprites = updatedSprites;
+      logToConsole(consoleEl, "Generated synthetic shape atlas.", "info");
+    } else if (ctx.editorImageData) {
+      imageData = ctx.editorImageData;
+    } else {
       logToConsole(consoleEl, "No image available — aborting.", "error");
       return null;
     }
-    imageData = ctx.editorImageData;
+  } else if (shapeSpritesPresent) {
+    // Extend the existing source image with shape sprite rows
+    const { imageData: extended, updatedSprites } = extendImageDataWithShapes(
+      imageData,
+      script.sprites,
+      gridSize
+    );
+    imageData = extended;
+    (script as { sprites: typeof script.sprites }).sprites = updatedSprites;
+    logToConsole(consoleEl, "Extended source image with shape sprites.", "info");
   }
 
   // Clone the buffer so the engine cannot mutate the editor's undo history
@@ -238,7 +264,6 @@ export async function bootProject(
   const baked = bake(clonedData);
 
   // Compile sprite atlas and wire it into the renderer
-  const gridSize = script.spriteGrid || 16;
   const spriteAtlas = compileSpriteAtlas(
     script.sprites,
     gridSize,

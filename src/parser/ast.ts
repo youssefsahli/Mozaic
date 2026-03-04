@@ -62,7 +62,18 @@ export interface MscSpriteAbsolute {
   oy: number;
 }
 
-export type MscSpriteDef = MscSpriteGrid | MscSpriteAbsolute;
+/** Generative shape sprite — rendered procedurally, requires no mzk source image. */
+export interface MscSpriteShape {
+  kind: "shape";
+  /** Shape primitive: "circle", "rect", or "diamond". */
+  shapeType: "circle" | "rect" | "diamond";
+  /** CSS/hex fill color, e.g. "#FF4400". */
+  color: string;
+  /** Diameter/side length in pixels (default 12). */
+  size: number;
+}
+
+export type MscSpriteDef = MscSpriteGrid | MscSpriteAbsolute | MscSpriteShape;
 
 export interface MscBackgroundLayer {
   source: string;
@@ -471,17 +482,45 @@ function parseSpriteValue(value: string): MscSpriteDef | null {
     return { kind: "grid", col, row, frames };
   }
 
-  // Object form: { x, y, w, h, ox, oy }
+  // Object form: { shape: circle/rect/diamond, color: "#hex", size: N }
+  // or absolute: { x, y, w, h, ox?, oy? }
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     const inner = trimmed.slice(1, -1).trim();
-    const props: Record<string, number> = {};
+    const rawProps: Record<string, string> = {};
     for (const part of inner.split(",")) {
       const colonIdx = part.indexOf(":");
       if (colonIdx === -1) return null;
       const k = part.slice(0, colonIdx).trim();
-      const v = Number(part.slice(colonIdx + 1).trim());
-      if (!k || Number.isNaN(v)) return null;
-      props[k] = v;
+      const v = part.slice(colonIdx + 1).trim();
+      if (!k) return null;
+      rawProps[k] = v;
+    }
+
+    // Shape form
+    if (rawProps.shape !== undefined) {
+      const shapeRaw = rawProps.shape.trim().toLowerCase();
+      if (shapeRaw !== "circle" && shapeRaw !== "rect" && shapeRaw !== "diamond") {
+        return null;
+      }
+      const color = rawProps.color
+        ? rawProps.color.replace(/^["']|["']$/g, "").trim()
+        : "#FFFFFF";
+      const size = rawProps.size ? Number(rawProps.size) : 12;
+      if (Number.isNaN(size)) return null;
+      return {
+        kind: "shape",
+        shapeType: shapeRaw as "circle" | "rect" | "diamond",
+        color,
+        size,
+      };
+    }
+
+    // Absolute form
+    const props: Record<string, number> = {};
+    for (const [k, v] of Object.entries(rawProps)) {
+      const n = Number(v);
+      if (Number.isNaN(n)) return null;
+      props[k] = n;
     }
     if (
       props.x === undefined ||

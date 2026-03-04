@@ -6,12 +6,19 @@
 #   Collider, Wanderer, AreaTrigger
 #
 # Controls: W / A / S / D to move (arrow keys also work)
+# No external images required — sprites are drawn with shapes.
+
+Sprites:
+  $Grid: 16
+  Player: { shape: circle, color: "#44DDAA", size: 12 }
+  NPC:    { shape: diamond, color: "#FF8844", size: 10 }
+  Chest:  { shape: rect, color: "#FFDD00", size: 14 }
 
 Schema:
   - $Keys: { addr: 64, type: Int16 }
 
 Entity.Player:
-  Visual: "player.png"
+  Visual: "Player"
   Kinematic: {}
   TopDownController: { speed: 2 }
   Friction: { factor: 0.85 }
@@ -27,13 +34,13 @@ Entity.Player:
     - Key_ArrowRight -> Action.MoveRight
 
 Entity.NPC:
-  Visual: "npc.png"
+  Visual: "NPC"
   Kinematic: {}
   Wanderer: { speed: 1, interval: 90 }
   Friction: { factor: 0.9 }
 
 Entity.Chest:
-  Visual: "chest.png"
+  Visual: "Chest"
   AreaTrigger: { width: 16, height: 16, targetType: 1 }
 
 Events:

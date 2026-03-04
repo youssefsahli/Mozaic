@@ -88,7 +88,7 @@ export function compileSpriteAtlas(
           oy: 0,
         });
       }
-    } else {
+    } else if (def.kind === "absolute") {
       atlas.push({
         u0: def.x / atlasWidth,
         v0: def.y / atlasHeight,
@@ -100,6 +100,8 @@ export function compileSpriteAtlas(
         oy: def.oy,
       });
     }
+    // "shape" kind: converted to absolute by the bootstrapper before this runs;
+    // if somehow still present, skip it (it would have no UV data yet).
   }
 
   return atlas;
