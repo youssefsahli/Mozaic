@@ -351,4 +351,56 @@ describe("buildMscAst", () => {
     expect(layer.Terrain.source).toBe("tiles.mzk");
     expect(layer.Terrain.repeat).toBeUndefined();
   });
+
+  it("parses shape sprite: circle", () => {
+    const src = 'Sprites:\n  $Grid: 16\n  Player: { shape: circle, color: "#4488FF", size: 12 }\n';
+    const ast = buildMscAst(tokenizeMsc(src));
+    const def = ast.sprites.get("Player");
+    expect(def).toBeDefined();
+    expect(def!.kind).toBe("shape");
+    if (def!.kind === "shape") {
+      expect(def!.shapeType).toBe("circle");
+      expect(def!.color).toBe("#4488FF");
+      expect(def!.size).toBe(12);
+    }
+  });
+
+  it("parses shape sprite: rect", () => {
+    const src = 'Sprites:\n  Box: { shape: rect, color: "#FF0000", size: 14 }\n';
+    const ast = buildMscAst(tokenizeMsc(src));
+    const def = ast.sprites.get("Box");
+    expect(def?.kind).toBe("shape");
+    if (def?.kind === "shape") {
+      expect(def.shapeType).toBe("rect");
+      expect(def.color).toBe("#FF0000");
+    }
+  });
+
+  it("parses shape sprite: diamond", () => {
+    const src = 'Sprites:\n  Gem: { shape: diamond, color: "#FFDD00", size: 10 }\n';
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.sprites.get("Gem")?.kind).toBe("shape");
+  });
+
+  it("uses default size 12 when size omitted from shape sprite", () => {
+    const src = 'Sprites:\n  Dot: { shape: circle, color: "#FFF" }\n';
+    const ast = buildMscAst(tokenizeMsc(src));
+    const def = ast.sprites.get("Dot");
+    if (def?.kind === "shape") {
+      expect(def.size).toBe(12);
+    }
+  });
+
+  it("shape sprite and absolute sprite coexist in same Sprites block", () => {
+    const src = [
+      "Sprites:",
+      "  $Grid: 16",
+      "  Hero: { shape: circle, color: \"#FFF\", size: 10 }",
+      "  item: { x: 0, y: 0, w: 16, h: 16 }",
+      "",
+    ].join("\n");
+    const ast = buildMscAst(tokenizeMsc(src));
+    expect(ast.sprites.get("Hero")?.kind).toBe("shape");
+    expect(ast.sprites.get("item")?.kind).toBe("absolute");
+  });
 });

@@ -3,31 +3,31 @@
 # screen shake, sprite animation, and blink.
 #
 # Components used: Kinematic, ParticleEmitter, SineWave,
-#   Gravity, Lifetime, Blink, SpriteAnimator, Patrol
+#   Gravity, Lifetime, Blink, Patrol
 #
 # This example runs automatically — just click Run.
+# No external images required — sprites are drawn with shapes.
+
+Sprites:
+  $Grid: 16
+  Emitter: { shape: circle, color: "#FFFFFF", size: 8 }
+  Spark:   { shape: diamond, color: "#FF6600", size: 6 }
 
 Schema:
   - $FX: { addr: 64, type: Int16 }
 
 Entity.Emitter:
-  Visual: "emitter.png"
+  Visual: "Emitter"
   Kinematic: {}
-  ParticleEmitter: { rate: 2, lifetime: 40, typeId: 0 }
+  ParticleEmitter: { rate: 2, lifetime: 40, typeId: 2 }
   SineWave: { frequency: 0.03, amplitude: 3, axis: x }
 
 Entity.Spark:
-  Visual: "spark.png"
+  Visual: "Spark"
   Kinematic: {}
-  Gravity: { force: 0.5 }
   Lifetime: { frames: 40 }
   Blink: { interval: 6 }
-
-Entity.Spinner:
-  Visual: "spinner.png"
-  Kinematic: {}
-  SpriteAnimator: { frames: 8, count: 4 }
-  Patrol: { speed: 1, axis: x }
+  Friction: { factor: 0.92 }
 
 Events:
   Collision(Spark:#Body, Level:#FF0000):

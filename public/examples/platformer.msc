@@ -6,12 +6,18 @@
 #   Collider, Health, SineWave, Lifetime
 #
 # Controls: A / D to move, Space to jump (arrow keys also work)
+# No external images required — sprites are drawn with shapes.
+
+Sprites:
+  $Grid: 16
+  Hero:   { shape: circle, color: "#4488FF", size: 12 }
+  Coin:   { shape: diamond, color: "#FFDD00", size: 10 }
 
 Schema:
   - $Score: { addr: 64, type: Int16 }
 
 Entity.Hero:
-  Visual: "hero.png"
+  Visual: "Hero"
   Kinematic: {}
   Gravity: { force: 1 }
   PlatformController: { speed: 2, jumpForce: 5 }
@@ -26,7 +32,7 @@ Entity.Hero:
     - Key_ArrowUp    -> Action.Jump
 
 Entity.Coin:
-  Visual: "coin.png"
+  Visual: "Coin"
   SineWave: { frequency: 0.05, amplitude: 2, axis: y }
   Lifetime: { frames: 600 }
 
