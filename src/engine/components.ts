@@ -997,6 +997,10 @@ export const inventoryEngineComponent: EngineComponent = {
 /** localStorage key prefix for Mozaic save slots. */
 const SAVE_SLOT_PREFIX = "mozaic:save:";
 
+/** Number of bytes in the globals memory block (bytes 64–511). */
+const GLOBALS_BLOCK_SIZE =
+  MEMORY_BLOCKS.globals.endByte - MEMORY_BLOCKS.globals.startByte + 1;
+
 /**
  * SaveState — serialises the globals memory block to localStorage when
  * the specified action fires.
@@ -1005,7 +1009,7 @@ const SAVE_SLOT_PREFIX = "mozaic:save:";
  *   slot    — save-slot name (default "default")
  *   trigger — input action that triggers the save (default "Action.Save")
  *   addr    — start byte to save (default: globals start = 64)
- *   len     — number of bytes to save (default: 448, the full globals block)
+ *   len     — number of bytes to save (default: full globals block)
  */
 export const saveStateComponent: ComponentFn = (buffer, _entityPtr, props, input) => {
   const slotKey = SAVE_SLOT_PREFIX + ((props.slot as string) ?? "default");
@@ -1013,7 +1017,7 @@ export const saveStateComponent: ComponentFn = (buffer, _entityPtr, props, input
   if (!input.active.has(trigger)) return;
 
   const startAddr = Math.max(0, (props.addr as number) ?? MEMORY_BLOCKS.globals.startByte);
-  const len = Math.max(1, (props.len as number) ?? (MEMORY_BLOCKS.globals.endByte - MEMORY_BLOCKS.globals.startByte + 1));
+  const len = Math.max(1, (props.len as number) ?? GLOBALS_BLOCK_SIZE);
   const slice = Array.from(buffer.subarray(startAddr, startAddr + len));
   try {
     localStorage.setItem(slotKey, JSON.stringify(slice));

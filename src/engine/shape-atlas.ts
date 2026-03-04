@@ -171,7 +171,7 @@ export function createShapeAtlas(
   const updatedSprites = paintShapesIntoBuffer(data, atlasHeight, sprites, gridSize);
 
   return {
-    imageData: new ImageData(new Uint8ClampedArray(data), ATLAS_WIDTH, atlasHeight),
+    imageData: new ImageData(data, ATLAS_WIDTH, atlasHeight),
     updatedSprites,
   };
 }
@@ -193,12 +193,12 @@ export function extendImageDataWithShapes(
   const shapeRows = Math.max(1, Math.ceil(shapeCount / SHAPES_PER_ROW));
   const neededHeight = SHAPE_ROW_OFFSET + shapeRows * gridSize;
 
-  let data: Uint8ClampedArray;
+  let data: Uint8ClampedArray<ArrayBuffer>;
   let width = imageData.width;
   let height = imageData.height;
 
   if (width === ATLAS_WIDTH && height >= neededHeight) {
-    // Re-use existing buffer directly
+    // Re-use existing pixel data (copy needed since paintShapes mutates in-place)
     data = new Uint8ClampedArray(imageData.data);
   } else {
     // Expand: create new buffer tall enough, copy original pixels
@@ -223,7 +223,7 @@ export function extendImageDataWithShapes(
 
   const updatedSprites = paintShapesIntoBuffer(data, height, sprites, gridSize);
   return {
-    imageData: new ImageData(new Uint8ClampedArray(data), width, height),
+    imageData: new ImageData(data, width, height),
     updatedSprites,
   };
 }

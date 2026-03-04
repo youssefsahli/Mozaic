@@ -25,7 +25,6 @@ Entity.Emitter:
 Entity.Spark:
   Visual: "Spark"
   Kinematic: {}
-  Gravity: { force: 0 }
   Lifetime: { frames: 40 }
   Blink: { interval: 6 }
   Friction: { factor: 0.92 }
