@@ -2113,6 +2113,14 @@ function restart(runtime: RuntimeState): void {
   runtime.inputManager?.dispose();
 
   const imageData = cloneImageData(runtime.imageData);
+
+  // Clear entity-pool region so source-image pixels aren't mistaken for entities
+  const { startByte: rstPoolStart, endByte: rstPoolEnd } = MEMORY_BLOCKS.entityPool;
+  const rstPoolLimit = Math.min(rstPoolEnd + 1, imageData.data.length);
+  if (rstPoolStart < rstPoolLimit) {
+    (imageData.data as Uint8ClampedArray).fill(0, rstPoolStart, rstPoolLimit);
+  }
+
   ui.canvas.width = imageData.width;
   ui.canvas.height = imageData.height;
 
@@ -2227,6 +2235,14 @@ async function playProject(runtime: RuntimeState): Promise<void> {
   runtime.inputManager?.dispose();
 
   const cloned = cloneImageData(imageData);
+
+  // Clear entity-pool region so source-image pixels aren't mistaken for entities
+  const { startByte: rsPoolStart, endByte: rsPoolEnd } = MEMORY_BLOCKS.entityPool;
+  const rsPoolLimit = Math.min(rsPoolEnd + 1, cloned.data.length);
+  if (rsPoolStart < rsPoolLimit) {
+    (cloned.data as Uint8ClampedArray).fill(0, rsPoolStart, rsPoolLimit);
+  }
+
   runtime.ui.canvas.width = cloned.width;
   runtime.ui.canvas.height = cloned.height;
 

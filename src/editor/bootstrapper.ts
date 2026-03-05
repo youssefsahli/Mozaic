@@ -19,6 +19,7 @@ import { createDefaultRegistry } from "../engine/components.js";
 import { parseMsc, type MscDocument, type MscLayer } from "../parser/msc.js";
 import { parseWithImports } from "../engine/import-resolver.js";
 import { spawnEntity } from "../engine/pool.js";
+import { MEMORY_BLOCKS } from "../engine/memory.js";
 import type { ProjectFiles } from "./file-system.js";
 import {
   findNode,
@@ -232,6 +233,14 @@ export async function bootProject(
     imageData.width,
     imageData.height
   );
+
+  // Clear the entity-pool region so source-image pixel data doesn't
+  // masquerade as pre-existing entities (ENTITY_ACTIVE != 0).
+  const { startByte: poolStart, endByte: poolEnd } = MEMORY_BLOCKS.entityPool;
+  const poolLimit = Math.min(poolEnd + 1, clonedData.data.length);
+  if (poolStart < poolLimit) {
+    (clonedData.data as Uint8ClampedArray).fill(0, poolStart, poolLimit);
+  }
 
   // ── 3b. Spawn script-defined instances ───────────────────
   if (script.instances && script.instances.length > 0) {
