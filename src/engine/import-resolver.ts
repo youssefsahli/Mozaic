@@ -136,8 +136,11 @@ function mergeInto(target: MscDocument, source: MscDocument): void {
   // Merge inputs (deduplicate by key+action pair)
   if (source.inputs) {
     if (!target.inputs) target.inputs = [];
+    const seen = new Set(target.inputs.map(i => `${i.key}\0${i.action}`));
     for (const input of source.inputs) {
-      if (!target.inputs.find(i => i.key === input.key && i.action === input.action)) {
+      const k = `${input.key}\0${input.action}`;
+      if (!seen.has(k)) {
+        seen.add(k);
         target.inputs.push(input);
       }
     }
@@ -145,5 +148,16 @@ function mergeInto(target: MscDocument, source: MscDocument): void {
 }
 
 function emptyDoc(): MscDocument {
-  return { imports: [], schema: {}, entities: {}, events: [], sprites: new Map(), spriteGrid: 0, inputs: [] };
+  return {
+    imports: [],
+    schema: {},
+    entities: {},
+    events: [],
+    sprites: new Map(),
+    spriteGrid: 0,
+    inputs: [],
+    instances: [],
+    backgrounds: [],
+    layers: [],
+  };
 }
