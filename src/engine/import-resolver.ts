@@ -102,8 +102,48 @@ function mergeInto(target: MscDocument, source: MscDocument): void {
 
   // Append events
   target.events.push(...source.events);
+
+  // Merge sprites (first-definition wins)
+  for (const [name, def] of source.sprites) {
+    if (!target.sprites.has(name)) {
+      target.sprites.set(name, def);
+    }
+  }
+
+  // Inherit spriteGrid if the target has none
+  if (target.spriteGrid === 0 && source.spriteGrid !== 0) {
+    target.spriteGrid = source.spriteGrid;
+  }
+
+  // Append instances
+  if (source.instances) {
+    if (!target.instances) target.instances = [];
+    target.instances.push(...source.instances);
+  }
+
+  // Append backgrounds
+  if (source.backgrounds) {
+    if (!target.backgrounds) target.backgrounds = [];
+    target.backgrounds.push(...source.backgrounds);
+  }
+
+  // Append layers
+  if (source.layers) {
+    if (!target.layers) target.layers = [];
+    target.layers.push(...source.layers);
+  }
+
+  // Merge inputs (deduplicate by key+action pair)
+  if (source.inputs) {
+    if (!target.inputs) target.inputs = [];
+    for (const input of source.inputs) {
+      if (!target.inputs.find(i => i.key === input.key && i.action === input.action)) {
+        target.inputs.push(input);
+      }
+    }
+  }
 }
 
 function emptyDoc(): MscDocument {
-  return { imports: [], schema: {}, entities: {}, events: [], sprites: new Map(), spriteGrid: 0 };
+  return { imports: [], schema: {}, entities: {}, events: [], sprites: new Map(), spriteGrid: 0, inputs: [] };
 }

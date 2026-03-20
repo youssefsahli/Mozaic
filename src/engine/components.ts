@@ -644,8 +644,8 @@ export const particleEmitterComponent: ComponentFn = (
   const rate = (props.rate as number) ?? 1;
   const lifetime = (props.lifetime as number) ?? 30;
   const typeId = (props.typeId as number) ?? 0;
-  const px = readInt16(buffer, entityPtr + ENTITY_POS_X);
-  const py = readInt16(buffer, entityPtr + ENTITY_POS_Y);
+  const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+  const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
 
   const poolStart = MEMORY_BLOCKS.entityPool.startByte;
   const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
@@ -768,20 +768,21 @@ export const patrolComponent: ComponentFn = (buffer, entityPtr, props) => {
   
   const dirByte = entityPtr + 14;
   let dir = readInt8(buffer, dirByte);
+  const velOffset = axis === "x" ? ENTITY_VEL_X : ENTITY_VEL_Y;
   
   if (dir === 0) {
+    // First tick: initialize direction and velocity without flipping.
     dir = 1;
     writeInt8(buffer, dirByte, dir);
+    writeSignedInt16(buffer, entityPtr + velOffset, speed);
+    return;
   }
   
   const mathDir = dir === 255 ? -1 : 1;
-  const velOffset = axis === "x" ? ENTITY_VEL_X : ENTITY_VEL_Y;
-  
   const currentVel = readSignedInt16(buffer, entityPtr + velOffset);
 
-  // If velocity is blocked (and we are not just starting), flip.
-  // We assume if velocity is 0, we hit something.
-  if (Math.abs(currentVel) === 0) {
+  // If velocity is 0, assume blocked — reverse direction.
+  if (currentVel === 0) {
      const newDir = mathDir === 1 ? 255 : 1;
      writeInt8(buffer, dirByte, newDir);
      writeSignedInt16(buffer, entityPtr + velOffset, (newDir === 255 ? -1 : 1) * speed);
@@ -793,7 +794,10 @@ export const patrolComponent: ComponentFn = (buffer, entityPtr, props) => {
 /**
  * Blinks the entity visibility on/off.
  * Props: interval (frames, default 30)
- * State: Byte 15 (timer), Byte 14 (original sprite ID)
+ * State: Byte 15 (timer), Byte 13 (original sprite ID)
+ *
+ * Note: Uses byte 13 for the stored sprite backup to avoid conflict
+ * with Patrol (byte 14) and SpriteAnimator timer (byte 12).
  */
 export const blinkComponent: ComponentFn = (buffer, entityPtr, props) => {
   const interval = (props.interval as number) ?? 30;
@@ -806,17 +810,18 @@ export const blinkComponent: ComponentFn = (buffer, entityPtr, props) => {
     
     const spriteByte = entityPtr + ENTITY_DATA_START; // 11
     const currentSprite = readInt8(buffer, spriteByte);
-    const storedSprite = readInt8(buffer, entityPtr + 14);
+    const storedByte = entityPtr + ENTITY_DATA_START + 2; // 13
+    const storedSprite = readInt8(buffer, storedByte);
     
     // Toggle
     if (currentSprite !== 0) {
       // Hide
-      writeInt8(buffer, entityPtr + 14, currentSprite);
+      writeInt8(buffer, storedByte, currentSprite);
       writeInt8(buffer, spriteByte, 0);
     } else if (storedSprite !== 0) {
       // Show
       writeInt8(buffer, spriteByte, storedSprite);
-      writeInt8(buffer, entityPtr + 14, 0); // Clear stored
+      writeInt8(buffer, storedByte, 0);
     }
   }
   writeInt8(buffer, timerByte, timer);
@@ -881,10 +886,10 @@ export const gridMovementComponent: ComponentFn = (buffer, entityPtr, props, inp
   if (input.active.has("Action.MoveDown"))  dy = 1;
 
   if (dx !== 0 || dy !== 0) {
-    const px = readInt16(buffer, entityPtr + ENTITY_POS_X);
-    const py = readInt16(buffer, entityPtr + ENTITY_POS_Y);
-    writeInt16(buffer, entityPtr + ENTITY_POS_X, px + dx * gridSize);
-    writeInt16(buffer, entityPtr + ENTITY_POS_Y, py + dy * gridSize);
+    const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+    const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
+    writeSignedInt16(buffer, entityPtr + ENTITY_POS_X, px + dx * gridSize);
+    writeSignedInt16(buffer, entityPtr + ENTITY_POS_Y, py + dy * gridSize);
   }
 
   // Zero velocity — movement is discrete, not continuous
@@ -904,23 +909,23 @@ export const fieldOfViewComponent: ComponentFn = (buffer, entityPtr, props) => {
   const viewerType = (props.viewerType as number) ?? 1;
   const visibleByte = entityPtr + ENTITY_DATA_START + 1; // byte 12
 
-  const myX = readInt16(buffer, entityPtr + ENTITY_POS_X);
-  const myY = readInt16(buffer, entityPtr + ENTITY_POS_Y);
+  const myX = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+  const myY = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
 
   let visible = 0;
 
   // Scan entity pool for the viewer
   for (
     let ptr = MEMORY_BLOCKS.entityPool.startByte;
-    ptr < MEMORY_BLOCKS.entityPool.endByte;
+    ptr + ENTITY_SLOT_SIZE - 1 <= MEMORY_BLOCKS.entityPool.endByte;
     ptr += ENTITY_SLOT_SIZE
   ) {
     if (ptr === entityPtr) continue;
     if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
     if (readInt8(buffer, ptr + ENTITY_TYPE_ID) !== viewerType) continue;
 
-    const vx = readInt16(buffer, ptr + ENTITY_POS_X);
-    const vy = readInt16(buffer, ptr + ENTITY_POS_Y);
+    const vx = readSignedInt16(buffer, ptr + ENTITY_POS_X);
+    const vy = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
     const dist = Math.abs(myX - vx) + Math.abs(myY - vy); // Manhattan distance
     if (dist <= range * 16) {
       visible = 1;
@@ -950,20 +955,20 @@ export const inventoryComponent: ComponentFn = (buffer, entityPtr, props, input)
 
   // On interact action, pick up nearby items
   if (input.active.has("Action.Interact")) {
-    const myX = readInt16(buffer, entityPtr + ENTITY_POS_X);
-    const myY = readInt16(buffer, entityPtr + ENTITY_POS_Y);
+    const myX = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
+    const myY = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
     const pickupRange = 16;
 
     for (
       let ptr = MEMORY_BLOCKS.entityPool.startByte;
-      ptr < MEMORY_BLOCKS.entityPool.endByte;
+      ptr + ENTITY_SLOT_SIZE - 1 <= MEMORY_BLOCKS.entityPool.endByte;
       ptr += ENTITY_SLOT_SIZE
     ) {
       if (ptr === entityPtr) continue;
       if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
 
-      const ix = readInt16(buffer, ptr + ENTITY_POS_X);
-      const iy = readInt16(buffer, ptr + ENTITY_POS_Y);
+      const ix = readSignedInt16(buffer, ptr + ENTITY_POS_X);
+      const iy = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
       if (Math.abs(myX - ix) + Math.abs(myY - iy) > pickupRange) continue;
 
       const itemType = readInt8(buffer, ptr + ENTITY_TYPE_ID);

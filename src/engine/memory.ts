@@ -50,7 +50,7 @@ export function pixelByteOffset(
   y: number,
   width = STATE_GRID_WIDTH
 ): number {
-  if (x < 0 || y < 0 || x >= width) {
+  if (x < 0 || y < 0 || x >= width || y >= STATE_GRID_HEIGHT) {
     throw new RangeError(`Pixel out of bounds at (${x}, ${y})`);
   }
   return (y * width + x) * CHANNELS_PER_PIXEL;
