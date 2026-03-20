@@ -44,6 +44,22 @@ describe("pixelByteOffset", () => {
     expect(pixelByteOffset(1, 0)).toBe(4);
     expect(pixelByteOffset(0, 1)).toBe(64 * 4);
   });
+
+  it("throws on negative X", () => {
+    expect(() => pixelByteOffset(-1, 0)).toThrow(RangeError);
+  });
+
+  it("throws on negative Y", () => {
+    expect(() => pixelByteOffset(0, -1)).toThrow(RangeError);
+  });
+
+  it("throws on X >= width", () => {
+    expect(() => pixelByteOffset(64, 0)).toThrow(RangeError);
+  });
+
+  it("throws on Y >= height", () => {
+    expect(() => pixelByteOffset(0, 64)).toThrow(RangeError);
+  });
 });
 
 describe("int encoding", () => {

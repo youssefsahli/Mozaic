@@ -416,11 +416,14 @@ export async function bootProject(
   loop.start();
   logToConsole(consoleEl, "Engine running.", "success");
 
-  // Auto-hide the console after a short delay
-  ctx.hideTimer = window.setTimeout(() => {
-    hideConsole(consoleEl);
-    ctx.hideTimer = null;
-  }, CONSOLE_AUTO_HIDE_DELAY_MS);
+  // Auto-hide the console after a short delay, but only if no errors were logged
+  const hasErrors = consoleEl.querySelector(".cc-error") !== null;
+  if (!hasErrors) {
+    ctx.hideTimer = window.setTimeout(() => {
+      hideConsole(consoleEl);
+      ctx.hideTimer = null;
+    }, CONSOLE_AUTO_HIDE_DELAY_MS);
+  }
 
   return { loop, inputManager, imageData: clonedData, baked };
 }

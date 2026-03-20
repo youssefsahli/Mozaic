@@ -490,6 +490,40 @@ Inventory: { slots: 4 }
 
 ---
 
+## Persistence
+
+### SaveState
+
+Serialises the globals memory block to localStorage when the specified action fires.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `slot` | string | `"default"` | Save-slot name |
+| `trigger` | string | `"Action.Save"` | Input action that triggers the save |
+| `addr` | number | `64` | Start byte to save |
+| `len` | number | `448` | Number of bytes to save (full globals block) |
+
+```yaml
+SaveState: { slot: "slot1", trigger: "Action.Save" }
+```
+
+### LoadState
+
+Reads a previously saved globals block from localStorage. Can load automatically on the first tick or when a specific action fires.
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `slot` | string | `"default"` | Save-slot name |
+| `trigger` | string | `"Action.Load"` | Input action that triggers a manual load |
+| `autoLoad` | number | `0` | If `1`, also load on the very first tick |
+| `addr` | number | `64` | Start byte to restore |
+
+```yaml
+LoadState: { slot: "slot1", trigger: "Action.Load", autoLoad: 1 }
+```
+
+---
+
 ## Quick Reference Table
 
 | Component | Category | Key Props | Context Variables |
@@ -521,3 +555,5 @@ Inventory: { slots: 4 }
 | **GridMovement** | Roguelike | `gridSize` | — |
 | **FieldOfView** | Roguelike | `range`, `viewerType` | `$visible` |
 | **Inventory** | Roguelike | `slots` | `$slot0`..`$slot3` |
+| **SaveState** | Persistence | `slot`, `trigger`, `addr`, `len` | — |
+| **LoadState** | Persistence | `slot`, `trigger`, `autoLoad`, `addr` | — |

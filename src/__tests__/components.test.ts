@@ -24,6 +24,15 @@ import {
   particleEmitterComponent,
   cameraEngineComponent,
   parseHexTint,
+  patrolComponent,
+  blinkComponent,
+  gridMovementComponent,
+  fieldOfViewComponent,
+  inventoryComponent,
+  inventoryEngineComponent,
+  turnBasedComponent,
+  topDownControllerComponent,
+  sineWaveComponent,
 } from "../engine/components.js";
 import {
   createStateBuffer,
@@ -1098,5 +1107,339 @@ describe("cameraEngineComponent", () => {
 
     expect(state.camera.x).toBe(68);
     expect(state.camera.y).toBe(48);
+  });
+});
+
+// ── Patrol ────────────────────────────────────────────────────
+
+describe("patrolComponent", () => {
+  it("initializes direction and velocity on first tick without flipping", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    // direction byte (14) is 0 initially
+
+    patrolComponent(buf, ENTITY_PTR, { speed: 3 }, makeInput(), makeBaked(), makeState(buf));
+
+    // Should move in positive direction on first tick
+    expect(readInt8(buf, ENTITY_PTR + 14)).toBe(1);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3);
+  });
+
+  it("maintains direction on subsequent ticks when velocity is nonzero", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + 14, 1); // already initialized
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 2);
+
+    patrolComponent(buf, ENTITY_PTR, { speed: 2 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readInt8(buf, ENTITY_PTR + 14)).toBe(1);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(2);
+  });
+
+  it("reverses direction when velocity becomes 0 (blocked)", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + 14, 1); // moving positive
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 0); // blocked
+
+    patrolComponent(buf, ENTITY_PTR, { speed: 2 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readInt8(buf, ENTITY_PTR + 14)).toBe(255); // reversed to negative
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(-2);
+  });
+
+  it("supports y-axis patrol", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+
+    patrolComponent(buf, ENTITY_PTR, { speed: 4, axis: "y" }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(4);
+  });
+});
+
+// ── Blink ─────────────────────────────────────────────────────
+
+describe("blinkComponent", () => {
+  it("toggles visibility off after interval", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 5); // sprite ID = 5
+
+    // Tick until just past interval
+    for (let i = 0; i <= 30; i++) {
+      blinkComponent(buf, ENTITY_PTR, { interval: 30 }, makeInput(), makeBaked(), makeState(buf));
+    }
+
+    // Should have hidden the entity (sprite = 0, stored in byte 13)
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(0);
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 2)).toBe(5); // stored in byte 13
+  });
+
+  it("toggles visibility back on after two intervals", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 5);
+
+    // Tick through two full intervals (hide then show)
+    for (let i = 0; i < 62; i++) {
+      blinkComponent(buf, ENTITY_PTR, { interval: 30 }, makeInput(), makeBaked(), makeState(buf));
+    }
+
+    // Should be visible again
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(5);
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 2)).toBe(0);
+  });
+
+  it("does not conflict with Patrol byte 14", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 3);
+    writeInt8(buf, ENTITY_PTR + 14, 1); // Patrol direction byte
+
+    for (let i = 0; i <= 30; i++) {
+      blinkComponent(buf, ENTITY_PTR, { interval: 30 }, makeInput(), makeBaked(), makeState(buf));
+    }
+
+    // Patrol direction should be untouched
+    expect(readInt8(buf, ENTITY_PTR + 14)).toBe(1);
+  });
+});
+
+// ── GridMovement ──────────────────────────────────────────────
+
+describe("gridMovementComponent", () => {
+  it("moves right by gridSize on MoveRight action", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 32);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 48);
+
+    gridMovementComponent(buf, ENTITY_PTR, { gridSize: 16 }, makeInput(["Action.MoveRight"]), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X)).toBe(48);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y)).toBe(48);
+  });
+
+  it("moves up (negative Y) on MoveUp action", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 0);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 16);
+
+    gridMovementComponent(buf, ENTITY_PTR, { gridSize: 16 }, makeInput(["Action.MoveUp"]), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y)).toBe(0);
+  });
+
+  it("supports negative coordinates", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 0);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 0);
+
+    gridMovementComponent(buf, ENTITY_PTR, { gridSize: 16 }, makeInput(["Action.MoveLeft"]), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X)).toBe(-16);
+  });
+
+  it("zeroes velocity after movement", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 99);
+
+    gridMovementComponent(buf, ENTITY_PTR, {}, makeInput(["Action.MoveRight"]), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(0);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(0);
+  });
+});
+
+// ── TopDownController ─────────────────────────────────────────
+
+describe("topDownControllerComponent", () => {
+  it("sets velocity based on movement actions", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+
+    topDownControllerComponent(buf, ENTITY_PTR, { speed: 3 }, makeInput(["Action.MoveRight"]), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3);
+  });
+
+  it("handles diagonal movement", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+
+    topDownControllerComponent(buf, ENTITY_PTR, { speed: 2 }, makeInput(["Action.MoveRight", "Action.MoveDown"]), makeBaked(), makeState(buf));
+
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(2);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(2);
+  });
+});
+
+// ── SineWave ──────────────────────────────────────────────────
+
+describe("sineWaveComponent", () => {
+  it("applies oscillation to velocity on y axis by default", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    const state = makeState(buf);
+    state.tickCount = 10;
+
+    sineWaveComponent(buf, ENTITY_PTR, { frequency: 0.1, amplitude: 5 }, makeInput(), makeBaked(), state);
+
+    const vy = readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y);
+    expect(vy).not.toBe(0);
+  });
+
+  it("applies oscillation to x axis when specified", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+    const state = makeState(buf);
+    state.tickCount = 10;
+
+    sineWaveComponent(buf, ENTITY_PTR, { frequency: 0.1, amplitude: 5, axis: "x" }, makeInput(), makeBaked(), state);
+
+    const vx = readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X);
+    expect(vx).not.toBe(0);
+  });
+});
+
+// ── TurnBased ─────────────────────────────────────────────────
+
+describe("turnBasedComponent", () => {
+  it("increments counter and resets when budget is reached", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+
+    turnBasedComponent(buf, ENTITY_PTR, { budget: 1 }, makeInput(["Action.MoveRight"]), makeBaked(), makeState(buf));
+
+    // Counter incremented to 1, hit budget, reset to 0 and froze velocity
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(0);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(0);
+  });
+
+  it("does not increment counter without movement input", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+
+    turnBasedComponent(buf, ENTITY_PTR, { budget: 1 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(0);
+  });
+
+  it("accumulates actions up to budget before resetting", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
+
+    // Budget of 2: first action increments counter
+    turnBasedComponent(buf, ENTITY_PTR, { budget: 2 }, makeInput(["Action.MoveRight"]), makeBaked(), makeState(buf));
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(1);
+
+    // Second action: counter hits budget, resets
+    turnBasedComponent(buf, ENTITY_PTR, { budget: 2 }, makeInput(["Action.MoveLeft"]), makeBaked(), makeState(buf));
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(0);
+  });
+});
+
+// ── FieldOfView ───────────────────────────────────────────────
+
+describe("fieldOfViewComponent", () => {
+  it("marks visible when viewer is within range", () => {
+    const buf = createStateBuffer();
+    const entityPtr = ENTITY_PTR;
+    const viewerPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, entityPtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, entityPtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, entityPtr + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, viewerPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, viewerPtr + ENTITY_TYPE_ID, 1);
+    writeSignedInt16(buf, viewerPtr + ENTITY_POS_X, 60);
+    writeSignedInt16(buf, viewerPtr + ENTITY_POS_Y, 50);
+
+    fieldOfViewComponent(buf, entityPtr, { range: 5, viewerType: 1 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readInt8(buf, entityPtr + ENTITY_DATA_START + 1)).toBe(1);
+  });
+
+  it("marks not visible when viewer is out of range", () => {
+    const buf = createStateBuffer();
+    const entityPtr = ENTITY_PTR;
+    const viewerPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, entityPtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, entityPtr + ENTITY_POS_X, 0);
+    writeSignedInt16(buf, entityPtr + ENTITY_POS_Y, 0);
+
+    writeInt8(buf, viewerPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, viewerPtr + ENTITY_TYPE_ID, 1);
+    writeSignedInt16(buf, viewerPtr + ENTITY_POS_X, 500);
+    writeSignedInt16(buf, viewerPtr + ENTITY_POS_Y, 500);
+
+    fieldOfViewComponent(buf, entityPtr, { range: 5, viewerType: 1 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readInt8(buf, entityPtr + ENTITY_DATA_START + 1)).toBe(0);
+  });
+});
+
+// ── Inventory ─────────────────────────────────────────────────
+
+describe("inventoryComponent", () => {
+  it("picks up nearby item into first empty slot", () => {
+    const buf = createStateBuffer();
+    const playerPtr = ENTITY_PTR;
+    const itemPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, playerPtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, itemPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, itemPtr + ENTITY_TYPE_ID, 3); // item type 3
+    writeSignedInt16(buf, itemPtr + ENTITY_POS_X, 55);
+    writeSignedInt16(buf, itemPtr + ENTITY_POS_Y, 50);
+
+    inventoryComponent(buf, playerPtr, { slots: 4 }, makeInput(["Action.Interact"]), makeBaked(), makeState(buf));
+
+    // Slot 0 should contain item type 3
+    expect(readInt8(buf, playerPtr + ENTITY_DATA_START + 1)).toBe(3);
+    // Item should be despawned
+    expect(readInt8(buf, itemPtr + ENTITY_ACTIVE)).toBe(0);
+  });
+
+  it("does not pick up items without Interact action", () => {
+    const buf = createStateBuffer();
+    const playerPtr = ENTITY_PTR;
+    const itemPtr = ENTITY_PTR + ENTITY_SLOT_SIZE;
+
+    writeInt8(buf, playerPtr + ENTITY_ACTIVE, 1);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_X, 50);
+    writeSignedInt16(buf, playerPtr + ENTITY_POS_Y, 50);
+
+    writeInt8(buf, itemPtr + ENTITY_ACTIVE, 1);
+    writeInt8(buf, itemPtr + ENTITY_TYPE_ID, 3);
+    writeSignedInt16(buf, itemPtr + ENTITY_POS_X, 55);
+    writeSignedInt16(buf, itemPtr + ENTITY_POS_Y, 50);
+
+    inventoryComponent(buf, playerPtr, { slots: 4 }, makeInput(), makeBaked(), makeState(buf));
+
+    expect(readInt8(buf, playerPtr + ENTITY_DATA_START + 1)).toBe(0);
+    expect(readInt8(buf, itemPtr + ENTITY_ACTIVE)).toBe(1);
+  });
+
+  it("exposes context variables for all slots", () => {
+    const buf = createStateBuffer();
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 1, 10);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 2, 20);
+
+    const ctx = inventoryEngineComponent.getContext!(buf, ENTITY_PTR, {});
+    expect(ctx.$slot0).toBe(10);
+    expect(ctx.$slot1).toBe(20);
+    expect(ctx.$slot2).toBe(0);
+    expect(ctx.$slot3).toBe(0);
   });
 });

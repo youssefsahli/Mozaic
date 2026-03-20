@@ -2061,7 +2061,13 @@ function defaultDocs(): DocEntry[] {
 }
 
 async function loadRom(runtime: RuntimeState, source: string): Promise<void> {
-  const asset = await loadAsset(source);
+  let asset;
+  try {
+    asset = await loadAsset(source);
+  } catch (e) {
+    showStatus(runtime, `Failed to load ROM: ${String(e)}`, "var(--danger)");
+    return;
+  }
   runtime.imageData = cloneImageData(asset.imageData);
   runtime.baked = bake(runtime.imageData);
 
@@ -2107,7 +2113,10 @@ function restart(runtime: RuntimeState): void {
   }
 
   const script = getScriptDocument(runtime);
-  if (!script) return;
+  if (!script) {
+    showStatus(runtime, "Fix script errors before restarting.", "var(--danger)");
+    return;
+  }
 
   runtime.loop?.stop();
   runtime.inputManager?.dispose();
