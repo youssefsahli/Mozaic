@@ -4,7 +4,7 @@ import {
   readSchemaVar,
   writeSchemaVar,
 } from "../engine/evaluator.js";
-import { createStateBuffer } from "../engine/memory.js";
+import { createStateBuffer, writeSignedInt16 } from "../engine/memory.js";
 import type { EngineState } from "../engine/loop.js";
 import type { InputState } from "../engine/input.js";
 import type { BakedAsset } from "../engine/baker.js";
@@ -222,6 +222,71 @@ describe("buildEvaluatorLogic — Collision trigger", () => {
     const logic = buildEvaluatorLogic();
     logic(state, makeInput(), makeBaked(), script);
     expect(readSchemaVar(buf, schema, "$Hit")).toBe(1);
+  });
+
+  it("fires entity-name collision when entities overlap", () => {
+    const buf = createStateBuffer();
+    // Spawn two entities in the pool: Player (type 1) and NPC (type 2)
+    const POOL_START = 512;
+    const SLOT = 16;
+    // Entity 1: Player at (10, 10)
+    buf[POOL_START + 0] = 1; // active
+    buf[POOL_START + 1] = 1; // type ID = 1 (Player)
+    writeSignedInt16(buf, POOL_START + 2, 10); // posX
+    writeSignedInt16(buf, POOL_START + 4, 10); // posY
+    // Entity 2: NPC at (12, 12) — within 16px of Player
+    buf[POOL_START + SLOT + 0] = 1; // active
+    buf[POOL_START + SLOT + 1] = 2; // type ID = 2 (NPC)
+    writeSignedInt16(buf, POOL_START + SLOT + 2, 12);
+    writeSignedInt16(buf, POOL_START + SLOT + 4, 12);
+
+    const schema: MscSchema = { $Hit: { addr: 64, type: "Int8" } };
+    const script: MscDocument = {
+      imports: [],
+      schema,
+      entities: { Player: { visual: "Player" }, NPC: { visual: "NPC" } },
+      events: [
+        { trigger: 'Collision("Player", "NPC")', actions: ["State.$Hit = 1"] },
+      ],
+      sprites: new Map(),
+      spriteGrid: 16,
+    };
+
+    const state = makeState(buf);
+    const logic = buildEvaluatorLogic();
+    logic(state, makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Hit")).toBe(1);
+  });
+
+  it("does not fire entity-name collision when entities are far apart", () => {
+    const buf = createStateBuffer();
+    const POOL_START = 512;
+    const SLOT = 16;
+    buf[POOL_START + 0] = 1;
+    buf[POOL_START + 1] = 1;
+    writeSignedInt16(buf, POOL_START + 2, 10);
+    writeSignedInt16(buf, POOL_START + 4, 10);
+    buf[POOL_START + SLOT + 0] = 1;
+    buf[POOL_START + SLOT + 1] = 2;
+    writeSignedInt16(buf, POOL_START + SLOT + 2, 50);
+    writeSignedInt16(buf, POOL_START + SLOT + 4, 50);
+
+    const schema: MscSchema = { $Hit: { addr: 64, type: "Int8" } };
+    const script: MscDocument = {
+      imports: [],
+      schema,
+      entities: { Player: { visual: "Player" }, NPC: { visual: "NPC" } },
+      events: [
+        { trigger: 'Collision("Player", "NPC")', actions: ["State.$Hit = 1"] },
+      ],
+      sprites: new Map(),
+      spriteGrid: 16,
+    };
+
+    const state = makeState(buf);
+    const logic = buildEvaluatorLogic();
+    logic(state, makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Hit")).toBe(0);
   });
 
   it("supports 3-digit hex in Collision trigger", () => {
