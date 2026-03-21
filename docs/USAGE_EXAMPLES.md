@@ -27,13 +27,16 @@ player-controlled movement.
 `SineWave`, `Lifetime`
 
 ```yaml
-Source: "level.mzk"
+Sprites:
+  $Grid: 16
+  Hero:   { shape: circle, color: "#4488FF", size: 12 }
+  Coin:   { shape: diamond, color: "#FFDD00", size: 10 }
 
 Schema:
   - $Score: { addr: 64, type: Int16 }
 
 Entity.Hero:
-  Visual: "hero.png"
+  Visual: "Hero"
   Kinematic: {}
   Gravity: { force: 1 }
   PlatformController: { speed: 2, jumpForce: 5 }
@@ -48,9 +51,15 @@ Entity.Hero:
     - Key_ArrowUp    -> Action.Jump
 
 Entity.Coin:
-  Visual: "coin.png"
+  Visual: "Coin"
   SineWave: { frequency: 0.05, amplitude: 2, axis: y }
   Lifetime: { frames: 600 }
+
+Instances:
+  - { entity: "Hero", x: 8, y: 40 }
+  - { entity: "Coin", x: 32, y: 24 }
+  - { entity: "Coin", x: 48, y: 36 }
+  - { entity: "Coin", x: 16, y: 52 }
 
 Events:
   Collision(Hero:#Feet, Level:#00FF00):
@@ -75,13 +84,17 @@ friction-based movement.
 `Wanderer`, `AreaTrigger`
 
 ```yaml
-Source: "map.mzk"
+Sprites:
+  $Grid: 16
+  Player: { shape: circle, color: "#44DDAA", size: 12 }
+  NPC:    { shape: diamond, color: "#FF8844", size: 10 }
+  Chest:  { shape: rect, color: "#FFDD00", size: 14 }
 
 Schema:
   - $Keys: { addr: 64, type: Int16 }
 
 Entity.Player:
-  Visual: "player.png"
+  Visual: "Player"
   Kinematic: {}
   TopDownController: { speed: 2 }
   Friction: { factor: 0.85 }
@@ -97,14 +110,19 @@ Entity.Player:
     - Key_ArrowRight -> Action.MoveRight
 
 Entity.NPC:
-  Visual: "npc.png"
+  Visual: "NPC"
   Kinematic: {}
   Wanderer: { speed: 1, interval: 90 }
   Friction: { factor: 0.9 }
 
 Entity.Chest:
-  Visual: "chest.png"
+  Visual: "Chest"
   AreaTrigger: { width: 16, height: 16, targetType: 1 }
+
+Instances:
+  - { entity: "Player", x: 8, y: 32 }
+  - { entity: "NPC", x: 40, y: 40 }
+  - { entity: "Chest", x: 44, y: 12 }
 
 Events:
   Collision(Player:#Body, Chest:#FFFF00):
@@ -124,33 +142,33 @@ Events:
 A visual effects showcase with emitters, animated sprites, and blinking.
 
 **Components used:**
-`Kinematic`, `ParticleEmitter`, `SineWave`, `Gravity`, `Lifetime`,
-`Blink`, `SpriteAnimator`, `Patrol`
+`Kinematic`, `ParticleEmitter`, `SineWave`, `Lifetime`,
+`Blink`, `Friction`
 
 ```yaml
-Source: "fx.mzk"
+Sprites:
+  $Grid: 16
+  Emitter: { shape: circle, color: "#FFFFFF", size: 8 }
+  Spark:   { shape: diamond, color: "#FF6600", size: 6 }
 
 Schema:
   - $FX: { addr: 64, type: Int16 }
 
 Entity.Emitter:
-  Visual: "emitter.png"
+  Visual: "Emitter"
   Kinematic: {}
-  ParticleEmitter: { rate: 2, lifetime: 40, typeId: 0 }
+  ParticleEmitter: { rate: 2, lifetime: 40, typeId: 2 }
   SineWave: { frequency: 0.03, amplitude: 3, axis: x }
 
 Entity.Spark:
-  Visual: "spark.png"
+  Visual: "Spark"
   Kinematic: {}
-  Gravity: { force: 0.5 }
   Lifetime: { frames: 40 }
   Blink: { interval: 6 }
+  Friction: { factor: 0.92 }
 
-Entity.Spinner:
-  Visual: "spinner.png"
-  Kinematic: {}
-  SpriteAnimator: { frames: 8, count: 4 }
-  Patrol: { speed: 1, axis: x }
+Instances:
+  - { entity: "Emitter", x: 24, y: 20 }
 
 Events:
   Collision(Spark:#Body, Level:#FF0000):

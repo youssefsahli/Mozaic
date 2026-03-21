@@ -29,6 +29,9 @@ Entity.Spark:
   Blink: { interval: 6 }
   Friction: { factor: 0.92 }
 
+Instances:
+  - { entity: "Emitter", x: 24, y: 20 }
+
 Events:
   Collision(Spark:#Body, Level:#FF0000):
     - State.$FX = State.$FX + 1

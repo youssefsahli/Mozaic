@@ -24,7 +24,7 @@ import type { EngineState, LogicFn } from "./loop.js";
 import type { InputState } from "./input.js";
 import type { BakedAsset } from "./baker.js";
 import type { MscDocument, MscEntity, MscSchema } from "../parser/msc.js";
-import { detectColorCollision } from "./physics.js";
+import { detectColorCollision, detectEntityCollision } from "./physics.js";
 import type { ComponentRegistry } from "./components.js";
 import {
   readInt8,
@@ -37,6 +37,7 @@ import {
   ENTITY_SLOT_SIZE,
   ENTITY_ACTIVE,
   ENTITY_TYPE_ID,
+  ENTITY_HEALTH,
   ENTITY_DATA_START,
 } from "./memory.js";
 
@@ -162,10 +163,19 @@ function execAction(
 
 // ── Trigger evaluation ────────────────────────────────────────
 
-/** Extract a #RRGGBB hex colour from a trigger operand like "Hero:#FFFF00". */
+/** Extract a #RRGGBB or #RGB hex colour from a trigger operand like "Hero:#FFFF00" or "#F00". */
 function extractColor(operand: string): string | null {
-  const m = operand.match(/#([0-9A-Fa-f]{6})$/);
-  return m ? `#${m[1]}` : null;
+  const m = operand.match(/#([0-9A-Fa-f]{3,6})$/);
+  if (!m) return null;
+  const hex = m[1];
+  // Expand 3-digit shorthand (#RGB → #RRGGBB)
+  if (hex.length === 3) {
+    return `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`;
+  }
+  if (hex.length === 6) {
+    return `#${hex}`;
+  }
+  return null;
 }
 
 /**
@@ -249,7 +259,8 @@ function isTriggerFired(
   state: EngineState,
   input: InputState,
   _baked: BakedAsset,
-  schema: MscSchema
+  schema: MscSchema,
+  script?: MscDocument
 ): boolean {
   const t = trigger.trim();
 
@@ -261,11 +272,30 @@ function isTriggerFired(
     return input.active.has(inputMatch[1]);
   }
 
-  // Collision(EntityA:#COLOR, EntityB:#COLOR)
+  // Collision trigger — two forms:
+  //   1. Collision("EntityA", "EntityB")  — AABB overlap between entity types
+  //   2. Collision(EntityA:#COLOR, EntityB:#COLOR) or Collision(#COLOR, #COLOR) — pixel color
   const collMatch = t.match(/^Collision\(([^,]+),\s*(.+)\)$/);
   if (collMatch) {
-    const colorA = extractColor(collMatch[1].trim());
-    const colorB = extractColor(collMatch[2].trim());
+    const opA = collMatch[1].trim();
+    const opB = collMatch[2].trim();
+
+    // Check for entity-name syntax: Collision("Player", "NPC")
+    const nameMatchA = opA.match(/^"(\w+)"$/);
+    const nameMatchB = opB.match(/^"(\w+)"$/);
+    if (nameMatchA && nameMatchB && script) {
+      const entityNames = Object.keys(script.entities);
+      const gridSize = script.spriteGrid || 16;
+      return detectEntityCollision(
+        state.buffer, entityNames,
+        nameMatchA[1], nameMatchB[1],
+        gridSize
+      );
+    }
+
+    // Color-based collision
+    const colorA = extractColor(opA);
+    const colorB = extractColor(opB);
     if (colorA && colorB) {
       return detectColorCollision(state.buffer, state.width, colorA, colorB);
     }
@@ -325,7 +355,7 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
     const { schema, events, entities, sprites } = script;
 
     for (const event of events) {
-      if (!isTriggerFired(event.trigger, state, input, baked, schema)) continue;
+      if (!isTriggerFired(event.trigger, state, input, baked, schema, script)) continue;
       for (const action of event.actions) {
         execAction(action, schema, buffer);
       }
@@ -391,6 +421,18 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
           const sid = spriteNameToId.get(effectiveVisual);
           if (sid !== undefined) {
             writeInt8(buffer, ptr + ENTITY_DATA_START, sid);
+          }
+        }
+
+        // ── Health Initialization ───────────────────────────────
+        // Entities spawn with HP=0.  If a Health component is present,
+        // seed ENTITY_HEALTH to maxHp so the entity isn't killed on
+        // the very first tick.
+        if (effectiveComponents?.Health) {
+          const hp = readInt8(buffer, ptr + ENTITY_HEALTH);
+          if (hp === 0) {
+            const maxHp = (effectiveComponents.Health.maxHp as number) ?? 100;
+            writeInt8(buffer, ptr + ENTITY_HEALTH, Math.min(maxHp, 255));
           }
         }
 

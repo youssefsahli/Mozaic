@@ -168,3 +168,20 @@ describe("paintShapesIntoBuffer – diamond shape", () => {
     expect(data[idx + 3]).toBeGreaterThan(0);
   });
 });
+
+describe("shape atlas produces NPOT dimensions", () => {
+  it("atlas height is NOT a power of 2 for typical shape counts", () => {
+    // This documents why the renderer must use CLAMP_TO_EDGE (not REPEAT)
+    // for the main state texture. WebGL 1 NPOT textures with REPEAT are
+    // incomplete and sample as black.
+    const sprites = new Map<string, MscSpriteDef>([
+      ["Hero", { kind: "shape", shapeType: "circle", color: "#4488FF", size: 12 }],
+      ["Coin", { kind: "shape", shapeType: "diamond", color: "#FFDD00", size: 10 }],
+    ]);
+    const { imageData } = createShapeAtlas(sprites, 16);
+    // 64 is power-of-2, but 80 is not
+    const isPow2 = (n: number) => n > 0 && (n & (n - 1)) === 0;
+    expect(isPow2(imageData.width)).toBe(true);
+    expect(isPow2(imageData.height)).toBe(false);
+  });
+});

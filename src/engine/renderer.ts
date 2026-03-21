@@ -341,8 +341,11 @@ export class Renderer {
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    // CLAMP_TO_EDGE is required for non-power-of-2 textures in WebGL 1.
+    // Shape-atlas images (e.g. 64×80) are NPOT; using REPEAT would make
+    // the texture incomplete and sampling would return black.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 
     // --- Background full-screen quad (clip-space, tiled UVs) ---
     this.bgQuadVertices = new Float32Array([

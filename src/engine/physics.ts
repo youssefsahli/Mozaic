@@ -6,9 +6,22 @@
  *
  * Color triggers fire when two hex-color regions overlap, as declared
  * in the .msc DSL:  Collision(#FFFF00, #FF0000)
+ *
+ * Entity-name triggers fire when bounding boxes of two entity types overlap:
+ *   Collision("Player", "NPC")
  */
 
 import type { Point } from "./baker.js";
+import {
+  readInt8,
+  readSignedInt16,
+  ENTITY_SLOT_SIZE,
+  ENTITY_ACTIVE,
+  ENTITY_TYPE_ID,
+  ENTITY_POS_X,
+  ENTITY_POS_Y,
+  MEMORY_BLOCKS,
+} from "./memory.js";
 
 export interface AABB {
   x: number;
@@ -137,6 +150,72 @@ export function detectColorCollision(
       if (nx < 0 || ny < 0) continue;
       const ni = ny * width + nx;
       if (_pixelSetCache.has(ni)) return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Detect collision between two entity types by name using AABB overlap.
+ *
+ * Entity names are mapped to 1-based type IDs using the order of
+ * `Object.keys(entities)`.  Each entity's bounding box is gridSize × gridSize
+ * pixels centered at its position.
+ *
+ * @returns true if any entity of typeA overlaps with any entity of typeB.
+ */
+export function detectEntityCollision(
+  buffer: Uint8ClampedArray,
+  entityNames: string[],
+  nameA: string,
+  nameB: string,
+  gridSize: number
+): boolean {
+  const typeA = entityNames.indexOf(nameA) + 1;
+  const typeB = entityNames.indexOf(nameB) + 1;
+  if (typeA === 0 || typeB === 0) return false;
+
+  const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+  const poolEnd = MEMORY_BLOCKS.entityPool.endByte;
+
+  // Collect positions of type A entities
+  const positionsA: { x: number; y: number }[] = [];
+
+  for (
+    let ptr = poolStart;
+    ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
+    ptr += ENTITY_SLOT_SIZE
+  ) {
+    if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
+    const tid = readInt8(buffer, ptr + ENTITY_TYPE_ID);
+    if (tid === typeA) {
+      positionsA.push({
+        x: readSignedInt16(buffer, ptr + ENTITY_POS_X),
+        y: readSignedInt16(buffer, ptr + ENTITY_POS_Y),
+      });
+    }
+  }
+
+  if (positionsA.length === 0) return false;
+
+  // Check type B entities against collected type A positions
+  for (
+    let ptr = poolStart;
+    ptr + ENTITY_SLOT_SIZE - 1 <= poolEnd;
+    ptr += ENTITY_SLOT_SIZE
+  ) {
+    if (readInt8(buffer, ptr + ENTITY_ACTIVE) === 0) continue;
+    const tid = readInt8(buffer, ptr + ENTITY_TYPE_ID);
+    if (tid !== typeB) continue;
+
+    const bx = readSignedInt16(buffer, ptr + ENTITY_POS_X);
+    const by = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
+
+    for (const a of positionsA) {
+      if (Math.abs(a.x - bx) < gridSize && Math.abs(a.y - by) < gridSize) {
+        return true;
+      }
     }
   }
 

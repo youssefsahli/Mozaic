@@ -1312,7 +1312,7 @@ function wireUi(runtime: RuntimeState): void {
     const div = document.createElement("div");
     const style = window.getComputedStyle(element);
     const properties = [
-      "direction", "boxSizing", "width", "height", "overflowX", "overflowY",
+      "direction", "boxSizing", "width", "height",
       "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "borderStyle",
       "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
       "fontStyle", "fontVariant", "fontWeight", "fontStretch", "fontSize",
@@ -1327,6 +1327,7 @@ function wireUi(runtime: RuntimeState): void {
     div.style.position = "absolute";
     div.style.visibility = "hidden";
     div.style.whiteSpace = "pre";
+    div.style.overflow = "hidden";
     div.style.left = "-9999px";
     div.style.top = "-9999px";
     div.textContent = element.value.substring(0, position);
@@ -2061,7 +2062,13 @@ function defaultDocs(): DocEntry[] {
 }
 
 async function loadRom(runtime: RuntimeState, source: string): Promise<void> {
-  const asset = await loadAsset(source);
+  let asset;
+  try {
+    asset = await loadAsset(source);
+  } catch (e) {
+    showStatus(runtime, `Failed to load ROM: ${String(e)}`, "var(--danger)");
+    return;
+  }
   runtime.imageData = cloneImageData(asset.imageData);
   runtime.baked = bake(runtime.imageData);
 
@@ -2107,7 +2114,10 @@ function restart(runtime: RuntimeState): void {
   }
 
   const script = getScriptDocument(runtime);
-  if (!script) return;
+  if (!script) {
+    showStatus(runtime, "Fix script errors before restarting.", "var(--danger)");
+    return;
+  }
 
   runtime.loop?.stop();
   runtime.inputManager?.dispose();

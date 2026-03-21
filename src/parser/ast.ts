@@ -586,8 +586,9 @@ function parseInstances(
       const line = token.listValue ?? "";
 
       // Inline form: { entity: "TinyHero", x: 32, y: 32 }
+      // Also accept any key name (e.g. "danger:") as a forgiving alias for "entity:"
       const inlineMatch = line.match(
-        /^\{\s*entity:\s*"([^"]+)"\s*,\s*x:\s*(-?\d+)\s*,\s*y:\s*(-?\d+)\s*\}$/
+        /^\{\s*\w+:\s*"([^"]+)"\s*,\s*x:\s*(-?\d+)\s*,\s*y:\s*(-?\d+)\s*\}$/
       );
       if (inlineMatch) {
         instances.push({

@@ -5,7 +5,9 @@ import {
   pointInPolygon,
   parseHexColor,
   detectColorCollision,
+  detectEntityCollision,
 } from "../engine/physics.js";
+import { createStateBuffer, writeSignedInt16 } from "../engine/memory.js";
 
 describe("polygonAABB", () => {
   it("computes correct bounding box", () => {
@@ -96,5 +98,44 @@ describe("detectColorCollision", () => {
       [255, 0, 0, 255],
     ]);
     expect(detectColorCollision(state, 4, "#FFFF00", "#FF0000")).toBe(false);
+  });
+});
+
+describe("detectEntityCollision", () => {
+  it("detects overlapping entities of different types", () => {
+    const buf = createStateBuffer();
+    const POOL_START = 512;
+    const SLOT = 16;
+    buf[POOL_START + 0] = 1; // active
+    buf[POOL_START + 1] = 1; // type 1
+    writeSignedInt16(buf, POOL_START + 2, 10);
+    writeSignedInt16(buf, POOL_START + 4, 10);
+    buf[POOL_START + SLOT + 0] = 1;
+    buf[POOL_START + SLOT + 1] = 2;
+    writeSignedInt16(buf, POOL_START + SLOT + 2, 12);
+    writeSignedInt16(buf, POOL_START + SLOT + 4, 12);
+
+    expect(detectEntityCollision(buf, ["Player", "NPC"], "Player", "NPC", 16)).toBe(true);
+  });
+
+  it("returns false when entities are far apart", () => {
+    const buf = createStateBuffer();
+    const POOL_START = 512;
+    const SLOT = 16;
+    buf[POOL_START + 0] = 1;
+    buf[POOL_START + 1] = 1;
+    writeSignedInt16(buf, POOL_START + 2, 10);
+    writeSignedInt16(buf, POOL_START + 4, 10);
+    buf[POOL_START + SLOT + 0] = 1;
+    buf[POOL_START + SLOT + 1] = 2;
+    writeSignedInt16(buf, POOL_START + SLOT + 2, 50);
+    writeSignedInt16(buf, POOL_START + SLOT + 4, 50);
+
+    expect(detectEntityCollision(buf, ["Player", "NPC"], "Player", "NPC", 16)).toBe(false);
+  });
+
+  it("returns false for unknown entity names", () => {
+    const buf = createStateBuffer();
+    expect(detectEntityCollision(buf, ["Player"], "Player", "Unknown", 16)).toBe(false);
   });
 });

@@ -28,8 +28,10 @@ import {
   ENTITY_POS_Y,
   ENTITY_VEL_X,
   ENTITY_VEL_Y,
+  ENTITY_HEALTH,
   ENTITY_DATA_START,
   MEMORY_BLOCKS,
+  VEL_SCALE,
 } from "./memory.js";
 
 // ── Component Systems ─────────────────────────────────────────
@@ -48,8 +50,8 @@ export function applyKinematic(
   const vy = readSignedInt16(buffer, ptr + ENTITY_VEL_Y);
   const px = readSignedInt16(buffer, ptr + ENTITY_POS_X);
   const py = readSignedInt16(buffer, ptr + ENTITY_POS_Y);
-  writeSignedInt16(buffer, ptr + ENTITY_POS_X, px + vx);
-  writeSignedInt16(buffer, ptr + ENTITY_POS_Y, py + vy);
+  writeSignedInt16(buffer, ptr + ENTITY_POS_X, px + Math.round(vx / VEL_SCALE));
+  writeSignedInt16(buffer, ptr + ENTITY_POS_Y, py + Math.round(vy / VEL_SCALE));
 }
 
 /**
@@ -65,8 +67,9 @@ export function applyGravity(
   terminalVelocity: number
 ): void {
   let vy = readSignedInt16(buffer, ptr + ENTITY_VEL_Y);
-  vy += force;
-  if (vy > terminalVelocity) vy = terminalVelocity;
+  vy += Math.round(force * VEL_SCALE);
+  const scaledTerminal = Math.round(terminalVelocity * VEL_SCALE);
+  if (vy > scaledTerminal) vy = scaledTerminal;
   writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, vy);
 }
 
@@ -94,8 +97,8 @@ export function applyTopDownController(
   else if (right && !left) vx = speed;
   if (up && !down) vy = -speed;
   else if (down && !up) vy = speed;
-  writeSignedInt16(buffer, ptr + ENTITY_VEL_X, vx);
-  writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, vy);
+  writeSignedInt16(buffer, ptr + ENTITY_VEL_X, Math.round(vx * VEL_SCALE));
+  writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, Math.round(vy * VEL_SCALE));
 }
 
 /**
@@ -116,9 +119,9 @@ export function applyPlatformerController(
   const right = input.active.has("Action.MoveRight");
   if (left && !right) vx = -speed;
   else if (right && !left) vx = speed;
-  writeSignedInt16(buffer, ptr + ENTITY_VEL_X, vx);
+  writeSignedInt16(buffer, ptr + ENTITY_VEL_X, Math.round(vx * VEL_SCALE));
   if (input.active.has("Action.Jump")) {
-    writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, -jumpForce);
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, Math.round(-jumpForce * VEL_SCALE));
   }
 }
 
@@ -232,6 +235,18 @@ export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset
       const sid = spriteNameToId.get(entityDef.visual);
       if (sid !== undefined) {
         writeInt8(buffer, ptr + ENTITY_DATA_START, sid);
+      }
+    }
+
+    // ── Health Initialization ──────────────────────────────────
+    // Entities spawn with HP=0.  If a Health component is present,
+    // seed ENTITY_HEALTH to maxHp so the entity isn't killed on
+    // the very first tick.
+    if (entityDef.components?.Health) {
+      const hp = readInt8(buffer, ptr + ENTITY_HEALTH);
+      if (hp === 0) {
+        const maxHp = Number(entityDef.components.Health.maxHp ?? 100);
+        writeInt8(buffer, ptr + ENTITY_HEALTH, Math.min(maxHp, 255));
       }
     }
 

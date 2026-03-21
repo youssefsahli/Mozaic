@@ -15,6 +15,18 @@ export const ENTITY_VEL_Y = 8;
 export const ENTITY_HEALTH = 10;
 export const ENTITY_DATA_START = 11;
 
+/**
+ * Fixed-point velocity scale factor.
+ *
+ * Velocities are stored as fixed-point integers in the entity buffer:
+ *   internal velocity = desired speed × VEL_SCALE
+ *
+ * This allows fractional speeds (e.g. speed: 1.5) and smooth friction
+ * decay.  The Kinematic component divides by VEL_SCALE when converting
+ * velocity to pixel movement.
+ */
+export const VEL_SCALE = 128;
+
 // ── Global Camera Shake Offsets (within globals block) ───────
 export const CAMERA_SHAKE_X = 508;
 export const CAMERA_SHAKE_Y = 510;
@@ -50,7 +62,7 @@ export function pixelByteOffset(
   y: number,
   width = STATE_GRID_WIDTH
 ): number {
-  if (x < 0 || y < 0 || x >= width) {
+  if (x < 0 || y < 0 || x >= width || y >= STATE_GRID_HEIGHT) {
     throw new RangeError(`Pixel out of bounds at (${x}, ${y})`);
   }
   return (y * width + x) * CHANNELS_PER_PIXEL;

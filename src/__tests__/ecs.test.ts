@@ -23,6 +23,7 @@ import {
   ENTITY_VEL_X,
   ENTITY_VEL_Y,
   ENTITY_DATA_START,
+  VEL_SCALE,
 } from "../engine/memory.js";
 import type { EngineState } from "../engine/loop.js";
 import type { InputState } from "../engine/input.js";
@@ -63,8 +64,8 @@ describe("applyKinematic", () => {
 
     writeSignedInt16(buf, ptr + ENTITY_POS_X, 100);
     writeSignedInt16(buf, ptr + ENTITY_POS_Y, 200);
-    writeSignedInt16(buf, ptr + ENTITY_VEL_X, 3);
-    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, -5);
+    writeSignedInt16(buf, ptr + ENTITY_VEL_X, 3 * VEL_SCALE);
+    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, -5 * VEL_SCALE);
 
     applyKinematic(buf, ptr);
 
@@ -93,8 +94,8 @@ describe("applyKinematic", () => {
 
     writeSignedInt16(buf, ptr + ENTITY_POS_X, 10);
     writeSignedInt16(buf, ptr + ENTITY_POS_Y, 20);
-    writeSignedInt16(buf, ptr + ENTITY_VEL_X, -3);
-    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, -7);
+    writeSignedInt16(buf, ptr + ENTITY_VEL_X, -3 * VEL_SCALE);
+    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, -7 * VEL_SCALE);
 
     applyKinematic(buf, ptr);
 
@@ -113,27 +114,27 @@ describe("applyGravity", () => {
     writeSignedInt16(buf, ptr + ENTITY_VEL_Y, 0);
     applyGravity(buf, ptr, 5, 100);
 
-    expect(readSignedInt16(buf, ptr + ENTITY_VEL_Y)).toBe(5);
+    expect(readSignedInt16(buf, ptr + ENTITY_VEL_Y)).toBe(5 * VEL_SCALE);
   });
 
   it("clamps to terminal velocity", () => {
     const buf = createStateBuffer();
     const ptr = MEMORY_BLOCKS.entityPool.startByte;
 
-    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, 90);
+    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, 90 * VEL_SCALE);
     applyGravity(buf, ptr, 20, 100);
 
-    expect(readSignedInt16(buf, ptr + ENTITY_VEL_Y)).toBe(100);
+    expect(readSignedInt16(buf, ptr + ENTITY_VEL_Y)).toBe(100 * VEL_SCALE);
   });
 
   it("does not clamp when below terminal velocity", () => {
     const buf = createStateBuffer();
     const ptr = MEMORY_BLOCKS.entityPool.startByte;
 
-    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, 10);
+    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, 10 * VEL_SCALE);
     applyGravity(buf, ptr, 5, 100);
 
-    expect(readSignedInt16(buf, ptr + ENTITY_VEL_Y)).toBe(15);
+    expect(readSignedInt16(buf, ptr + ENTITY_VEL_Y)).toBe(15 * VEL_SCALE);
   });
 });
 
@@ -148,8 +149,8 @@ describe("ecsTick", () => {
     writeInt8(buf, ptr + ENTITY_TYPE_ID, 1);
     writeSignedInt16(buf, ptr + ENTITY_POS_X, 10);
     writeSignedInt16(buf, ptr + ENTITY_POS_Y, 20);
-    writeSignedInt16(buf, ptr + ENTITY_VEL_X, 2);
-    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, 3);
+    writeSignedInt16(buf, ptr + ENTITY_VEL_X, 2 * VEL_SCALE);
+    writeSignedInt16(buf, ptr + ENTITY_VEL_Y, 3 * VEL_SCALE);
 
     const script: MscDocument = {
       imports: [],
@@ -195,8 +196,8 @@ describe("ecsTick", () => {
 
     ecsTick(makeState(buf), makeInput(), makeBaked(), script);
 
-    // Gravity adds 2 to VelY → VelY=2, then Kinematic adds VelY to PosY
-    expect(readSignedInt16(buf, ptr + ENTITY_VEL_Y)).toBe(2);
+    // Gravity adds 2*VEL_SCALE to VelY → VelY=2*VEL_SCALE, then Kinematic adds Math.round(VelY/VEL_SCALE)=2 to PosY
+    expect(readSignedInt16(buf, ptr + ENTITY_VEL_Y)).toBe(2 * VEL_SCALE);
     expect(readSignedInt16(buf, ptr + ENTITY_POS_Y)).toBe(2);
   });
 

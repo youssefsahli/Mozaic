@@ -371,6 +371,69 @@ describe("parseWithImports", () => {
     // Main file's Entity.Hero should win
     expect(document.entities["Hero"].visual).toBe("main_hero.png");
   });
+
+  it("merges sprites from imported files", () => {
+    const root = createFolder("project");
+    const main = createScriptFile(
+      "main.msc",
+      `Import: "sprites"\nSprites:\n  $Grid: 16\n  Hero: { shape: circle, color: "#FF0000", size: 8 }\n`
+    );
+    const sprites = createScriptFile(
+      "sprites.msc",
+      `Sprites:\n  $Grid: 16\n  Enemy: { shape: rect, color: "#00FF00", size: 8 }\n`
+    );
+    addChild(root, main);
+    addChild(root, sprites);
+
+    const project = makeProject(root, main.id);
+    const { document, errors } = parseWithImports(main.content!, main.id, project);
+
+    expect(errors).toHaveLength(0);
+    expect(document.sprites.has("Hero")).toBe(true);
+    expect(document.sprites.has("Enemy")).toBe(true);
+  });
+
+  it("merges input bindings from imported files", () => {
+    const root = createFolder("project");
+    const main = createScriptFile(
+      "main.msc",
+      `Import: "controls"\nEntity.Hero:\n  Visual: "hero.png"\n  Input:\n    - Key_Space -> Action.Jump\n`
+    );
+    const controls = createScriptFile(
+      "controls.msc",
+      `Entity.NPC:\n  Visual: "npc.png"\n  Input:\n    - Key_E -> Action.Interact\n`
+    );
+    addChild(root, main);
+    addChild(root, controls);
+
+    const project = makeProject(root, main.id);
+    const { document, errors } = parseWithImports(main.content!, main.id, project);
+
+    expect(errors).toHaveLength(0);
+    // Both entity inputs should be present
+    expect(document.entities["Hero"]).toBeDefined();
+    expect(document.entities["NPC"]).toBeDefined();
+  });
+
+  it("inherits spriteGrid from import if main has none", () => {
+    const root = createFolder("project");
+    const main = createScriptFile(
+      "main.msc",
+      `Import: "assets"\nEntity.Hero:\n  Visual: "hero.png"\n`
+    );
+    const assets = createScriptFile(
+      "assets.msc",
+      `Sprites:\n  $Grid: 32\n  Tile: { shape: rect, color: "#FF0000", size: 8 }\n`
+    );
+    addChild(root, main);
+    addChild(root, assets);
+
+    const project = makeProject(root, main.id);
+    const { document, errors } = parseWithImports(main.content!, main.id, project);
+
+    expect(errors).toHaveLength(0);
+    expect(document.spriteGrid).toBe(32);
+  });
 });
 
 // ── File Type Routing Tests ────────────────────────────────
