@@ -24,6 +24,7 @@ import {
   ENTITY_VEL_Y,
   ENTITY_HEALTH,
   ENTITY_DATA_START,
+  VEL_SCALE,
 } from "../engine/memory.js";
 import type { EngineState } from "../engine/loop.js";
 import type { InputState } from "../engine/input.js";
@@ -149,7 +150,7 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     const logic = buildEvaluatorLogic(registry);
     logic(makeState(buf), makeInput(), makeBaked(), script);
 
-    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_Y)).toBe(5);
+    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_Y)).toBe(5 * VEL_SCALE);
   });
 
   it("skips dead entities (active flag = 0)", () => {
@@ -212,8 +213,8 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     const logic = buildEvaluatorLogic(registry);
     logic(makeState(buf), makeInput(), makeBaked(), script);
 
-    expect(readSignedInt16(buf, slot0 + ENTITY_VEL_Y)).toBe(1);
-    expect(readSignedInt16(buf, slot1 + ENTITY_VEL_Y)).toBe(3);
+    expect(readSignedInt16(buf, slot0 + ENTITY_VEL_Y)).toBe(1 * VEL_SCALE);
+    expect(readSignedInt16(buf, slot1 + ENTITY_VEL_Y)).toBe(3 * VEL_SCALE);
   });
 
   it("coexists with event-based logic", () => {
@@ -245,7 +246,7 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     // Event-based: score incremented
     expect(readSchemaVar(buf, schema, "$Score")).toBe(1);
     // ECS: gravity applied
-    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_Y)).toBe(2);
+    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_Y)).toBe(2 * VEL_SCALE);
   });
 
   it("works without a registry (backward compatible)", () => {
@@ -299,7 +300,7 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     ).not.toThrow();
 
     // Gravity component after Boom should still have run
-    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_Y)).toBe(7);
+    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_Y)).toBe(7 * VEL_SCALE);
   });
 
   it("applies TopDownController from input actions", () => {
@@ -333,7 +334,7 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     // Press MoveRight — entity should move right
     logic(makeState(buf), makeInput(["Action.MoveRight"]), makeBaked(), script);
 
-    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_X)).toBe(2);
+    expect(readSignedInt16(buf, poolStart + ENTITY_VEL_X)).toBe(2 * VEL_SCALE);
     expect(readSignedInt16(buf, poolStart + ENTITY_POS_X)).toBe(34);
   });
 
