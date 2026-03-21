@@ -250,9 +250,9 @@ export const healthEngineComponent: EngineComponent = {
   }),
 };
 
-/** Countdown timer that destroys the entity when it expires. Uses data byte 11. */
+/** Countdown timer that destroys the entity when it expires. Uses data byte 12. */
 export const lifetimeComponent: ComponentFn = (buffer, entityPtr, props) => {
-  const timerByte = entityPtr + ENTITY_DATA_START;
+  const timerByte = entityPtr + ENTITY_DATA_START + 1;
   let timer = readInt8(buffer, timerByte);
 
   if (timer === 0) {

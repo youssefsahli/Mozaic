@@ -532,24 +532,24 @@ describe("lifetimeComponent", () => {
     const buf = createStateBuffer();
     writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
 
-    // First call: initialize timer
+    // First call: initialize timer (stored at DATA_START + 1, byte 12)
     lifetimeComponent(buf, ENTITY_PTR, { frames: 5 }, makeInput(), makeBaked(), makeState(buf));
-    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(5);
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 1)).toBe(5);
 
     // Second call: decrement
     lifetimeComponent(buf, ENTITY_PTR, { frames: 5 }, makeInput(), makeBaked(), makeState(buf));
-    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(4);
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 1)).toBe(4);
   });
 
   it("kills entity when timer reaches zero", () => {
     const buf = createStateBuffer();
     writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
-    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START, 1);
+    writeInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 1, 1);
 
     lifetimeComponent(buf, ENTITY_PTR, {}, makeInput(), makeBaked(), makeState(buf));
 
     expect(readInt8(buf, ENTITY_PTR + ENTITY_ACTIVE)).toBe(0);
-    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START)).toBe(0);
+    expect(readInt8(buf, ENTITY_PTR + ENTITY_DATA_START + 1)).toBe(0);
   });
 });
 

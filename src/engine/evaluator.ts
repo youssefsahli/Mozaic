@@ -37,6 +37,7 @@ import {
   ENTITY_SLOT_SIZE,
   ENTITY_ACTIVE,
   ENTITY_TYPE_ID,
+  ENTITY_HEALTH,
   ENTITY_DATA_START,
 } from "./memory.js";
 
@@ -391,6 +392,18 @@ export function buildEvaluatorLogic(registry?: ComponentRegistry): LogicFn {
           const sid = spriteNameToId.get(effectiveVisual);
           if (sid !== undefined) {
             writeInt8(buffer, ptr + ENTITY_DATA_START, sid);
+          }
+        }
+
+        // ── Health Initialization ───────────────────────────────
+        // Entities spawn with HP=0.  If a Health component is present,
+        // seed ENTITY_HEALTH to maxHp so the entity isn't killed on
+        // the very first tick.
+        if (effectiveComponents?.Health) {
+          const hp = readInt8(buffer, ptr + ENTITY_HEALTH);
+          if (hp === 0) {
+            const maxHp = (effectiveComponents.Health.maxHp as number) ?? 100;
+            writeInt8(buffer, ptr + ENTITY_HEALTH, Math.min(maxHp, 255));
           }
         }
 

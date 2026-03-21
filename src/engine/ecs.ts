@@ -28,6 +28,7 @@ import {
   ENTITY_POS_Y,
   ENTITY_VEL_X,
   ENTITY_VEL_Y,
+  ENTITY_HEALTH,
   ENTITY_DATA_START,
   MEMORY_BLOCKS,
 } from "./memory.js";
@@ -232,6 +233,18 @@ export function ecsTick(state: EngineState, input: InputState, baked: BakedAsset
       const sid = spriteNameToId.get(entityDef.visual);
       if (sid !== undefined) {
         writeInt8(buffer, ptr + ENTITY_DATA_START, sid);
+      }
+    }
+
+    // ── Health Initialization ──────────────────────────────────
+    // Entities spawn with HP=0.  If a Health component is present,
+    // seed ENTITY_HEALTH to maxHp so the entity isn't killed on
+    // the very first tick.
+    if (entityDef.components?.Health) {
+      const hp = readInt8(buffer, ptr + ENTITY_HEALTH);
+      if (hp === 0) {
+        const maxHp = Number(entityDef.components.Health.maxHp ?? 100);
+        writeInt8(buffer, ptr + ENTITY_HEALTH, Math.min(maxHp, 255));
       }
     }
 
