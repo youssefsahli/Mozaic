@@ -54,6 +54,7 @@ import {
   CAMERA_SHAKE_X,
   CAMERA_SHAKE_Y,
   MEMORY_BLOCKS,
+  VEL_SCALE,
 } from "../engine/memory.js";
 import type { EngineState } from "../engine/loop.js";
 import type { InputState } from "../engine/input.js";
@@ -245,7 +246,7 @@ describe("gravityComponent", () => {
 
     gravityComponent(buf, ENTITY_PTR, { force: 3 }, makeInput(), makeBaked(), makeState(buf));
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(3);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(3 * VEL_SCALE);
   });
 
   it("defaults to force=1 when not specified", () => {
@@ -254,16 +255,16 @@ describe("gravityComponent", () => {
 
     gravityComponent(buf, ENTITY_PTR, {}, makeInput(), makeBaked(), makeState(buf));
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(1);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(1 * VEL_SCALE);
   });
 
   it("accumulates over multiple frames", () => {
     const buf = createStateBuffer();
-    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 5);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 5 * VEL_SCALE);
 
     gravityComponent(buf, ENTITY_PTR, { force: 2 }, makeInput(), makeBaked(), makeState(buf));
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(7);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(7 * VEL_SCALE);
   });
 });
 
@@ -272,8 +273,8 @@ describe("kinematicComponent", () => {
     const buf = createStateBuffer();
     writeInt16(buf, ENTITY_PTR + ENTITY_POS_X, 10);
     writeInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 20);
-    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 3);
-    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, -2);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 3 * VEL_SCALE);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, -2 * VEL_SCALE);
 
     kinematicComponent(buf, ENTITY_PTR, {}, makeInput(), makeBaked(), makeState(buf));
 
@@ -342,13 +343,13 @@ describe("colliderComponent", () => {
 describe("frictionComponent", () => {
   it("reduces velocity by the factor", () => {
     const buf = createStateBuffer();
-    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 100);
-    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, -100);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 100 * VEL_SCALE);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, -100 * VEL_SCALE);
 
     frictionComponent(buf, ENTITY_PTR, { factor: 0.5 }, makeInput(), makeBaked(), makeState(buf));
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(50);
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(-50);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(50 * VEL_SCALE);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(-50 * VEL_SCALE);
   });
 });
 
@@ -367,8 +368,8 @@ describe("playerControllerComponent", () => {
       makeState(buf)
     );
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(5);
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(5);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(5 * VEL_SCALE);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(5 * VEL_SCALE);
   });
 
   it("sets velocity to zero when no input is active", () => {
@@ -565,7 +566,7 @@ describe("platformControllerEngineComponent", () => {
       makeInput(["Action.MoveRight"]), baked, makeState(buf)
     );
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3 * VEL_SCALE);
   });
 
   it("sets isGrounded=1 when entity is above a collision polygon", () => {
@@ -622,14 +623,14 @@ describe("platformControllerEngineComponent", () => {
       makeInput(["Action.Jump"]), baked, makeState(buf)
     );
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(-8);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(-8 * VEL_SCALE);
   });
 
   it("ignores jump when in the air", () => {
     const buf = createStateBuffer();
     writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_X, 5);
     writeSignedInt16(buf, ENTITY_PTR + ENTITY_POS_Y, 5);
-    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 3);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 3 * VEL_SCALE);
 
     const baked = makeBaked(); // no polygons = not grounded
 
@@ -639,7 +640,7 @@ describe("platformControllerEngineComponent", () => {
     );
 
     // vy should remain unchanged (no jump applied)
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(3);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(3 * VEL_SCALE);
   });
 
   it("getContext exposes $isGrounded and $vy", () => {
@@ -662,7 +663,7 @@ describe("wandererComponent", () => {
 
     wandererComponent(buf, ENTITY_PTR, { speed: 3, interval: 255 }, makeInput(), makeBaked(), makeState(buf));
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3 * VEL_SCALE);
     expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(0);
   });
 
@@ -697,7 +698,7 @@ describe("chaserComponent", () => {
     chaserComponent(buf, chaserPtr, { speed: 5, targetType: 1 }, makeInput(), makeBaked(), makeState(buf));
 
     // Should move right toward target
-    expect(readSignedInt16(buf, chaserPtr + ENTITY_VEL_X)).toBe(5);
+    expect(readSignedInt16(buf, chaserPtr + ENTITY_VEL_X)).toBe(5 * VEL_SCALE);
     expect(readSignedInt16(buf, chaserPtr + ENTITY_VEL_Y)).toBe(0);
   });
 
@@ -731,8 +732,8 @@ describe("spawnerComponent", () => {
     expect(readInt8(buf, childPtr + ENTITY_TYPE_ID)).toBe(5);
     expect(readInt16(buf, childPtr + ENTITY_POS_X)).toBe(50);
     expect(readInt16(buf, childPtr + ENTITY_POS_Y)).toBe(60);
-    expect(readSignedInt16(buf, childPtr + ENTITY_VEL_X)).toBe(4);
-    expect(readSignedInt16(buf, childPtr + ENTITY_VEL_Y)).toBe(-2);
+    expect(readSignedInt16(buf, childPtr + ENTITY_VEL_X)).toBe(4 * VEL_SCALE);
+    expect(readSignedInt16(buf, childPtr + ENTITY_VEL_Y)).toBe(-2 * VEL_SCALE);
   });
 
   it("does not spawn before interval is reached", () => {
@@ -1122,19 +1123,19 @@ describe("patrolComponent", () => {
 
     // Should move in positive direction on first tick
     expect(readInt8(buf, ENTITY_PTR + 14)).toBe(1);
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3 * VEL_SCALE);
   });
 
   it("maintains direction on subsequent ticks when velocity is nonzero", () => {
     const buf = createStateBuffer();
     writeInt8(buf, ENTITY_PTR + ENTITY_ACTIVE, 1);
     writeInt8(buf, ENTITY_PTR + 14, 1); // already initialized
-    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 2);
+    writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X, 2 * VEL_SCALE);
 
     patrolComponent(buf, ENTITY_PTR, { speed: 2 }, makeInput(), makeBaked(), makeState(buf));
 
     expect(readInt8(buf, ENTITY_PTR + 14)).toBe(1);
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(2);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(2 * VEL_SCALE);
   });
 
   it("reverses direction when velocity becomes 0 (blocked)", () => {
@@ -1146,7 +1147,7 @@ describe("patrolComponent", () => {
     patrolComponent(buf, ENTITY_PTR, { speed: 2 }, makeInput(), makeBaked(), makeState(buf));
 
     expect(readInt8(buf, ENTITY_PTR + 14)).toBe(255); // reversed to negative
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(-2);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(-2 * VEL_SCALE);
   });
 
   it("supports y-axis patrol", () => {
@@ -1155,7 +1156,7 @@ describe("patrolComponent", () => {
 
     patrolComponent(buf, ENTITY_PTR, { speed: 4, axis: "y" }, makeInput(), makeBaked(), makeState(buf));
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(4);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(4 * VEL_SCALE);
   });
 });
 
@@ -1265,7 +1266,7 @@ describe("topDownControllerComponent", () => {
 
     topDownControllerComponent(buf, ENTITY_PTR, { speed: 3 }, makeInput(["Action.MoveRight"]), makeBaked(), makeState(buf));
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(3 * VEL_SCALE);
   });
 
   it("handles diagonal movement", () => {
@@ -1274,8 +1275,8 @@ describe("topDownControllerComponent", () => {
 
     topDownControllerComponent(buf, ENTITY_PTR, { speed: 2 }, makeInput(["Action.MoveRight", "Action.MoveDown"]), makeBaked(), makeState(buf));
 
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(2);
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(2);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_X)).toBe(2 * VEL_SCALE);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(2 * VEL_SCALE);
   });
 });
 

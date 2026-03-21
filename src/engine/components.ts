@@ -39,6 +39,7 @@ import {
   CAMERA_SHAKE_X,
   CAMERA_SHAKE_Y,
   MEMORY_BLOCKS,
+  VEL_SCALE,
 } from "./memory.js";
 
 // ── Component Function Interface ──────────────────────────────
@@ -113,17 +114,19 @@ export class ComponentRegistry {
 export const gravityComponent: ComponentFn = (buffer, entityPtr, props) => {
   const force = (props.force as number) ?? 1;
   const vy = readSignedInt16(buffer, entityPtr + ENTITY_VEL_Y);
-  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, vy + force);
+  const scaledForce = Math.round(force * VEL_SCALE);
+  const newVy = Math.min(vy + scaledForce, 30000); // clamp to avoid Int16 overflow
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, newVy);
 };
 
-/** Adds X/Y-Velocity to X/Y-Position every frame. */
+/** Adds X/Y-Velocity to X/Y-Position every frame (divides by VEL_SCALE). */
 export const kinematicComponent: ComponentFn = (buffer, entityPtr) => {
   const px = readSignedInt16(buffer, entityPtr + ENTITY_POS_X);
   const py = readSignedInt16(buffer, entityPtr + ENTITY_POS_Y);
   const vx = readSignedInt16(buffer, entityPtr + ENTITY_VEL_X);
   const vy = readSignedInt16(buffer, entityPtr + ENTITY_VEL_Y);
-  writeSignedInt16(buffer, entityPtr + ENTITY_POS_X, px + vx);
-  writeSignedInt16(buffer, entityPtr + ENTITY_POS_Y, py + vy);
+  writeSignedInt16(buffer, entityPtr + ENTITY_POS_X, px + Math.round(vx / VEL_SCALE));
+  writeSignedInt16(buffer, entityPtr + ENTITY_POS_Y, py + Math.round(vy / VEL_SCALE));
 };
 
 /** Kinematic as an EngineComponent — exposes $vx, $vy, $px, $py via getContext. */
@@ -182,8 +185,8 @@ export const playerControllerComponent: ComponentFn = (
   if (input.active.has("Action.Right")) vx += speed;
   if (input.active.has("Action.Up")) vy -= speed;
   if (input.active.has("Action.Down")) vy += speed;
-  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, vx);
-  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, vy);
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, Math.round(vx * VEL_SCALE));
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, Math.round(vy * VEL_SCALE));
 };
 
 /** Top-down 4-directional controller using Action.Move* input actions. */
@@ -204,8 +207,8 @@ export const topDownControllerComponent: ComponentFn = (
   else if (right && !left) vx = speed;
   if (up && !down) vy = -speed;
   else if (down && !up) vy = speed;
-  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, vx);
-  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, vy);
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, Math.round(vx * VEL_SCALE));
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, Math.round(vy * VEL_SCALE));
 };
 
 /** Moves entity along a cached Bezier path. Uses data byte 13 for progress. */
@@ -311,8 +314,8 @@ export const hitboxComponent: ComponentFn = (buffer, entityPtr, props) => {
       const dx = bx - ax;
       const dy = by - ay;
       const len = Math.sqrt(dx * dx + dy * dy) || 1;
-      const kx = Math.round((dx / len) * knockback);
-      const ky = Math.round((dy / len) * knockback);
+      const kx = Math.round((dx / len) * knockback * VEL_SCALE);
+      const ky = Math.round((dy / len) * knockback * VEL_SCALE);
       const ovx = readSignedInt16(buffer, ptr + ENTITY_VEL_X);
       const ovy = readSignedInt16(buffer, ptr + ENTITY_VEL_Y);
       writeSignedInt16(buffer, ptr + ENTITY_VEL_X, ovx + kx);
@@ -356,11 +359,11 @@ export const platformControllerEngineComponent: EngineComponent = {
     let vx = 0;
     if (input.active.has("Action.MoveLeft")) vx -= speed;
     if (input.active.has("Action.MoveRight")) vx += speed;
-    writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, vx);
+    writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, Math.round(vx * VEL_SCALE));
 
     // Jump (only when grounded)
     if (grounded === 1 && input.active.has("Action.Jump")) {
-      writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, -jumpForce);
+      writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, Math.round(-jumpForce * VEL_SCALE));
     }
   },
   getContext: (buffer, ptr) => ({
@@ -401,8 +404,8 @@ export const wandererComponent: ComponentFn = (buffer, entityPtr, props) => {
   else if (dir === 2) vx = speed;
   else if (dir === 3) vy = -speed;
   else if (dir === 4) vy = speed;
-  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, vx);
-  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, vy);
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, Math.round(vx * VEL_SCALE));
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, Math.round(vy * VEL_SCALE));
 };
 
 /**
@@ -442,8 +445,8 @@ export const chaserComponent: ComponentFn = (buffer, entityPtr, props) => {
   const dx = tx - px;
   const dy = ty - py;
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, Math.round((dx / len) * speed));
-  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, Math.round((dy / len) * speed));
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, Math.round((dx / len) * speed * VEL_SCALE));
+  writeSignedInt16(buffer, entityPtr + ENTITY_VEL_Y, Math.round((dy / len) * speed * VEL_SCALE));
 };
 
 /**
@@ -487,8 +490,8 @@ export const spawnerComponent: ComponentFn = (buffer, entityPtr, props) => {
     writeInt8(buffer, ptr + ENTITY_TYPE_ID, typeId);
     writeInt16(buffer, ptr + ENTITY_POS_X, px);
     writeInt16(buffer, ptr + ENTITY_POS_Y, py);
-    writeSignedInt16(buffer, ptr + ENTITY_VEL_X, speedX);
-    writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, speedY);
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_X, Math.round(speedX * VEL_SCALE));
+    writeSignedInt16(buffer, ptr + ENTITY_VEL_Y, Math.round(speedY * VEL_SCALE));
     break;
   }
 };
@@ -748,7 +751,7 @@ export const sineWaveComponent: ComponentFn = (buffer, entityPtr, props, _input,
   const amp = (props.amplitude as number) ?? 1;
   const axis = (props.axis as string) ?? "y";
 
-  const val = Math.round(Math.cos(state.tickCount * freq) * amp);
+  const val = Math.round(Math.cos(state.tickCount * freq) * amp * VEL_SCALE);
   
   if (axis === "x") {
     writeSignedInt16(buffer, entityPtr + ENTITY_VEL_X, val);
@@ -774,7 +777,7 @@ export const patrolComponent: ComponentFn = (buffer, entityPtr, props) => {
     // First tick: initialize direction and velocity without flipping.
     dir = 1;
     writeInt8(buffer, dirByte, dir);
-    writeSignedInt16(buffer, entityPtr + velOffset, speed);
+    writeSignedInt16(buffer, entityPtr + velOffset, Math.round(speed * VEL_SCALE));
     return;
   }
   
@@ -785,9 +788,9 @@ export const patrolComponent: ComponentFn = (buffer, entityPtr, props) => {
   if (currentVel === 0) {
      const newDir = mathDir === 1 ? 255 : 1;
      writeInt8(buffer, dirByte, newDir);
-     writeSignedInt16(buffer, entityPtr + velOffset, (newDir === 255 ? -1 : 1) * speed);
+     writeSignedInt16(buffer, entityPtr + velOffset, Math.round((newDir === 255 ? -1 : 1) * speed * VEL_SCALE));
   } else {
-     writeSignedInt16(buffer, entityPtr + velOffset, mathDir * speed);
+     writeSignedInt16(buffer, entityPtr + velOffset, Math.round(mathDir * speed * VEL_SCALE));
   }
 };
 
