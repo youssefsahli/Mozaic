@@ -163,10 +163,19 @@ function execAction(
 
 // ── Trigger evaluation ────────────────────────────────────────
 
-/** Extract a #RRGGBB hex colour from a trigger operand like "Hero:#FFFF00". */
+/** Extract a #RRGGBB or #RGB hex colour from a trigger operand like "Hero:#FFFF00" or "#F00". */
 function extractColor(operand: string): string | null {
-  const m = operand.match(/#([0-9A-Fa-f]{6})$/);
-  return m ? `#${m[1]}` : null;
+  const m = operand.match(/#([0-9A-Fa-f]{3,6})$/);
+  if (!m) return null;
+  const hex = m[1];
+  // Expand 3-digit shorthand (#RGB → #RRGGBB)
+  if (hex.length === 3) {
+    return `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`;
+  }
+  if (hex.length === 6) {
+    return `#${hex}`;
+  }
+  return null;
 }
 
 /**

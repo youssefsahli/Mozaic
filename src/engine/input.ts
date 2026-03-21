@@ -10,6 +10,8 @@ export type ActionMap = Map<string, Set<string>>;
 
 /**
  * Build an action → set-of-keys map from MSC input bindings.
+ * Keys are normalized so both "ArrowLeft" and "Key_ArrowLeft" map
+ * to the same canonical form.
  */
 export function buildActionMap(
   bindings: Array<{ key: string; action: string }>
@@ -17,7 +19,7 @@ export function buildActionMap(
   const map: ActionMap = new Map();
   for (const { key, action } of bindings) {
     if (!map.has(action)) map.set(action, new Set());
-    map.get(action)!.add(key);
+    map.get(action)!.add(normalizeCode(key));
   }
   return map;
 }
@@ -28,14 +30,22 @@ export interface InputState {
 }
 
 /**
- * Normalize a KeyboardEvent.code so that browser codes like "KeyW"
- * match the MSC-format "Key_W", and "Space" matches "Key_Space".
+ * Normalize a key code (browser or MSC) to the canonical MSC format.
+ *
+ * Browser codes like "KeyW" become "Key_W", "Space" becomes "Key_Space",
+ * and bare codes like "ArrowUp" become "Key_ArrowUp".
+ * Already-prefixed codes ("Key_ArrowUp", "Pad_A") are returned as-is.
  */
-function normalizeCode(code: string): string {
+export function normalizeCode(code: string): string {
+  // Already in MSC canonical form
+  if (code.startsWith("Key_") || code.startsWith("Pad_")) return code;
+  // KeyW → Key_W (browser letter keys have no underscore)
   const letterFixed = code.replace(/^Key([A-Z])$/, "Key_$1");
   if (letterFixed !== code) return letterFixed;
+  // Space → Key_Space
   if (code === "Space") return "Key_Space";
-  return code;
+  // ArrowUp → Key_ArrowUp, Digit0 → Key_Digit0, etc.
+  return "Key_" + code;
 }
 
 export class InputManager {

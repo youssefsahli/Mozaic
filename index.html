@@ -474,14 +474,18 @@
         margin: 0; border: 0;
         padding: 4px 6px;
         font: 11px/1.45 var(--font-mono);
-        white-space: pre; overflow: auto;
+        white-space: pre;
+        word-wrap: normal;
+        overflow-wrap: normal;
+        tab-size: 2;
       }
-      #msc-highlight { pointer-events: none; color: #ddd }
+      #msc-highlight { pointer-events: none; color: #ddd; overflow: hidden }
       #msc-editor {
         resize: none;
         background: transparent;
         color: transparent;
         caret-color: #eee;
+        overflow: auto;
       }
       #msc-editor:focus {
         outline: none;

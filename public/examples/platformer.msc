@@ -43,5 +43,5 @@ Instances:
   - { entity: "Coin", x: 16, y: 52 }
 
 Events:
-  Collision(Hero:#Feet, Level:#00FF00):
+  Collision(#4488FF, #FFDD00):
     - State.$Score = State.$Score + 1

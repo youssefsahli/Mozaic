@@ -204,6 +204,45 @@ describe("buildEvaluatorLogic — Collision trigger", () => {
     logic(state, makeInput(), makeBaked(), script);
     expect(readSchemaVar(buf, schema, "$Hit")).toBe(0);
   });
+
+  it("supports simple Collision(#COLOR, #COLOR) syntax", () => {
+    const buf = createStateBuffer();
+    buf[0] = 255; buf[1] = 255; buf[2] = 0; buf[3] = 255;   // #FFFF00
+    buf[4] = 255; buf[5] = 0;   buf[6] = 0; buf[7] = 255;   // #FF0000
+
+    const schema: MscSchema = { $Hit: { addr: 64, type: "Int8" } };
+    const script = makeScript(schema, [
+      {
+        trigger: "Collision(#FFFF00, #FF0000)",
+        actions: ["State.$Hit = 1"],
+      },
+    ]);
+
+    const state = makeState(buf);
+    const logic = buildEvaluatorLogic();
+    logic(state, makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Hit")).toBe(1);
+  });
+
+  it("supports 3-digit hex in Collision trigger", () => {
+    const buf = createStateBuffer();
+    // #FF0 → #FFFF00, #F00 → #FF0000
+    buf[0] = 255; buf[1] = 255; buf[2] = 0; buf[3] = 255;   // #FFFF00
+    buf[4] = 255; buf[5] = 0;   buf[6] = 0; buf[7] = 255;   // #FF0000
+
+    const schema: MscSchema = { $Hit: { addr: 64, type: "Int8" } };
+    const script = makeScript(schema, [
+      {
+        trigger: "Collision(#FF0, #F00)",
+        actions: ["State.$Hit = 1"],
+      },
+    ]);
+
+    const state = makeState(buf);
+    const logic = buildEvaluatorLogic();
+    logic(state, makeInput(), makeBaked(), script);
+    expect(readSchemaVar(buf, schema, "$Hit")).toBe(1);
+  });
 });
 
 describe("buildEvaluatorLogic — State trigger", () => {

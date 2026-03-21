@@ -1312,7 +1312,7 @@ function wireUi(runtime: RuntimeState): void {
     const div = document.createElement("div");
     const style = window.getComputedStyle(element);
     const properties = [
-      "direction", "boxSizing", "width", "height", "overflowX", "overflowY",
+      "direction", "boxSizing", "width", "height",
       "borderTopWidth", "borderRightWidth", "borderBottomWidth", "borderLeftWidth", "borderStyle",
       "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
       "fontStyle", "fontVariant", "fontWeight", "fontStretch", "fontSize",
@@ -1327,6 +1327,7 @@ function wireUi(runtime: RuntimeState): void {
     div.style.position = "absolute";
     div.style.visibility = "hidden";
     div.style.whiteSpace = "pre";
+    div.style.overflow = "hidden";
     div.style.left = "-9999px";
     div.style.top = "-9999px";
     div.textContent = element.value.substring(0, position);

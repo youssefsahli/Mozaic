@@ -108,6 +108,20 @@ Instances:
     expect(doc.instances![0]).toEqual({ entity: "TinyHero", x: 20, y: 20 });
   });
 
+  it("parses Instances with non-standard key name (forgiving)", () => {
+    const msc = `
+Entity.Danger:
+  Visual: "Danger"
+
+Instances:
+  - { danger: "Danger", x: 30, y: 16 }
+`;
+    const doc = parseMsc(msc);
+    expect(doc.instances).toBeDefined();
+    expect(doc.instances).toHaveLength(1);
+    expect(doc.instances![0]).toEqual({ entity: "Danger", x: 30, y: 16 });
+  });
+
   it("returns no instances field when Instances block is absent", () => {
     const doc = parseMsc(SAMPLE_MSC);
     expect(doc.instances).toBeUndefined();
