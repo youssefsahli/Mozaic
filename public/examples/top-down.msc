@@ -43,6 +43,11 @@ Entity.Chest:
   Visual: "Chest"
   AreaTrigger: { width: 16, height: 16, targetType: 1 }
 
+Instances:
+  - { entity: "Player", x: 8, y: 32 }
+  - { entity: "NPC", x: 40, y: 40 }
+  - { entity: "Chest", x: 44, y: 12 }
+
 Events:
   Collision(Player:#Body, Chest:#FFFF00):
     - State.$Keys = State.$Keys + 1

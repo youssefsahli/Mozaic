@@ -36,6 +36,12 @@ Entity.Coin:
   SineWave: { frequency: 0.05, amplitude: 2, axis: y }
   Lifetime: { frames: 600 }
 
+Instances:
+  - { entity: "Hero", x: 8, y: 40 }
+  - { entity: "Coin", x: 32, y: 24 }
+  - { entity: "Coin", x: 48, y: 36 }
+  - { entity: "Coin", x: 16, y: 52 }
+
 Events:
   Collision(Hero:#Feet, Level:#00FF00):
     - State.$Score = State.$Score + 1
