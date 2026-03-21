@@ -1,6 +1,6 @@
-// @ts-nocheck — Node-only fs import; vitest runs in Node
 import { describe, it, expect } from "vitest";
 import { parseMsc } from "../parser/msc.js";
+// @ts-expect-error — Node-only fs module; vitest runs in Node
 import { readFileSync } from "fs";
 
 describe("example ROM parsing with instances", () => {
