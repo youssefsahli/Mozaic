@@ -21,6 +21,7 @@ import {
   ENTITY_VEL_X,
   ENTITY_VEL_Y,
   ENTITY_DATA_START,
+  VEL_SCALE,
 } from "../engine/memory.js";
 import type { EngineState } from "../engine/loop.js";
 import type { InputState } from "../engine/input.js";
@@ -350,7 +351,7 @@ describe("buildEvaluatorLogic — state-aware components", () => {
 
     // Default state: gravity force = 5
     logic(makeState(buf), makeInput(), makeBaked(), script);
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(5);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(5 * VEL_SCALE);
 
     // Activate flying state: gravity force = 0
     writeSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y, 0);
@@ -393,7 +394,7 @@ describe("buildEvaluatorLogic — state-aware components", () => {
 
     // $mode = 0, no state matches → base gravity = 3
     logic(makeState(buf), makeInput(), makeBaked(), script);
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(3);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(3 * VEL_SCALE);
   });
 
   it("state can introduce new components not in base definition", () => {
@@ -435,7 +436,7 @@ describe("buildEvaluatorLogic — state-aware components", () => {
     // Activate heavy state → gravity force = 7
     writeSchemaVar(buf, schema, "$hasGravity", 1);
     logic(makeState(buf), makeInput(), makeBaked(), script);
-    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(7);
+    expect(readSignedInt16(buf, ENTITY_PTR + ENTITY_VEL_Y)).toBe(7 * VEL_SCALE);
   });
 
   it("state-driven Animator speed override changes animation speed", () => {
