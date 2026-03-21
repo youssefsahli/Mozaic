@@ -412,4 +412,65 @@ describe("buildEvaluatorLogic — ECS entity tick", () => {
     // hero_idle is the first sprite → Sprite ID 1
     expect(readInt8(buf, poolStart + ENTITY_DATA_START)).toBe(1);
   });
+
+  it("initializes ENTITY_HEALTH to maxHp before first Health tick", () => {
+    const buf = createStateBuffer();
+    const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+
+    writeInt8(buf, poolStart + ENTITY_ACTIVE, 1);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 1);
+    // ENTITY_HEALTH starts at 0 (from spawn)
+    expect(readInt8(buf, poolStart + ENTITY_HEALTH)).toBe(0);
+
+    const script: MscDocument = {
+      imports: [],
+      schema: {},
+      entities: {
+        Hero: {
+          components: { Health: { maxHp: 3 } },
+        },
+      },
+      events: [],
+      sprites: new Map(),
+      spriteGrid: 0,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+
+    // Health should be initialized to maxHp
+    expect(readInt8(buf, poolStart + ENTITY_HEALTH)).toBe(3);
+    // Entity should remain alive
+    expect(readInt8(buf, poolStart + ENTITY_ACTIVE)).toBe(1);
+  });
+
+  it("does not re-initialize health once it is set", () => {
+    const buf = createStateBuffer();
+    const poolStart = MEMORY_BLOCKS.entityPool.startByte;
+
+    writeInt8(buf, poolStart + ENTITY_ACTIVE, 1);
+    writeInt8(buf, poolStart + ENTITY_TYPE_ID, 1);
+    writeInt8(buf, poolStart + ENTITY_HEALTH, 2); // already damaged
+
+    const script: MscDocument = {
+      imports: [],
+      schema: {},
+      entities: {
+        Hero: {
+          components: { Health: { maxHp: 10 } },
+        },
+      },
+      events: [],
+      sprites: new Map(),
+      spriteGrid: 0,
+    };
+
+    const registry = createDefaultRegistry();
+    const logic = buildEvaluatorLogic(registry);
+    logic(makeState(buf), makeInput(), makeBaked(), script);
+
+    // Health should NOT be overwritten
+    expect(readInt8(buf, poolStart + ENTITY_HEALTH)).toBe(2);
+  });
 });
