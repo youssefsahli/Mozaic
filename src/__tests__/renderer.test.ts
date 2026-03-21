@@ -132,4 +132,32 @@ describe("compileSpriteAtlas", () => {
     const hero = atlas[1] as BakedSprite;
     expect(hero.u0).toBeCloseTo(16 / 256); // col=1 → x=16
   });
+
+  it("produces valid UVs in [0,1] for NPOT shape-atlas dimensions", () => {
+    // Shape atlas is typically 64×80 (NPOT height). The compiled UVs must
+    // still lie in [0, 1] so CLAMP_TO_EDGE works correctly in WebGL 1.
+    const sprites = new Map<string, MscSpriteDef>([
+      ["Hero", { kind: "absolute", x: 0, y: 64, w: 16, h: 16, ox: 0, oy: 0 }],
+      ["Coin", { kind: "absolute", x: 16, y: 64, w: 16, h: 16, ox: 0, oy: 0 }],
+    ]);
+    const atlas = compileSpriteAtlas(sprites, 16, 64, 80); // NPOT: 80
+    expect(atlas.length).toBe(3); // [null, Hero, Coin]
+
+    const hero = atlas[1] as BakedSprite;
+    expect(hero.u0).toBeGreaterThanOrEqual(0);
+    expect(hero.v0).toBeGreaterThanOrEqual(0);
+    expect(hero.u1).toBeLessThanOrEqual(1);
+    expect(hero.v1).toBeLessThanOrEqual(1);
+    // Verify exact UVs for 64×80 atlas
+    expect(hero.u0).toBeCloseTo(0 / 64);    // 0
+    expect(hero.v0).toBeCloseTo(64 / 80);   // 0.8
+    expect(hero.u1).toBeCloseTo(16 / 64);   // 0.25
+    expect(hero.v1).toBeCloseTo(80 / 80);   // 1.0
+
+    const coin = atlas[2] as BakedSprite;
+    expect(coin.u0).toBeCloseTo(16 / 64);   // 0.25
+    expect(coin.v0).toBeCloseTo(64 / 80);   // 0.8
+    expect(coin.u1).toBeCloseTo(32 / 64);   // 0.5
+    expect(coin.v1).toBeCloseTo(80 / 80);   // 1.0
+  });
 });
